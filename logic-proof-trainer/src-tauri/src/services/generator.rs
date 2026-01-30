@@ -3,8 +3,10 @@ use crate::models::{
     Formula, Theorem,
     theorem::{Difficulty, Theme},
 };
+use super::tree_gen::ProofTreeGenerator;
+use super::proof_tree::ProofTree;
 
-/// Configuration for theorem generation
+/// Configuration for theorem generation (legacy - kept for compatibility)
 #[derive(Debug, Clone)]
 pub struct GeneratorConfig {
     pub max_premises: usize,
@@ -77,6 +79,15 @@ impl GeneratorConfig {
     }
 }
 
+use serde::{Deserialize, Serialize};
+
+/// Result of tree-based theorem generation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeneratedTheorem {
+    pub theorem: Theorem,
+    pub proof_tree: ProofTree,
+}
+
 /// Generates provable theorems
 pub struct TheoremGenerator {
     config: GeneratorConfig,
@@ -91,8 +102,65 @@ impl TheoremGenerator {
         Self::new(GeneratorConfig::for_difficulty(difficulty))
     }
 
-    /// Generate a random provable theorem
+    /// Generate a random provable theorem using the new proof-tree approach
+    /// This generates theorems with guaranteed structural complexity
     pub fn generate(&self, difficulty: Difficulty) -> Theorem {
+        // Use the new tree-based generator for Medium, Hard, Expert
+        // Keep legacy for Easy to ensure simple, predictable theorems
+        match difficulty {
+            Difficulty::Easy => self.generate_legacy(difficulty),
+            _ => self.generate_from_tree(difficulty),
+        }
+    }
+
+    /// Generate theorem using the new proof-tree compositional approach
+    /// Returns both the theorem and the proof tree (solution)
+    pub fn generate_with_proof(&self, difficulty: Difficulty) -> GeneratedTheorem {
+        let mut tree_gen = ProofTreeGenerator::with_difficulty(difficulty);
+        let proof_tree = tree_gen.generate();
+
+        let premises = proof_tree.premises();
+        let conclusion = proof_tree.conclusion().clone();
+
+        // Determine theme based on proof structure
+        let theme = self.infer_theme_from_tree(&proof_tree);
+
+        let theorem = Theorem::new(
+            premises,
+            conclusion,
+            difficulty,
+            Some(theme),
+            None,
+        );
+
+        GeneratedTheorem { theorem, proof_tree }
+    }
+
+    /// Generate theorem from proof tree (without returning the tree)
+    fn generate_from_tree(&self, difficulty: Difficulty) -> Theorem {
+        self.generate_with_proof(difficulty).theorem
+    }
+
+    /// Infer the theme from a proof tree based on the root rule
+    fn infer_theme_from_tree(&self, tree: &ProofTree) -> Theme {
+        match tree.root.rule_name() {
+            Some("CP") => Theme::ConditionalProof,
+            Some("IP") => Theme::IndirectProof,
+            Some("NegIntro") => Theme::IndirectProof,
+            Some("CaseSplit") => Theme::Mixed,
+            Some("MP") => Theme::ModusPonens,
+            Some("MT") => Theme::ModusTollens,
+            Some("HS") => Theme::HypotheticalSyllogism,
+            Some("DS") => Theme::DisjunctiveSyllogism,
+            Some("CD") => Theme::ConstructiveDilemma,
+            Some("Conj") => Theme::Conjunction,
+            Some("Add") | Some("Simp") => Theme::Disjunction,
+            _ => Theme::Mixed,
+        }
+    }
+
+    /// Legacy generation method (template-based)
+    fn generate_legacy(&self, difficulty: Difficulty) -> Theorem {
         let mut rng = rand::thread_rng();
 
         // Choose a generation strategy based on difficulty

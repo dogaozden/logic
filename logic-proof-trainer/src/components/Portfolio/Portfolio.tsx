@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { usePortfolio } from '../../hooks/usePortfolio';
-import { formulaToString, justificationToString } from '../../types';
+import { formulaToString } from '../../types';
 import type { PortfolioEntry } from '../../types';
 import { FitchBox } from '../ProofWorkspace/FitchBox';
 

@@ -6,6 +6,7 @@ use crate::models::{
 };
 use crate::services::{
     ProofVerifier, TheoremGenerator, StorageService, PortfolioEntry,
+    GeneratedTheorem,
 };
 use serde::{Deserialize, Serialize};
 
@@ -20,6 +21,14 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
 pub fn generate_theorem(difficulty: Difficulty) -> Theorem {
     let generator = TheoremGenerator::with_difficulty(difficulty);
     generator.generate(difficulty)
+}
+
+/// Generate a theorem with its proof tree (solution)
+/// The proof tree contains the complete solution structure
+#[tauri::command]
+pub fn generate_theorem_with_proof(difficulty: Difficulty) -> GeneratedTheorem {
+    let generator = TheoremGenerator::with_difficulty(difficulty);
+    generator.generate_with_proof(difficulty)
 }
 
 // ============ Proof Commands ============
