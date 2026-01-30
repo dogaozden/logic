@@ -1,75 +1,60 @@
 use serde::{Deserialize, Serialize};
 use crate::models::formula::Formula;
 
-/// All equivalence rules (replacement rules) in the natural deduction system
-/// Consolidated to single rules that try all variants automatically
+/// Valid Equivalence Forms (9-18) from rules.md
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EquivalenceRule {
-    // De Morgan's Laws - tries both ~(P · Q) ≡ ~P ∨ ~Q and ~(P ∨ Q) ≡ ~P · ~Q
-    DeMorgan,
-
-    // Commutation - P · Q ≡ Q · P, P ∨ Q ≡ Q ∨ P
-    Commutation,
-
-    // Association - (P · Q) · R ≡ P · (Q · R), (P ∨ Q) ∨ R ≡ P ∨ (Q ∨ R)
-    Association,
-
-    // Distribution - tries both P · (Q ∨ R) ≡ (P · Q) ∨ (P · R) and P ∨ (Q · R) ≡ (P ∨ Q) · (P ∨ R)
-    Distribution,
-
-    // Contraposition - P → Q ≡ ~Q → ~P
-    Contraposition,
-
-    // Material Implication - P → Q ≡ ~P ∨ Q
-    MaterialImplication,
-
-    // Material Equivalence - P ≡ Q ≡ (P → Q) · (Q → P) ≡ (P · Q) ∨ (~P · ~Q)
-    MaterialEquivalence,
-
-    // Exportation - (P · Q) → R ≡ P → (Q → R)
-    Exportation,
-
-    // Tautology - P ≡ P · P, P ≡ P ∨ P
-    Tautology,
-
-    // Absorption - P · (P ∨ Q) ≡ P, P ∨ (P · Q) ≡ P
-    Absorption,
-
-    // Double Negation - P ≡ ~~P
+    // 9. Double Negation (DN): p :: ~~p
     DoubleNegation,
+    // 10. De Morgan's Theorem (DeM): ~(p · q) :: (~p ∨ ~q), ~(p ∨ q) :: (~p · ~q)
+    DeMorgan,
+    // 11. Commutation (Comm): (p ∨ q) :: (q ∨ p), (p · q) :: (q · p)
+    Commutation,
+    // 12. Association (Assoc): [p ∨ (q ∨ r)] :: [(p ∨ q) ∨ r], [p · (q · r)] :: [(p · q) · r]
+    Association,
+    // 13. Distribution (Dist): [p · (q ∨ r)] :: [(p · q) ∨ (p · r)], [p ∨ (q · r)] :: [(p ∨ q) · (p ∨ r)]
+    Distribution,
+    // 14. Contraposition (Contra): (p ⊃ q) :: (~q ⊃ ~p)
+    Contraposition,
+    // 15. Implication (Impl): (p ⊃ q) :: (~p ∨ q)
+    Implication,
+    // 16. Exportation (Exp): [(p · q) ⊃ r] :: [p ⊃ (q ⊃ r)]
+    Exportation,
+    // 17. Tautology (Taut): p :: (p · p), p :: (p ∨ p)
+    Tautology,
+    // 18. Equivalence (Equiv): (p ≡ q) :: [(p ⊃ q) · (q ⊃ p)]
+    Equivalence,
 }
 
 impl EquivalenceRule {
     pub fn name(&self) -> &'static str {
         match self {
-            EquivalenceRule::DeMorgan => "De Morgan's",
+            EquivalenceRule::DoubleNegation => "Double Negation",
+            EquivalenceRule::DeMorgan => "DeMorgan's Theorem",
             EquivalenceRule::Commutation => "Commutation",
             EquivalenceRule::Association => "Association",
             EquivalenceRule::Distribution => "Distribution",
             EquivalenceRule::Contraposition => "Contraposition",
-            EquivalenceRule::MaterialImplication => "Material Implication",
-            EquivalenceRule::MaterialEquivalence => "Material Equivalence",
+            EquivalenceRule::Implication => "Implication",
             EquivalenceRule::Exportation => "Exportation",
             EquivalenceRule::Tautology => "Tautology",
-            EquivalenceRule::Absorption => "Absorption",
-            EquivalenceRule::DoubleNegation => "Double Negation",
+            EquivalenceRule::Equivalence => "Equivalence",
         }
     }
 
     pub fn abbreviation(&self) -> &'static str {
         match self {
+            EquivalenceRule::DoubleNegation => "DN",
             EquivalenceRule::DeMorgan => "DeM",
-            EquivalenceRule::Commutation => "Com",
+            EquivalenceRule::Commutation => "Comm",
             EquivalenceRule::Association => "Assoc",
             EquivalenceRule::Distribution => "Dist",
             EquivalenceRule::Contraposition => "Contra",
-            EquivalenceRule::MaterialImplication => "Impl",
-            EquivalenceRule::MaterialEquivalence => "Equiv",
+            EquivalenceRule::Implication => "Impl",
             EquivalenceRule::Exportation => "Exp",
             EquivalenceRule::Tautology => "Taut",
-            EquivalenceRule::Absorption => "Abs",
-            EquivalenceRule::DoubleNegation => "DN",
+            EquivalenceRule::Equivalence => "Equiv",
         }
     }
 
@@ -232,8 +217,8 @@ impl EquivalenceRule {
                 }
             }
 
-            EquivalenceRule::MaterialImplication => {
-                // P → Q ≡ ~P ∨ Q
+            EquivalenceRule::Implication => {
+                // (p ⊃ q) :: (~p ∨ q)
                 if let Formula::Implies(p, q) = formula {
                     results.push(Formula::Or(
                         Box::new(Formula::Not(p.clone())),
@@ -247,21 +232,13 @@ impl EquivalenceRule {
                 }
             }
 
-            EquivalenceRule::MaterialEquivalence => {
-                // P ≡ Q ≡ (P → Q) · (Q → P) ≡ (P · Q) ∨ (~P · ~Q)
+            EquivalenceRule::Equivalence => {
+                // (p ≡ q) :: [(p ⊃ q) · (q ⊃ p)]
                 if let Formula::Biconditional(p, q) = formula {
                     // To conjunction of implications
                     results.push(Formula::And(
                         Box::new(Formula::Implies(p.clone(), q.clone())),
                         Box::new(Formula::Implies(q.clone(), p.clone())),
-                    ));
-                    // To disjunction form
-                    results.push(Formula::Or(
-                        Box::new(Formula::And(p.clone(), q.clone())),
-                        Box::new(Formula::And(
-                            Box::new(Formula::Not(p.clone())),
-                            Box::new(Formula::Not(q.clone())),
-                        )),
                     ));
                 }
                 // From conjunction of implications
@@ -316,25 +293,6 @@ impl EquivalenceRule {
                 if let Formula::Or(p, q) = formula {
                     if p == q {
                         results.push(p.as_ref().clone());
-                    }
-                }
-            }
-
-            EquivalenceRule::Absorption => {
-                // P · (P ∨ Q) ≡ P
-                // P ∨ (P · Q) ≡ P
-                if let Formula::And(p, right) = formula {
-                    if let Formula::Or(p2, _) = right.as_ref() {
-                        if p.as_ref() == p2.as_ref() {
-                            results.push(p.as_ref().clone());
-                        }
-                    }
-                }
-                if let Formula::Or(p, right) = formula {
-                    if let Formula::And(p2, _) = right.as_ref() {
-                        if p.as_ref() == p2.as_ref() {
-                            results.push(p.as_ref().clone());
-                        }
                     }
                 }
             }
@@ -398,20 +356,19 @@ impl EquivalenceRule {
         }
     }
 
-    /// Get all equivalence rules
+    /// Get all equivalence rules (9-18 from rules.md)
     pub fn all() -> Vec<EquivalenceRule> {
         vec![
-            EquivalenceRule::DeMorgan,
-            EquivalenceRule::Commutation,
-            EquivalenceRule::Association,
-            EquivalenceRule::Distribution,
-            EquivalenceRule::Contraposition,
-            EquivalenceRule::MaterialImplication,
-            EquivalenceRule::MaterialEquivalence,
-            EquivalenceRule::Exportation,
-            EquivalenceRule::Tautology,
-            EquivalenceRule::Absorption,
-            EquivalenceRule::DoubleNegation,
+            EquivalenceRule::DoubleNegation,   // 9. DN
+            EquivalenceRule::DeMorgan,          // 10. DeM
+            EquivalenceRule::Commutation,       // 11. Comm
+            EquivalenceRule::Association,       // 12. Assoc
+            EquivalenceRule::Distribution,      // 13. Dist
+            EquivalenceRule::Contraposition,    // 14. Contra
+            EquivalenceRule::Implication,       // 15. Impl
+            EquivalenceRule::Exportation,       // 16. Exp
+            EquivalenceRule::Tautology,         // 17. Taut
+            EquivalenceRule::Equivalence,       // 18. Equiv
         ]
     }
 }
@@ -448,11 +405,11 @@ mod tests {
     }
 
     #[test]
-    fn test_material_implication() {
+    fn test_implication() {
         let formula = Formula::parse("P -> Q").unwrap();
         let expected = Formula::parse("~P | Q").unwrap();
 
-        let forms = EquivalenceRule::MaterialImplication.equivalent_forms(&formula);
+        let forms = EquivalenceRule::Implication.equivalent_forms(&formula);
         assert!(forms.contains(&expected));
     }
 

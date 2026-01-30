@@ -38,35 +38,29 @@ export interface Theorem {
   is_classic: boolean;
 }
 
-// Inference rules (consolidated - system tries all variants automatically)
+// Inference rules - names match rules.md exactly
 export type InferenceRule =
-  | 'modusPonens'
-  | 'modusTollens'
-  | 'hypotheticalSyllogism'
-  | 'disjunctiveSyllogism'
-  | 'constructiveDilemma'
-  | 'conjunctionIntro'
-  | 'conjunctionElim'      // tries both left and right
-  | 'disjunctionIntro'     // tries both placements
-  | 'disjunctionElim'
-  | 'doubleNegation'       // tries both intro and elim
-  | 'biconditionalIntro'
-  | 'biconditionalElim'    // tries both directions
-  | 'reiteration';
+  | 'modusPonens'          // MP: p ⊃ q, p ∴ q
+  | 'modusTollens'         // MT: p ⊃ q, ~q ∴ ~p
+  | 'disjunctiveSyllogism' // DS: p ∨ q, ~p ∴ q
+  | 'simplification'       // Simp: p · q ∴ p (or q)
+  | 'conjunction'          // Conj: p, q ∴ p · q
+  | 'hypotheticalSyllogism'// HS: p ⊃ q, q ⊃ r ∴ p ⊃ r
+  | 'addition'             // Add: p ∴ p ∨ q
+  | 'constructiveDilemma'; // CD: p ∨ q, p ⊃ r, q ⊃ s ∴ r ∨ s
 
-// Equivalence rules (consolidated - system tries all variants automatically)
+// Equivalence rules - names match rules.md exactly
 export type EquivalenceRule =
-  | 'deMorgan'             // tries both And and Or forms
-  | 'commutation'
-  | 'association'
-  | 'distribution'         // tries both And/Or and Or/And forms
-  | 'contraposition'
-  | 'materialImplication'
-  | 'materialEquivalence'
-  | 'exportation'
-  | 'tautology'
-  | 'absorption'
-  | 'doubleNegation';
+  | 'doubleNegation'       // DN: p :: ~~p
+  | 'deMorgan'             // DeM: ~(p · q) :: (~p ∨ ~q), ~(p ∨ q) :: (~p · ~q)
+  | 'commutation'          // Comm: (p ∨ q) :: (q ∨ p), (p · q) :: (q · p)
+  | 'association'          // Assoc: [p ∨ (q ∨ r)] :: [(p ∨ q) ∨ r]
+  | 'distribution'         // Dist: [p · (q ∨ r)] :: [(p · q) ∨ (p · r)]
+  | 'contraposition'       // Contra: (p ⊃ q) :: (~q ⊃ ~p)
+  | 'implication'          // Impl: (p ⊃ q) :: (~p ∨ q)
+  | 'exportation'          // Exp: [(p · q) ⊃ r] :: [p ⊃ (q ⊃ r)]
+  | 'tautology'            // Taut: p :: (p · p), p :: (p ∨ p)
+  | 'equivalence';         // Equiv: (p ≡ q) :: [(p ⊃ q) · (q ⊃ p)]
 
 // Proof techniques
 export type ProofTechnique =
@@ -285,35 +279,29 @@ function wrapIfCompound(formula: Formula, currentDepth: number, maxDepth: number
   return `${open}${inner}${close}`;
 }
 
-// Rule display info (consolidated) with symbolic representations
+// Rule display info - names and abbreviations match rules.md exactly
 export const inferenceRuleInfo: Record<InferenceRule, { name: string; abbrev: string; premises: number; symbol: string }> = {
-  modusPonens: { name: 'Modus Ponens', abbrev: 'MP', premises: 2, symbol: 'P ⊃ Q, P ∴ Q' },
-  modusTollens: { name: 'Modus Tollens', abbrev: 'MT', premises: 2, symbol: 'P ⊃ Q, ~Q ∴ ~P' },
-  hypotheticalSyllogism: { name: 'Hypothetical Syllogism', abbrev: 'HS', premises: 2, symbol: 'P ⊃ Q, Q ⊃ R ∴ P ⊃ R' },
-  disjunctiveSyllogism: { name: 'Disjunctive Syllogism', abbrev: 'DS', premises: 2, symbol: 'P ∨ Q, ~P ∴ Q' },
-  constructiveDilemma: { name: 'Constructive Dilemma', abbrev: 'CD', premises: 2, symbol: '(P ⊃ Q) . (R ⊃ S), P ∨ R ∴ Q ∨ S' },
-  conjunctionIntro: { name: 'Conjunction Introduction', abbrev: '∧I', premises: 2, symbol: 'P, Q ∴ P . Q' },
-  conjunctionElim: { name: 'Conjunction Elimination', abbrev: '∧E', premises: 1, symbol: 'P . Q ∴ P or Q' },
-  disjunctionIntro: { name: 'Disjunction Introduction', abbrev: '∨I', premises: 1, symbol: 'P ∴ P ∨ Q' },
-  disjunctionElim: { name: 'Disjunction Elimination', abbrev: '∨E', premises: 3, symbol: 'P ∨ Q, P ⊃ R, Q ⊃ R ∴ R' },
-  doubleNegation: { name: 'Double Negation', abbrev: 'DN', premises: 1, symbol: 'P ∴ ~~P or ~~P ∴ P' },
-  biconditionalIntro: { name: 'Biconditional Introduction', abbrev: '≡I', premises: 2, symbol: 'P ⊃ Q, Q ⊃ P ∴ P ≡ Q' },
-  biconditionalElim: { name: 'Biconditional Elimination', abbrev: '≡E', premises: 2, symbol: 'P ≡ Q, P ∴ Q' },
-  reiteration: { name: 'Reiteration', abbrev: 'R', premises: 1, symbol: 'P ∴ P' },
+  modusPonens: { name: 'Modus Ponens', abbrev: 'MP', premises: 2, symbol: 'p ⊃ q, p ∴ q' },
+  modusTollens: { name: 'Modus Tollens', abbrev: 'MT', premises: 2, symbol: 'p ⊃ q, ~q ∴ ~p' },
+  disjunctiveSyllogism: { name: 'Disjunctive Syllogism', abbrev: 'DS', premises: 2, symbol: 'p ∨ q, ~p ∴ q' },
+  simplification: { name: 'Simplification', abbrev: 'Simp', premises: 1, symbol: 'p · q ∴ p' },
+  conjunction: { name: 'Conjunction', abbrev: 'Conj', premises: 2, symbol: 'p, q ∴ p · q' },
+  hypotheticalSyllogism: { name: 'Hypothetical Syllogism', abbrev: 'HS', premises: 2, symbol: 'p ⊃ q, q ⊃ r ∴ p ⊃ r' },
+  addition: { name: 'Addition', abbrev: 'Add', premises: 1, symbol: 'p ∴ p ∨ q' },
+  constructiveDilemma: { name: 'Constructive Dilemma', abbrev: 'CD', premises: 3, symbol: 'p ∨ q, p ⊃ r, q ⊃ s ∴ r ∨ s' },
 };
 
 export const equivalenceRuleInfo: Record<EquivalenceRule, { name: string; abbrev: string; symbol: string }> = {
-  deMorgan: { name: "De Morgan's", abbrev: 'DeM', symbol: '~(P . Q) ≡ ~P ∨ ~Q' },
-  commutation: { name: 'Commutation', abbrev: 'Com', symbol: 'P . Q ≡ Q . P' },
-  association: { name: 'Association', abbrev: 'Assoc', symbol: '(P . Q) . R ≡ P . (Q . R)' },
-  distribution: { name: 'Distribution', abbrev: 'Dist', symbol: 'P . (Q ∨ R) ≡ (P . Q) ∨ (P . R)' },
-  contraposition: { name: 'Contraposition', abbrev: 'Contra', symbol: 'P ⊃ Q ≡ ~Q ⊃ ~P' },
-  materialImplication: { name: 'Material Implication', abbrev: 'Impl', symbol: 'P ⊃ Q ≡ ~P ∨ Q' },
-  materialEquivalence: { name: 'Material Equivalence', abbrev: 'Equiv', symbol: 'P ≡ Q ≡ (P ⊃ Q) . (Q ⊃ P)' },
-  exportation: { name: 'Exportation', abbrev: 'Exp', symbol: '(P . Q) ⊃ R ≡ P ⊃ (Q ⊃ R)' },
-  tautology: { name: 'Tautology', abbrev: 'Taut', symbol: 'P ≡ P . P ≡ P ∨ P' },
-  absorption: { name: 'Absorption', abbrev: 'Abs', symbol: 'P . (P ∨ Q) ≡ P' },
-  doubleNegation: { name: 'Double Negation', abbrev: 'DN', symbol: 'P ≡ ~~P' },
+  doubleNegation: { name: 'Double Negation', abbrev: 'DN', symbol: 'p :: ~~p' },
+  deMorgan: { name: "DeMorgan's Theorem", abbrev: 'DeM', symbol: '~(p · q) :: (~p ∨ ~q)' },
+  commutation: { name: 'Commutation', abbrev: 'Comm', symbol: '(p ∨ q) :: (q ∨ p)' },
+  association: { name: 'Association', abbrev: 'Assoc', symbol: '[p ∨ (q ∨ r)] :: [(p ∨ q) ∨ r]' },
+  distribution: { name: 'Distribution', abbrev: 'Dist', symbol: '[p · (q ∨ r)] :: [(p · q) ∨ (p · r)]' },
+  contraposition: { name: 'Contraposition', abbrev: 'Contra', symbol: '(p ⊃ q) :: (~q ⊃ ~p)' },
+  implication: { name: 'Implication', abbrev: 'Impl', symbol: '(p ⊃ q) :: (~p ∨ q)' },
+  exportation: { name: 'Exportation', abbrev: 'Exp', symbol: '[(p · q) ⊃ r] :: [p ⊃ (q ⊃ r)]' },
+  tautology: { name: 'Tautology', abbrev: 'Taut', symbol: 'p :: (p · p)' },
+  equivalence: { name: 'Equivalence', abbrev: 'Equiv', symbol: '(p ≡ q) :: [(p ⊃ q) · (q ⊃ p)]' },
 };
 
 export const proofTechniqueInfo: Record<ProofTechnique, { name: string; abbrev: string }> = {

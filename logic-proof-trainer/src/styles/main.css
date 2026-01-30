@@ -449,6 +449,14 @@ body {
   margin-bottom: 16px;
 }
 
+.rule-category-title {
+  font-weight: 500;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  padding: 0 8px;
+}
+
 .rule-category-header {
   display: flex;
   align-items: center;

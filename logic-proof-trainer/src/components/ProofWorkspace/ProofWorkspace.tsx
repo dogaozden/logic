@@ -13,58 +13,29 @@ const abbrevToInference: Record<string, InferenceRule> = {};
 for (const [key, info] of Object.entries(inferenceRuleInfo)) {
   abbrevToInference[info.abbrev.toLowerCase()] = key as InferenceRule;
 }
-// Add shorthand aliases for inference rules
+// Add shorthand aliases for inference rules - match rules.md abbreviations
 const inferenceAliases: Record<string, InferenceRule> = {
-  // Modus Ponens
+  // Modus Ponens (MP)
   'modus': 'modusPonens',
   'ponens': 'modusPonens',
-  // Modus Tollens
+  // Modus Tollens (MT)
   'tollens': 'modusTollens',
-  // Hypothetical Syllogism
+  // Disjunctive Syllogism (DS)
+  'disj': 'disjunctiveSyllogism',
+  'disjsyl': 'disjunctiveSyllogism',
+  // Simplification (Simp)
+  'simple': 'simplification',
+  // Conjunction (Conj)
+  'and': 'conjunction',
+  // Hypothetical Syllogism (HS)
   'hyp': 'hypotheticalSyllogism',
   'hypo': 'hypotheticalSyllogism',
   'syl': 'hypotheticalSyllogism',
-  // Disjunctive Syllogism
-  'disj': 'disjunctiveSyllogism',
-  'disjsyl': 'disjunctiveSyllogism',
-  // Constructive Dilemma
+  // Addition (Add)
+  'or': 'addition',
+  // Constructive Dilemma (CD)
   'dil': 'constructiveDilemma',
   'dilemma': 'constructiveDilemma',
-  // Conjunction
-  'conj': 'conjunctionIntro',
-  'conji': 'conjunctionIntro',
-  'and': 'conjunctionIntro',
-  'andi': 'conjunctionIntro',
-  'conjunction': 'conjunctionIntro',
-  'conjintro': 'conjunctionIntro',
-  'conjelim': 'conjunctionElim',
-  'conje': 'conjunctionElim',
-  'ande': 'conjunctionElim',
-  'simp': 'conjunctionElim',
-  'simplification': 'conjunctionElim',
-  // Disjunction
-  'or': 'disjunctionIntro',
-  'ori': 'disjunctionIntro',
-  'add': 'disjunctionIntro',
-  'addition': 'disjunctionIntro',
-  'disjintro': 'disjunctionIntro',
-  'disjelim': 'disjunctionElim',
-  'ore': 'disjunctionElim',
-  // Double Negation
-  'dne': 'doubleNegation',
-  'dni': 'doubleNegation',
-  'neg': 'doubleNegation',
-  'doubleneg': 'doubleNegation',
-  // Biconditional
-  'bicon': 'biconditionalIntro',
-  'biconi': 'biconditionalIntro',
-  'bicone': 'biconditionalElim',
-  'equiv': 'biconditionalElim',
-  'iff': 'biconditionalElim',
-  // Reiteration
-  'reit': 'reiteration',
-  'rep': 'reiteration',
-  'repeat': 'reiteration',
 };
 Object.assign(abbrevToInference, inferenceAliases);
 
@@ -72,45 +43,33 @@ const abbrevToEquivalence: Record<string, EquivalenceRule> = {};
 for (const [key, info] of Object.entries(equivalenceRuleInfo)) {
   abbrevToEquivalence[info.abbrev.toLowerCase()] = key as EquivalenceRule;
 }
-// Add shorthand aliases for equivalence rules
+// Add shorthand aliases for equivalence rules - match rules.md abbreviations
 const equivalenceAliases: Record<string, EquivalenceRule> = {
-  // De Morgan
+  // Double Negation (DN)
+  'dn': 'doubleNegation',
+  // DeMorgan's Theorem (DeM)
   'demorgan': 'deMorgan',
   'morgan': 'deMorgan',
   'dm': 'deMorgan',
-  // Commutation
-  'comm': 'commutation',
-  'commute': 'commutation',
-  // Association
-  'assoc': 'association',
+  // Commutation (Comm)
+  'com': 'commutation',
+  // Association (Assoc)
   'associate': 'association',
-  // Distribution
-  'dist': 'distribution',
+  // Distribution (Dist)
   'distrib': 'distribution',
   'distribute': 'distribution',
-  // Contraposition
-  'contra': 'contraposition',
+  // Contraposition (Contra)
   'contrap': 'contraposition',
   'trans': 'contraposition',
-  'transpose': 'contraposition',
-  'transposition': 'contraposition',
-  // Material Implication
-  'impl': 'materialImplication',
-  'imp': 'materialImplication',
-  'matimpl': 'materialImplication',
-  // Material Equivalence
-  'mateq': 'materialEquivalence',
-  'matequiv': 'materialEquivalence',
-  // Exportation
-  'exp': 'exportation',
+  // Implication (Impl)
+  'imp': 'implication',
+  // Exportation (Exp)
   'export': 'exportation',
-  // Tautology
-  'taut': 'tautology',
-  // Absorption
-  'abs': 'absorption',
-  'absorb': 'absorption',
-  // Double Negation (equivalence version)
-  'dn': 'doubleNegation',
+  // Tautology (Taut)
+  // (abbrev is already 'taut')
+  // Equivalence (Equiv)
+  'eq': 'equivalence',
+  'bicon': 'equivalence',
 };
 Object.assign(abbrevToEquivalence, equivalenceAliases);
 
