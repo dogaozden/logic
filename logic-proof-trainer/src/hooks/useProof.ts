@@ -33,6 +33,7 @@ interface ProofState {
   loadProof: (proof: Proof) => void;
   clearProof: () => void;
   clearError: () => void;
+  reorderProof: (newProof: Proof) => void;
 }
 
 export const useProof = create<ProofState>((set, get) => ({
@@ -209,5 +210,9 @@ export const useProof = create<ProofState>((set, get) => ({
 
   setError: (error: string | null) => {
     set({ error });
+  },
+
+  reorderProof: (newProof: Proof) => {
+    set({ proof: newProof, selectedLines: [] });
   },
 }));

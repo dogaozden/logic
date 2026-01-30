@@ -193,152 +193,65 @@ fn is_nesting_rule(rule: &str) -> bool {
 /// Error type for degenerate proof detection
 #[derive(Debug, Clone)]
 pub enum DegenerateProofError {
-    /// Premises contain both P and ~P for some P
-    ContradictoryPremises(Formula, Formula),
-    /// A premise directly negates the conclusion
-    PremiseNegatesConclusion(Formula),
-    /// Conclusion is already a premise (question-begging)
-    ConclusionIsPremise,
-    /// Premise is a tautology (P ∨ ~P, ~P ∨ P, etc.)
-    TautologicalPremise(Formula),
-    /// Duplicate premises (not strictly degenerate, but wasteful)
-    DuplicatePremises,
+    /// Premises are semantically contradictory (no row where all are true)
+    ContradictoryPremises,
+    /// Conclusion is a tautology (always true regardless of premises)
+    TautologicalConclusion,
+    /// A single premise alone entails the conclusion
+    SinglePremiseEntails,
+    /// The negation of the conclusion is semantically available as a premise
+    NegationOfConclusionAvailable,
+    /// A conditional conclusion is trivially provable via explosion
+    ConditionalTrivialViaExplosion,
+    /// Premises contain semantically equivalent formulas
+    RedundantPremises,
+    /// At least one premise is unnecessary for the entailment
+    UnnecessaryPremise,
+    /// The premises do not semantically entail the conclusion
+    InvalidTheorem,
+    /// The proof is too easy (can be solved in fewer than min_steps)
+    TooEasy { min_steps: usize, actual_steps: usize },
+    /// Theorem doesn't require subproof rules (CP/IP) - too easy for hard/expert
+    NoSubproofRequired,
 }
 
 impl std::fmt::Display for DegenerateProofError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DegenerateProofError::ContradictoryPremises(p, not_p) => {
-                write!(f, "Contradictory premises: {} and {}", p.display_string(), not_p.display_string())
+            DegenerateProofError::ContradictoryPremises => {
+                write!(f, "Premises are contradictory (no interpretation makes all true)")
             }
-            DegenerateProofError::PremiseNegatesConclusion(p) => {
-                write!(f, "Premise {} negates the conclusion", p.display_string())
+            DegenerateProofError::TautologicalConclusion => {
+                write!(f, "Conclusion is a tautology (no proof needed)")
             }
-            DegenerateProofError::ConclusionIsPremise => {
-                write!(f, "Conclusion is already a premise (question-begging)")
+            DegenerateProofError::SinglePremiseEntails => {
+                write!(f, "A single premise entails the conclusion (trivial proof)")
             }
-            DegenerateProofError::TautologicalPremise(p) => {
-                write!(f, "Tautological premise: {}", p.display_string())
+            DegenerateProofError::NegationOfConclusionAvailable => {
+                write!(f, "Negation of conclusion is available as a premise")
             }
-            DegenerateProofError::DuplicatePremises => {
-                write!(f, "Duplicate premises detected")
+            DegenerateProofError::ConditionalTrivialViaExplosion => {
+                write!(f, "Conditional trivially provable via explosion")
+            }
+            DegenerateProofError::RedundantPremises => {
+                write!(f, "Redundant (semantically equivalent) premises detected")
+            }
+            DegenerateProofError::UnnecessaryPremise => {
+                write!(f, "At least one premise is unnecessary for the proof")
+            }
+            DegenerateProofError::InvalidTheorem => {
+                write!(f, "Invalid theorem: premises do not entail conclusion")
+            }
+            DegenerateProofError::TooEasy { min_steps, actual_steps } => {
+                write!(f, "Proof too easy: solvable in {} steps, need at least {}", actual_steps, min_steps)
+            }
+            DegenerateProofError::NoSubproofRequired => {
+                write!(f, "Theorem solvable without subproof rules (CP/IP required for this difficulty)")
             }
         }
     }
 }
 
-/// Check if two formulas are contradictory (one is the negation of the other)
-fn are_contradictory(a: &Formula, b: &Formula) -> bool {
-    // Check if b = ~a
-    if let Formula::Not(inner) = b {
-        if inner.as_ref() == a {
-            return true;
-        }
-    }
-    // Check if a = ~b
-    if let Formula::Not(inner) = a {
-        if inner.as_ref() == b {
-            return true;
-        }
-    }
-    false
-}
-
-/// Extract all formulas that are "directly available" from a formula.
-/// This includes the formula itself, and for conjunctions, recursively extracts
-/// both conjuncts (since they're available via Simplification).
-fn extract_available(formula: &Formula, available: &mut Vec<Formula>) {
-    // Add the formula itself
-    if !available.contains(formula) {
-        available.push(formula.clone());
-    }
-
-    // For conjunctions, both sides are available via Simp
-    if let Formula::And(left, right) = formula {
-        extract_available(left, available);
-        extract_available(right, available);
-    }
-}
-
-/// Collect all formulas that are directly derivable from premises
-/// (premises themselves + anything available via Simplification)
-fn collect_available_from_premises(premises: &[Formula]) -> Vec<Formula> {
-    let mut available = Vec::new();
-    for p in premises {
-        extract_available(p, &mut available);
-    }
-    available
-}
-
-/// Check if a formula is a tautology (always true regardless of truth values)
-/// Detects patterns like: P ∨ ~P, ~P ∨ P, P ⊃ P, etc.
-fn is_tautology(formula: &Formula) -> bool {
-    match formula {
-        // P ∨ ~P or ~P ∨ P (law of excluded middle)
-        Formula::Or(left, right) => {
-            are_contradictory(left, right)
-        }
-        // P ⊃ P (self-implication)
-        Formula::Implies(left, right) => {
-            left == right
-        }
-        // P ≡ P (self-equivalence)
-        Formula::Biconditional(left, right) => {
-            left == right
-        }
-        // ~~P where inner is tautology
-        Formula::Not(inner) => {
-            if let Formula::Not(inner2) = inner.as_ref() {
-                is_tautology(inner2)
-            } else {
-                false
-            }
-        }
-        _ => false,
-    }
-}
-
-/// Validate that premises don't create a degenerate theorem
-pub fn validate_premises(premises: &[Formula], conclusion: &Formula) -> Result<(), DegenerateProofError> {
-    // Expand premises to include everything available via Simplification
-    let available = collect_available_from_premises(premises);
-
-    // Check if conclusion is already available (question-begging)
-    // This catches both direct premises and things derivable via Simp
-    if available.contains(conclusion) {
-        return Err(DegenerateProofError::ConclusionIsPremise);
-    }
-
-    // Check for tautological premises (P ∨ ~P, etc.)
-    for p in premises {
-        if is_tautology(p) {
-            return Err(DegenerateProofError::TautologicalPremise(p.clone()));
-        }
-    }
-
-    // Check for contradictory pairs in the expanded available set
-    // This catches cases like: T . P as premise + ~P as premise
-    // (P is available from T . P via Simp, contradicts ~P)
-    for i in 0..available.len() {
-        for j in (i + 1)..available.len() {
-            if are_contradictory(&available[i], &available[j]) {
-                return Err(DegenerateProofError::ContradictoryPremises(
-                    available[i].clone(),
-                    available[j].clone(),
-                ));
-            }
-        }
-    }
-
-    // Check if any available formula negates the conclusion
-    for f in &available {
-        if are_contradictory(f, conclusion) {
-            return Err(DegenerateProofError::PremiseNegatesConclusion(f.clone()));
-        }
-    }
-
-    Ok(())
-}
 
 /// Represents a complete proof tree with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -373,16 +286,30 @@ impl ProofTree {
     }
 
     /// Check if this proof tree produces a degenerate theorem
-    /// (contradictory premises, premise negates conclusion, etc.)
+    /// Uses semantic (truth table) validation
     pub fn validate(&self) -> Result<(), DegenerateProofError> {
         let premises = self.premises();
         let conclusion = self.conclusion();
-        validate_premises(&premises, conclusion)
+        super::truth_table::validate_theorem(&premises, conclusion)
+    }
+
+    /// Check if this proof tree is valid with difficulty requirements
+    /// min_proof_steps: minimum number of steps the shortest proof should require
+    /// requires_subproof: if true, theorem must need CP/IP to solve
+    pub fn validate_with_difficulty(&self, min_proof_steps: usize, requires_subproof: bool) -> Result<(), DegenerateProofError> {
+        let premises = self.premises();
+        let conclusion = self.conclusion();
+        super::truth_table::validate_theorem_with_difficulty(&premises, conclusion, Some(min_proof_steps), requires_subproof)
     }
 
     /// Check if this proof tree is valid (non-degenerate)
     pub fn is_valid(&self) -> bool {
         self.validate().is_ok()
+    }
+
+    /// Check if this proof tree is valid with difficulty requirements
+    pub fn is_valid_with_difficulty(&self, min_proof_steps: usize, requires_subproof: bool) -> bool {
+        self.validate_with_difficulty(min_proof_steps, requires_subproof).is_ok()
     }
 
     /// Pretty print the entire proof tree
@@ -413,6 +340,7 @@ impl ProofTree {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::truth_table;
 
     fn atom(name: &str) -> Formula {
         Formula::Atom(name.to_string())
@@ -434,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_simple_derivation() {
-        // MP: P, P → Q ⊢ Q
+        // MP: P, P -> Q |- Q
         let p = atom("P");
         let q = atom("Q");
         let p_implies_q = implies(p.clone(), q.clone());
@@ -458,7 +386,7 @@ mod tests {
 
     #[test]
     fn test_cp_nesting() {
-        // CP: ⊢ P → P (assume P, reiterate P, close)
+        // CP: |- P -> P (assume P, reiterate P, close)
         let p = atom("P");
 
         // Inside CP: just the assumption itself serves as proof of P
@@ -503,145 +431,95 @@ mod tests {
 
     #[test]
     fn test_contradictory_premises_detected() {
-        use super::validate_premises;
-
         let p = atom("P");
         let not_p = Formula::Not(Box::new(p.clone()));
         let q = atom("Q");
 
-        // P, ~P ⊢ Q should be detected as degenerate
+        // P, ~P |- Q should be detected as degenerate
         let premises = vec![p.clone(), not_p.clone()];
-        let result = validate_premises(&premises, &q);
+        let result = truth_table::validate_theorem(&premises, &q);
 
         assert!(result.is_err());
-        match result.unwrap_err() {
-            super::DegenerateProofError::ContradictoryPremises(_, _) => {}
-            other => panic!("Expected ContradictoryPremises, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_premise_negates_conclusion_detected() {
-        use super::validate_premises;
-
-        let p = atom("P");
-        let not_p = Formula::Not(Box::new(p.clone()));
-
-        // ~P ⊢ P should be detected as degenerate
-        let premises = vec![not_p.clone()];
-        let result = validate_premises(&premises, &p);
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            super::DegenerateProofError::PremiseNegatesConclusion(_) => {}
-            other => panic!("Expected PremiseNegatesConclusion, got {:?}", other),
-        }
+        assert!(matches!(result.unwrap_err(), DegenerateProofError::ContradictoryPremises));
     }
 
     #[test]
     fn test_valid_premises_pass() {
-        use super::validate_premises;
-
         let p = atom("P");
         let q = atom("Q");
         let p_implies_q = implies(p.clone(), q.clone());
 
-        // P, P → Q ⊢ Q is valid (not degenerate)
+        // P, P -> Q |- Q is valid (not degenerate)
         let premises = vec![p, p_implies_q];
-        let result = validate_premises(&premises, &q);
+        let result = truth_table::validate_theorem(&premises, &q);
 
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_conclusion_is_premise_detected() {
-        use super::validate_premises;
-
+    fn test_single_premise_entails_detected() {
         let p = atom("P");
         let q = atom("Q");
 
-        // P, Q ⊢ P is question-begging
+        // P, Q |- P is trivial (single premise entails)
         let premises = vec![p.clone(), q];
-        let result = validate_premises(&premises, &p);
+        let result = truth_table::validate_theorem(&premises, &p);
 
         assert!(result.is_err());
-        match result.unwrap_err() {
-            super::DegenerateProofError::ConclusionIsPremise => {}
-            other => panic!("Expected ConclusionIsPremise, got {:?}", other),
-        }
+        assert!(matches!(result.unwrap_err(), DegenerateProofError::SinglePremiseEntails));
     }
 
     #[test]
-    fn test_tautological_premise_detected() {
-        use super::validate_premises;
-
+    fn test_tautological_conclusion_detected() {
         let p = atom("P");
         let q = atom("Q");
-        // P ∨ ~P is a tautology
+        // P | ~P is a tautology
         let tautology = Formula::Or(
             Box::new(p.clone()),
             Box::new(Formula::Not(Box::new(p.clone()))),
         );
 
-        // (P ∨ ~P) ⊢ Q has a tautological premise
-        let premises = vec![tautology.clone()];
-        let result = validate_premises(&premises, &q);
+        // Q |- P | ~P should be rejected (tautological conclusion)
+        let premises = vec![q.clone()];
+        let result = truth_table::validate_theorem(&premises, &tautology);
 
         assert!(result.is_err());
-        match result.unwrap_err() {
-            super::DegenerateProofError::TautologicalPremise(_) => {}
-            other => panic!("Expected TautologicalPremise, got {:?}", other),
-        }
+        assert!(matches!(result.unwrap_err(), DegenerateProofError::TautologicalConclusion));
     }
 
     #[test]
     fn test_self_implication_tautology() {
-        use super::is_tautology;
-
         let p = atom("P");
 
-        // P ⊃ P is a tautology
+        // P -> P is a tautology
         let self_impl = implies(p.clone(), p.clone());
-        assert!(is_tautology(&self_impl));
+        assert!(truth_table::is_tautology(&self_impl));
 
-        // P ⊃ Q is not a tautology
+        // P -> Q is not a tautology
         let q = atom("Q");
         let normal_impl = implies(p, q);
-        assert!(!is_tautology(&normal_impl));
+        assert!(!truth_table::is_tautology(&normal_impl));
     }
 
     #[test]
     fn test_nested_conjunction_contradiction() {
-        use super::validate_premises;
-
         let p = atom("P");
         let t = atom("T");
         let q = atom("Q");
         let not_p = Formula::Not(Box::new(p.clone()));
 
         // T . P contains P, and ~P is a premise
-        // This should be caught as a contradiction (P available via Simp)
+        // This should be caught as a contradiction (semantically)
         let t_and_p = Formula::And(Box::new(t.clone()), Box::new(p.clone()));
         let premises = vec![t_and_p, not_p.clone()];
 
-        let result = validate_premises(&premises, &q);
+        let result = truth_table::validate_theorem(&premises, &q);
         assert!(result.is_err());
-        match result.unwrap_err() {
-            super::DegenerateProofError::ContradictoryPremises(a, b) => {
-                // Should find P and ~P as contradictory
-                assert!(
-                    (a == p && b == not_p) || (a == not_p && b == p),
-                    "Expected P and ~P, got {} and {}", a.display_string(), b.display_string()
-                );
-            }
-            other => panic!("Expected ContradictoryPremises, got {:?}", other),
-        }
+        assert!(matches!(result.unwrap_err(), DegenerateProofError::ContradictoryPremises));
     }
 
     #[test]
     fn test_deeply_nested_conjunction_contradiction() {
-        use super::validate_premises;
-
         let p = atom("P");
         let q = atom("Q");
         let r = atom("R");
@@ -654,8 +532,8 @@ mod tests {
         let premises = vec![nested, not_p.clone()];
         let goal = atom("S");
 
-        let result = validate_premises(&premises, &goal);
-        assert!(result.is_err(), "Should detect P vs ~P even when P is deeply nested in conjunction");
+        let result = truth_table::validate_theorem(&premises, &goal);
+        assert!(result.is_err(), "Should detect contradiction even when P is deeply nested");
     }
 
     #[test]
@@ -678,5 +556,18 @@ mod tests {
         let tree = ProofTree::new(root);
         assert!(!tree.is_valid());
         assert!(tree.validate().is_err());
+    }
+
+    #[test]
+    fn test_semantic_double_negation_entailment() {
+        // P |- ~~P should be detected as single premise entails (semantic equivalence)
+        let p = atom("P");
+        let not_not_p = Formula::Not(Box::new(Formula::Not(Box::new(p.clone()))));
+
+        let premises = vec![p.clone()];
+        let result = truth_table::validate_theorem(&premises, &not_not_p);
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), DegenerateProofError::SinglePremiseEntails));
     }
 }

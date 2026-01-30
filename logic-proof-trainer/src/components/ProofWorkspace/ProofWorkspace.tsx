@@ -92,19 +92,8 @@ const techniqueAliases: Record<string, ProofTechnique> = {
 };
 Object.assign(abbrevToTechnique, techniqueAliases);
 
-// Parse input like "P //1, 2, MP" or "~Q //3, MT"
-function parseInput(input: string): {
-  formula: string;
-  lines: number[];
-  rule: string;
-} | null {
-  const match = input.match(/^(.+?)\s*\/\/\s*(.+)$/);
-  if (!match) return null;
-
-  const formula = match[1].trim();
-  const rest = match[2].trim();
-
-  // Parse "1, 2, MP" or "3, MT" or just "1, MP"
+// Helper to parse the "lines, rule" part
+function parseRest(rest: string): { lines: number[]; rule: string } | null {
   const parts = rest.split(',').map(p => p.trim());
   if (parts.length < 2) return null;
 
@@ -113,8 +102,45 @@ function parseInput(input: string): {
   const lines = lineStrs.map(s => parseInt(s, 10)).filter(n => !isNaN(n));
 
   if (lines.length === 0) return null;
+  return { lines, rule };
+}
 
-  return { formula, lines, rule };
+// Parse input like "P //1, 2, MP" or "~Q //3, MT" or "Q 1,2 MP" or "Q 1, 2 MP"
+function parseInput(input: string): {
+  formula: string;
+  lines: number[];
+  rule: string;
+} | null {
+  // Try existing format first: "Q //1, 2, MP"
+  const existingMatch = input.match(/^(.+?)\s*\/\/\s*(.+)$/);
+  if (existingMatch) {
+    const formula = existingMatch[1].trim();
+    const parsed = parseRest(existingMatch[2].trim());
+    if (parsed) {
+      return { formula, ...parsed };
+    }
+  }
+
+  // Try new format: "Q 1,2 MP" or "Q 1, 2 MP" or "Q 1,2, MP"
+  // Pattern: formula + space + digits/commas/spaces + optional comma + rule
+  const newMatch = input.match(/^(.+?)\s+(\d[\d,\s]*?)\s*,?\s*([A-Za-z~]+)$/);
+  if (newMatch) {
+    const formula = newMatch[1].trim();
+    const linesPart = newMatch[2];
+    const rule = newMatch[3];
+
+    // Parse line numbers: handle "1, 2" or "1,2" or "1 2"
+    const lines = linesPart
+      .split(/[\s,]+/)
+      .map(s => parseInt(s, 10))
+      .filter(n => !isNaN(n));
+
+    if (lines.length > 0) {
+      return { formula, lines, rule };
+    }
+  }
+
+  return null;
 }
 
 export const ProofWorkspace: React.FC = () => {
@@ -134,6 +160,7 @@ export const ProofWorkspace: React.FC = () => {
     clearProof,
     clearError,
     setError,
+    reorderProof,
   } = useProof();
 
   const { saveToPortfolio } = usePortfolio();
@@ -335,7 +362,7 @@ export const ProofWorkspace: React.FC = () => {
 
     // Check if input looks like it should have been parsed (has //)
     if (formulaInput.includes('//')) {
-      setError('Invalid format. Use: Formula //lines, RULE (e.g., "Q //1, 2, MP")');
+      setError('Invalid format. Use: Q 1,2 MP  or  Q //1, 2, MP');
       return;
     }
 
@@ -574,6 +601,8 @@ export const ProofWorkspace: React.FC = () => {
             onGoalInputChange={setGoalInput}
             onGoalSubmit={handleGoalSubmit}
             onGoalSkip={handleGoalSkip}
+            isComplete={proof.is_complete}
+            onReorder={reorderProof}
           />
 
           {/* Mode Selector for Subproofs */}
@@ -607,7 +636,7 @@ export const ProofWorkspace: React.FC = () => {
             value={formulaInput}
             onChange={setFormulaInput}
             onSubmit={handleSubmit}
-            placeholder="Formula //lines, RULE  (e.g., Q //1, 2, MP)"
+            placeholder="Q 1,2 MP  or  Q //1, 2, MP"
           />
 
           {/* Selection Info */}

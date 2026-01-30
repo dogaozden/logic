@@ -5,6 +5,8 @@ pub mod storage;
 pub mod proof_tree;
 pub mod fragments;
 pub mod tree_gen;
+pub mod truth_table;
+pub mod proof_search;
 
 pub use verifier::*;
 pub use generator::*;
@@ -13,3 +15,5 @@ pub use storage::*;
 pub use proof_tree::*;
 pub use fragments::*;
 pub use tree_gen::*;
+pub use truth_table::*;
+pub use proof_search::*;

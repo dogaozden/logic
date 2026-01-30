@@ -309,6 +309,11 @@ impl Formula {
     pub fn equals(&self, other: &Formula) -> bool {
         self == other
     }
+
+    /// Compute 32-bit truth table (semantic identity)
+    pub fn truth_table(&self) -> u32 {
+        crate::services::truth_table::compute_truth_table(self)
+    }
 }
 
 /// Parser for propositional logic formulas
