@@ -65,7 +65,7 @@ export const TheoremList: React.FC = () => {
   };
 
   return (
-    <div className="sidebar">
+    <>
       <div className="theorem-list-header">
         <h2>Theorems</h2>
       </div>
@@ -150,6 +150,6 @@ export const TheoremList: React.FC = () => {
           </button>
         </div>
       )}
-    </div>
+    </>
   );
 };

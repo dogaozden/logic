@@ -25,6 +25,12 @@ pub fn run() {
             parse_formula,
             delete_line,
             check_proof_complete,
+            // Portfolio commands
+            save_to_portfolio,
+            load_portfolio,
+            get_portfolio_entry,
+            delete_portfolio_entry,
+            update_portfolio_notes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

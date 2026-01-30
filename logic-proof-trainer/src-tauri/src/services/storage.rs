@@ -1,7 +1,35 @@
 use std::fs;
 use std::path::PathBuf;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use crate::models::{Proof, Theorem, UserStatistics};
+
+/// A completed proof saved to the portfolio
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PortfolioEntry {
+    pub id: String,
+    pub proof: Proof,
+    pub completed_at: DateTime<Utc>,
+    pub time_spent_secs: Option<u64>,
+    pub steps_count: usize,
+    pub hints_used: u32,
+    pub notes: Option<String>,
+}
+
+impl PortfolioEntry {
+    pub fn new(proof: Proof, time_spent_secs: Option<u64>, hints_used: u32) -> Self {
+        let steps_count = proof.lines.len();
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            proof,
+            completed_at: Utc::now(),
+            time_spent_secs,
+            steps_count,
+            hints_used,
+            notes: None,
+        }
+    }
+}
 
 /// Data structure for export/import
 #[derive(Serialize, Deserialize)]
@@ -9,6 +37,7 @@ pub struct ExportData {
     pub proofs: Vec<Proof>,
     pub custom_theorems: Vec<Theorem>,
     pub statistics: UserStatistics,
+    pub portfolio: Vec<PortfolioEntry>,
 }
 
 /// Storage service for persisting data to disk
@@ -49,6 +78,7 @@ impl StorageService {
         fs::create_dir_all(&data_dir)?;
         fs::create_dir_all(data_dir.join("proofs"))?;
         fs::create_dir_all(data_dir.join("theorems"))?;
+        fs::create_dir_all(data_dir.join("portfolio"))?;
 
         Ok(Self { data_dir })
     }
@@ -59,6 +89,10 @@ impl StorageService {
 
     fn theorems_dir(&self) -> PathBuf {
         self.data_dir.join("theorems")
+    }
+
+    fn portfolio_dir(&self) -> PathBuf {
+        self.data_dir.join("portfolio")
     }
 
     fn statistics_file(&self) -> PathBuf {
@@ -170,6 +204,60 @@ impl StorageService {
         Ok(stats)
     }
 
+    // Portfolio operations
+
+    pub fn save_to_portfolio(&self, entry: &PortfolioEntry) -> Result<(), StorageError> {
+        let path = self.portfolio_dir().join(format!("{}.json", entry.id));
+        let json = serde_json::to_string_pretty(entry)?;
+        fs::write(path, json)?;
+        Ok(())
+    }
+
+    pub fn load_portfolio_entry(&self, id: &str) -> Result<PortfolioEntry, StorageError> {
+        let path = self.portfolio_dir().join(format!("{}.json", id));
+        let json = fs::read_to_string(path)?;
+        let entry: PortfolioEntry = serde_json::from_str(&json)?;
+        Ok(entry)
+    }
+
+    pub fn load_portfolio(&self) -> Result<Vec<PortfolioEntry>, StorageError> {
+        let mut entries = Vec::new();
+
+        if let Ok(dir_entries) = fs::read_dir(self.portfolio_dir()) {
+            for entry in dir_entries {
+                let entry = entry?;
+                let path = entry.path();
+
+                if path.extension().map_or(false, |ext| ext == "json") {
+                    if let Ok(json) = fs::read_to_string(&path) {
+                        if let Ok(portfolio_entry) = serde_json::from_str::<PortfolioEntry>(&json) {
+                            entries.push(portfolio_entry);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort by completion date, newest first
+        entries.sort_by(|a, b| b.completed_at.cmp(&a.completed_at));
+        Ok(entries)
+    }
+
+    pub fn delete_portfolio_entry(&self, id: &str) -> Result<(), StorageError> {
+        let path = self.portfolio_dir().join(format!("{}.json", id));
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
+        Ok(())
+    }
+
+    pub fn update_portfolio_notes(&self, id: &str, notes: String) -> Result<(), StorageError> {
+        let mut entry = self.load_portfolio_entry(id)?;
+        entry.notes = Some(notes);
+        self.save_to_portfolio(&entry)?;
+        Ok(())
+    }
+
     // Export/Import operations
 
     pub fn export_all(&self) -> Result<String, StorageError> {
@@ -177,6 +265,7 @@ impl StorageService {
             proofs: self.load_all_proofs()?,
             custom_theorems: self.load_all_custom_theorems()?,
             statistics: self.load_statistics()?,
+            portfolio: self.load_portfolio()?,
         };
 
         let json = serde_json::to_string_pretty(&data)?;
@@ -192,6 +281,10 @@ impl StorageService {
 
         for theorem in &data.custom_theorems {
             self.save_custom_theorem(theorem)?;
+        }
+
+        for entry in &data.portfolio {
+            self.save_to_portfolio(entry)?;
         }
 
         self.save_statistics(&data.statistics)?;

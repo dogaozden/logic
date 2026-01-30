@@ -174,6 +174,17 @@ export interface UserStatistics {
   recent_attempts: ProofAttempt[];
 }
 
+// Portfolio entry for completed proofs
+export interface PortfolioEntry {
+  id: string;
+  proof: Proof;
+  completed_at: string;
+  time_spent_secs?: number;
+  steps_count: number;
+  hints_used: number;
+  notes?: string;
+}
+
 // Helper functions for displaying formulas
 // Uses bracket hierarchy: innermost () → [] → {} outermost
 export function formulaToString(formula: Formula): string {

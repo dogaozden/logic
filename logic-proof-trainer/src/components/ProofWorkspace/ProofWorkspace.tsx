@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useProof } from '../../hooks/useProof';
+import { usePortfolio } from '../../hooks/usePortfolio';
 import { FitchBox } from './FitchBox';
 import { FormulaInput } from './FormulaInput';
 import { RulePalette } from './RulePalette';
@@ -176,6 +177,8 @@ export const ProofWorkspace: React.FC = () => {
     setError,
   } = useProof();
 
+  const { saveToPortfolio } = usePortfolio();
+
   const [formulaInput, setFormulaInput] = useState('');
   const [selectedInferenceRule, setSelectedInferenceRule] = useState<InferenceRule | null>(null);
   const [selectedEquivalenceRule, setSelectedEquivalenceRule] = useState<EquivalenceRule | null>(null);
@@ -186,6 +189,11 @@ export const ProofWorkspace: React.FC = () => {
   const [scopeGoals, setScopeGoals] = useState<Record<string, string>>({});
   const [pendingGoalScopeId, setPendingGoalScopeId] = useState<string | null>(null);
   const [goalInput, setGoalInput] = useState('');
+
+  // Portfolio tracking
+  const startTimeRef = useRef<number | null>(null);
+  const hintsUsedRef = useRef(0);
+  const savedToPortfolioRef = useRef<string | null>(null); // Track which proof was saved
 
   // Auto-apply inference rule when we have the right number of lines selected
   const tryAutoApplyInference = useCallback(async (rule: InferenceRule, lines: number[]) => {
@@ -254,6 +262,38 @@ export const ProofWorkspace: React.FC = () => {
   const handleGoalSkip = () => {
     setPendingGoalScopeId(null);
     setGoalInput('');
+  };
+
+  // Start timer when proof begins
+  useEffect(() => {
+    if (proof && !proof.is_complete && startTimeRef.current === null) {
+      startTimeRef.current = Date.now();
+      hintsUsedRef.current = 0;
+      savedToPortfolioRef.current = null;
+    }
+    // Reset when proof is cleared
+    if (!proof) {
+      startTimeRef.current = null;
+      hintsUsedRef.current = 0;
+      savedToPortfolioRef.current = null;
+    }
+  }, [proof]);
+
+  // Save to portfolio when proof is completed
+  useEffect(() => {
+    if (proof?.is_complete && savedToPortfolioRef.current !== proof.id) {
+      savedToPortfolioRef.current = proof.id;
+      const timeSpent = startTimeRef.current
+        ? Math.floor((Date.now() - startTimeRef.current) / 1000)
+        : undefined;
+      saveToPortfolio(proof, timeSpent, hintsUsedRef.current);
+    }
+  }, [proof, saveToPortfolio]);
+
+  // Track hints used
+  const handleGetHint = async () => {
+    hintsUsedRef.current += 1;
+    await getHint();
   };
 
   if (!proof) {
@@ -498,7 +538,7 @@ export const ProofWorkspace: React.FC = () => {
       <div className="header">
         <h1>Proof Workspace</h1>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-secondary" onClick={getHint}>
+          <button className="btn btn-secondary" onClick={handleGetHint}>
             Hint
           </button>
           <button className="btn btn-secondary" onClick={undoLine}>

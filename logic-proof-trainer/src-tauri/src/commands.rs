@@ -5,7 +5,7 @@ use crate::models::{
     rules::{InferenceRule, EquivalenceRule, ProofTechnique},
 };
 use crate::services::{
-    ProofVerifier, TheoremGenerator, StorageService,
+    ProofVerifier, TheoremGenerator, StorageService, PortfolioEntry,
 };
 use serde::{Deserialize, Serialize};
 
@@ -236,6 +236,48 @@ pub fn save_custom_theorem(theorem: Theorem) -> Result<(), String> {
 pub fn load_custom_theorems() -> Result<Vec<Theorem>, String> {
     let storage = StorageService::new().map_err(|e| e.to_string())?;
     storage.load_all_custom_theorems().map_err(|e| e.to_string())
+}
+
+// ============ Portfolio Commands ============
+
+#[tauri::command]
+pub fn save_to_portfolio(
+    proof: Proof,
+    time_spent_secs: Option<u64>,
+    hints_used: u32,
+) -> Result<PortfolioEntry, String> {
+    if !proof.is_complete {
+        return Err("Cannot save incomplete proof to portfolio".to_string());
+    }
+
+    let entry = PortfolioEntry::new(proof, time_spent_secs, hints_used);
+    let storage = StorageService::new().map_err(|e| e.to_string())?;
+    storage.save_to_portfolio(&entry).map_err(|e| e.to_string())?;
+    Ok(entry)
+}
+
+#[tauri::command]
+pub fn load_portfolio() -> Result<Vec<PortfolioEntry>, String> {
+    let storage = StorageService::new().map_err(|e| e.to_string())?;
+    storage.load_portfolio().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_portfolio_entry(id: String) -> Result<PortfolioEntry, String> {
+    let storage = StorageService::new().map_err(|e| e.to_string())?;
+    storage.load_portfolio_entry(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_portfolio_entry(id: String) -> Result<(), String> {
+    let storage = StorageService::new().map_err(|e| e.to_string())?;
+    storage.delete_portfolio_entry(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_portfolio_notes(id: String, notes: String) -> Result<(), String> {
+    let storage = StorageService::new().map_err(|e| e.to_string())?;
+    storage.update_portfolio_notes(&id, notes).map_err(|e| e.to_string())
 }
 
 // ============ Utility Commands ============
