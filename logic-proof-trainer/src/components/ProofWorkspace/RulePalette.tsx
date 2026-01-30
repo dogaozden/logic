@@ -21,6 +21,7 @@ const INFERENCE_RULES: InferenceRule[] = [
   'hypotheticalSyllogism', // 6. HS
   'addition',              // 7. Add
   'constructiveDilemma',   // 8. CD
+  'contradiction',         // 19. NegE
 ];
 
 // Equivalence rules - matches rules.md order (9-18)
@@ -38,7 +39,7 @@ const EQUIVALENCE_RULES: EquivalenceRule[] = [
 ];
 
 // Proof techniques - CP and IP from rules.md
-const TECHNIQUES: ProofTechnique[] = ['conditionalProof', 'indirectProof'];
+const TECHNIQUES: ProofTechnique[] = ['conditionalProof', 'indirectProof', 'negationIntroduction'];
 
 export const RulePalette: React.FC<RulePaletteProps> = ({
   selectedInferenceRule,

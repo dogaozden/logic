@@ -47,7 +47,8 @@ export type InferenceRule =
   | 'conjunction'          // Conj: p, q ∴ p · q
   | 'hypotheticalSyllogism'// HS: p ⊃ q, q ⊃ r ∴ p ⊃ r
   | 'addition'             // Add: p ∴ p ∨ q
-  | 'constructiveDilemma'; // CD: p ∨ q, p ⊃ r, q ⊃ s ∴ r ∨ s
+  | 'constructiveDilemma'  // CD: p ∨ q, p ⊃ r, q ⊃ s ∴ r ∨ s
+  | 'contradiction';       // NegE: p, ~p ∴ ⊥
 
 // Equivalence rules - names match rules.md exactly
 export type EquivalenceRule =
@@ -75,11 +76,11 @@ export type Justification =
   | { type: 'Inference'; rule: InferenceRule; lines: number[] }
   | { type: 'Equivalence'; rule: EquivalenceRule; line: number }
   | {
-      type: 'SubproofConclusion';
-      technique: ProofTechnique;
-      subproof_start: number;
-      subproof_end: number;
-    };
+    type: 'SubproofConclusion';
+    technique: ProofTechnique;
+    subproof_start: number;
+    subproof_end: number;
+  };
 
 // Proof line
 export interface ProofLine {
@@ -122,16 +123,16 @@ export interface Proof {
 // Rule application for commands
 export type RuleApplication =
   | {
-      type: 'Inference';
-      rule: InferenceRule;
-      lines: number[];
-      additional_formula?: string;
-    }
+    type: 'Inference';
+    rule: InferenceRule;
+    lines: number[];
+    additional_formula?: string;
+  }
   | {
-      type: 'Equivalence';
-      rule: EquivalenceRule;
-      line: number;
-    };
+    type: 'Equivalence';
+    rule: EquivalenceRule;
+    line: number;
+  };
 
 // Statistics types
 export interface DifficultyStats {
@@ -289,6 +290,7 @@ export const inferenceRuleInfo: Record<InferenceRule, { name: string; abbrev: st
   hypotheticalSyllogism: { name: 'Hypothetical Syllogism', abbrev: 'HS', premises: 2, symbol: 'p ⊃ q, q ⊃ r ∴ p ⊃ r' },
   addition: { name: 'Addition', abbrev: 'Add', premises: 1, symbol: 'p ∴ p ∨ q' },
   constructiveDilemma: { name: 'Constructive Dilemma', abbrev: 'CD', premises: 3, symbol: 'p ∨ q, p ⊃ r, q ⊃ s ∴ r ∨ s' },
+  contradiction: { name: 'Contradiction', abbrev: 'NegE', premises: 2, symbol: 'p, ~p ∴ ⊥' },
 };
 
 export const equivalenceRuleInfo: Record<EquivalenceRule, { name: string; abbrev: string; symbol: string }> = {

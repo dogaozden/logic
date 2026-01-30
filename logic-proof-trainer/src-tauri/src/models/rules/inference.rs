@@ -21,6 +21,8 @@ pub enum InferenceRule {
     Addition,
     // 8. Constructive Dilemma (CD): p ∨ q, p ⊃ r, q ⊃ s ∴ r ∨ s
     ConstructiveDilemma,
+    // 19. Contradiction (NegE): p, ~p ∴ ⊥
+    Contradiction,
 }
 
 impl InferenceRule {
@@ -34,6 +36,7 @@ impl InferenceRule {
             InferenceRule::HypotheticalSyllogism => "Hypothetical Syllogism",
             InferenceRule::Addition => "Addition",
             InferenceRule::ConstructiveDilemma => "Constructive Dilemma",
+            InferenceRule::Contradiction => "Contradiction Introduction",
         }
     }
 
@@ -47,6 +50,7 @@ impl InferenceRule {
             InferenceRule::HypotheticalSyllogism => "HS",
             InferenceRule::Addition => "Add",
             InferenceRule::ConstructiveDilemma => "CD",
+            InferenceRule::Contradiction => "NegE",
         }
     }
 
@@ -61,6 +65,7 @@ impl InferenceRule {
             InferenceRule::HypotheticalSyllogism => 2,
             InferenceRule::Addition => 1,
             InferenceRule::ConstructiveDilemma => 3,
+            InferenceRule::Contradiction => 2,
         }
     }
 
@@ -200,6 +205,20 @@ impl InferenceRule {
                     }
                 }
             }
+
+            InferenceRule::Contradiction => {
+                // p, ~p ∴ ⊥
+                if premises.len() != 2 {
+                    return results;
+                }
+                for (i, j) in [(0, 1), (1, 0)] {
+                    if let Formula::Not(inner) = premises[i] {
+                        if inner.as_ref() == premises[j] {
+                            results.push(Formula::Contradiction);
+                        }
+                    }
+                }
+            }
         }
 
         results
@@ -226,6 +245,7 @@ impl InferenceRule {
             InferenceRule::HypotheticalSyllogism,
             InferenceRule::Addition,
             InferenceRule::ConstructiveDilemma,
+            InferenceRule::Contradiction,
         ]
     }
 }
@@ -314,5 +334,15 @@ mod tests {
         // Both placements should work
         assert!(InferenceRule::Addition.verify(&[&p], &p_or_q, Some(&q)));
         assert!(InferenceRule::Addition.verify(&[&p], &q_or_p, Some(&q)));
+    }
+
+    #[test]
+    fn test_contradiction() {
+        let p = Formula::parse("P").unwrap();
+        let not_p = Formula::parse("~P").unwrap();
+        let contra = Formula::Contradiction;
+
+        let result = InferenceRule::Contradiction.apply(&[&p, &not_p], None);
+        assert_eq!(result, Some(contra));
     }
 }

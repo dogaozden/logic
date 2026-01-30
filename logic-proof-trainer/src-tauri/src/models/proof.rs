@@ -231,13 +231,9 @@ impl Proof {
         let removed = self.lines.pop();
 
         // If we removed an assumption, we need to remove the scope
-        // This is a simplified version - a full implementation would need
-        // to handle cascading removals and scope cleanup
         if let Some(ref line) = removed {
             if matches!(line.justification, Justification::Assumption { .. }) {
-                // Need to close the scope without a conclusion
-                // For now, we'll just reset to previous state
-                // A full implementation would track scope states
+                self.scope_manager.pop_scope(line.line_number);
             }
         }
 

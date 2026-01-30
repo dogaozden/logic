@@ -103,6 +103,15 @@ impl ScopeManager {
         None
     }
 
+    /// Remove the latest scope (used when undoing an assumption)
+    pub fn pop_scope(&mut self, start_line: usize) -> Option<ProofScope> {
+        // Only pop if the last scope matches the start line and is open
+        if let Some(pos) = self.scopes.iter().rposition(|s| s.start_line == start_line && s.is_open()) {
+            return Some(self.scopes.remove(pos));
+        }
+        None
+    }
+
     /// Get the current depth (number of open scopes)
     pub fn current_depth(&self) -> usize {
         self.scopes.iter().filter(|s| s.is_open()).count()
