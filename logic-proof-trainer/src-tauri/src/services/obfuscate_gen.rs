@@ -28,24 +28,34 @@ impl ObfuscateConfig {
     pub fn for_difficulty_value(d: u8) -> Self {
         let d_clamped = d.clamp(1, 100) as usize;
 
-        // Scale atom pool: 2 atoms at easy, up to 4 at expert
-        let atom_count = 2 + (d_clamped * 2 / 100);
+        // Scale atom pool based on difficulty
+        // 1-40: 2 atoms, 41-60: 3 atoms, 61-80: 4 atoms, 81-100: 5 atoms
+        let atom_count = match d_clamped {
+            1..=40 => 2,
+            41..=60 => 3,
+            61..=80 => 4,
+            _ => 5,
+        };
         let atoms = ["P", "Q", "R", "S", "T"]
             .into_iter()
             .take(atom_count)
             .map(String::from)
             .collect();
 
-        // Scale transform count based on difficulty
-        // Easy (1-25): 1-2 transforms
-        // Medium (26-45): 3-4 transforms
-        // Hard (46-70): 5-7 transforms
-        // Expert (71-100): 8-11 transforms
+        // Scale transform count based on difficulty tiers
+        // Easy (1-25): 1-3 transforms
+        // Medium (26-45): 3-6 transforms
+        // Hard (46-70): 6-11 transforms
+        // Expert (71-85): 11-16 transforms
+        // Nightmare (86-95): 16-20 transforms
+        // Marathon (96-100): 20-24 transforms
         let transform_count = match d_clamped {
-            1..=25 => 1 + (d_clamped - 1) / 25, // 1-2
-            26..=45 => 3 + (d_clamped - 26) / 20, // 3-4
-            46..=70 => 5 + (d_clamped - 46) / 12, // 5-7
-            _ => 8 + (d_clamped - 71) / 10, // 8-11
+            1..=25 => 1 + (d_clamped - 1) * 2 / 24, // 1-3
+            26..=45 => 3 + (d_clamped - 26) * 3 / 19, // 3-6
+            46..=70 => 6 + (d_clamped - 46) * 5 / 24, // 6-11
+            71..=85 => 11 + (d_clamped - 71) * 5 / 14, // 11-16
+            86..=95 => 16 + (d_clamped - 86) * 4 / 9, // 16-20
+            _ => 20 + (d_clamped - 96) * 4 / 4, // 20-24
         };
 
         Self {
@@ -83,10 +93,18 @@ enum BaseForm {
     Conjunction,
     /// Constructive Dilemma: (P ⊃ Q) ∧ (R ⊃ S), P ∨ R ⊢ Q ∨ S
     ConstructiveDilemma,
+    // === Complex forms for high difficulty (≥70) ===
+    /// Constructive Dilemma Full: P∨Q, P⊃R, Q⊃R ⊢ R (forces case analysis)
+    ConstructiveDilemmaFull,
+    /// Nested CP: P⊃(Q⊃R), P, Q ⊢ R (nested conditionals)
+    NestedCP,
+    /// Chain4: P⊃Q, Q⊃R, R⊃S, P ⊢ S (long chain)
+    Chain4,
 }
 
 impl BaseForm {
-    fn all() -> Vec<BaseForm> {
+    /// Get standard forms (used for lower difficulties)
+    fn standard() -> Vec<BaseForm> {
         vec![
             BaseForm::ModusPonens,
             BaseForm::ModusTollens,
@@ -98,9 +116,24 @@ impl BaseForm {
         ]
     }
 
-    /// Get forms that can use the given number of atoms
-    fn for_atom_count(count: usize) -> Vec<BaseForm> {
-        match count {
+    /// Get complex forms (used only for high difficulty ≥70)
+    fn complex() -> Vec<BaseForm> {
+        vec![
+            BaseForm::ConstructiveDilemmaFull,
+            BaseForm::NestedCP,
+            BaseForm::Chain4,
+        ]
+    }
+
+    fn all() -> Vec<BaseForm> {
+        let mut forms = Self::standard();
+        forms.extend(Self::complex());
+        forms
+    }
+
+    /// Get forms that can use the given number of atoms and difficulty
+    fn for_atom_count_and_difficulty(count: usize, difficulty: u8) -> Vec<BaseForm> {
+        let base_forms = match count {
             0..=1 => vec![], // Need at least 2 atoms
             2 => vec![
                 BaseForm::ModusPonens,
@@ -109,8 +142,30 @@ impl BaseForm {
                 BaseForm::Simplification,
                 BaseForm::Conjunction,
             ],
-            _ => BaseForm::all(), // 3+ atoms can use any form
-        }
+            3 => {
+                // 3 atoms: standard forms + NestedCP and ConstructiveDilemmaFull
+                let mut forms = Self::standard();
+                if difficulty >= 70 {
+                    forms.push(BaseForm::NestedCP);
+                    forms.push(BaseForm::ConstructiveDilemmaFull);
+                }
+                forms
+            }
+            _ => {
+                // 4+ atoms: all forms including Chain4
+                if difficulty >= 70 {
+                    Self::all()
+                } else {
+                    Self::standard()
+                }
+            }
+        };
+        base_forms
+    }
+
+    /// Legacy method for compatibility
+    fn for_atom_count(count: usize) -> Vec<BaseForm> {
+        Self::for_atom_count_and_difficulty(count, 50) // default to medium difficulty
     }
 }
 
@@ -155,7 +210,7 @@ impl ObfuscateGenerator {
     /// Generate a simple valid argument form
     fn generate_base_theorem(&self, rng: &mut impl Rng) -> (Vec<Formula>, Formula) {
         let atoms = &self.config.atom_pool;
-        let available_forms = BaseForm::for_atom_count(atoms.len());
+        let available_forms = BaseForm::for_atom_count_and_difficulty(atoms.len(), self.config.difficulty_value);
 
         if available_forms.is_empty() {
             // Fallback to simple tautology P ⊃ P
@@ -247,6 +302,43 @@ impl ObfuscateGenerator {
                     Formula::Or(Box::new(q), Box::new(s)),
                 )
             }
+            BaseForm::ConstructiveDilemmaFull => {
+                // P∨Q, P⊃R, Q⊃R ⊢ R (forces case analysis)
+                (
+                    vec![
+                        Formula::Or(Box::new(p.clone()), Box::new(q.clone())),
+                        Formula::Implies(Box::new(p), Box::new(r.clone())),
+                        Formula::Implies(Box::new(q), Box::new(r.clone())),
+                    ],
+                    r,
+                )
+            }
+            BaseForm::NestedCP => {
+                // P⊃(Q⊃R), P, Q ⊢ R (nested conditionals)
+                (
+                    vec![
+                        Formula::Implies(
+                            Box::new(p.clone()),
+                            Box::new(Formula::Implies(Box::new(q.clone()), Box::new(r.clone()))),
+                        ),
+                        p,
+                        q,
+                    ],
+                    r,
+                )
+            }
+            BaseForm::Chain4 => {
+                // P⊃Q, Q⊃R, R⊃S, P ⊢ S (long chain)
+                (
+                    vec![
+                        Formula::Implies(Box::new(p.clone()), Box::new(q.clone())),
+                        Formula::Implies(Box::new(q), Box::new(r.clone())),
+                        Formula::Implies(Box::new(r), Box::new(s.clone())),
+                        p,
+                    ],
+                    s,
+                )
+            }
         }
     }
 
@@ -271,6 +363,11 @@ impl ObfuscateGenerator {
 
     /// Apply random equivalence transformations
     fn apply_transformations(&self, mut formula: Formula, rng: &mut impl Rng) -> Formula {
+        // For difficulty ≥ 85 (Nightmare/Marathon), force gnarly combinations first
+        if self.config.difficulty_value >= 85 {
+            formula = self.apply_gnarly_combos(formula, rng);
+        }
+
         let mut successful_transforms = 0;
         let mut attempts = 0;
         let max_attempts = self.config.transform_count * 10;
@@ -285,6 +382,76 @@ impl ObfuscateGenerator {
 
         // Simplification pass: collapse excessive negations (~~~~P → P)
         simplify_negations(formula)
+    }
+
+    /// Apply gnarly transformation combos that create especially difficult proofs.
+    /// These force specific hard patterns like:
+    /// - Contraposition + De Morgan chains
+    /// - Material Implication + Distribution (creates case splits)
+    /// - Exportation + double negation
+    fn apply_gnarly_combos(&self, mut formula: Formula, rng: &mut impl Rng) -> Formula {
+        // Pick 1-3 gnarly combos based on difficulty
+        let combo_count = if self.config.difficulty_value >= 96 { 3 } else { 2 };
+
+        let gnarly_rules = [
+            // Combo 1: Contraposition + De Morgan chain
+            vec![EquivalenceRule::Contraposition, EquivalenceRule::DeMorgan],
+            // Combo 2: Implication + Distribution (creates case splits)
+            vec![EquivalenceRule::Implication, EquivalenceRule::Distribution],
+            // Combo 3: Exportation + Double Negation
+            vec![EquivalenceRule::Exportation, EquivalenceRule::DoubleNegation],
+            // Combo 4: Equivalence + De Morgan
+            vec![EquivalenceRule::Equivalence, EquivalenceRule::DeMorgan],
+        ];
+
+        // Shuffle and pick combos
+        let mut indices: Vec<usize> = (0..gnarly_rules.len()).collect();
+        for i in (1..indices.len()).rev() {
+            let j = rng.gen_range(0..=i);
+            indices.swap(i, j);
+        }
+
+        for i in 0..combo_count.min(indices.len()) {
+            let combo = &gnarly_rules[indices[i]];
+            for rule in combo {
+                if let Some(transformed) = self.try_apply_specific_rule(&formula, *rule, rng) {
+                    formula = transformed;
+                }
+            }
+        }
+
+        formula
+    }
+
+    /// Try to apply a specific equivalence rule to some subformula
+    fn try_apply_specific_rule(&self, formula: &Formula, rule: EquivalenceRule, rng: &mut impl Rng) -> Option<Formula> {
+        let subformulas = formula.subformulas();
+        if subformulas.is_empty() {
+            return None;
+        }
+
+        // Shuffle subformulas
+        let mut indices: Vec<usize> = (0..subformulas.len()).collect();
+        for i in (1..indices.len()).rev() {
+            let j = rng.gen_range(0..=i);
+            indices.swap(i, j);
+        }
+
+        for &idx in &indices {
+            let subformula = &subformulas[idx];
+            let equivalents = rule.equivalent_forms(subformula);
+
+            if !equivalents.is_empty() {
+                let equivalent = &equivalents[rng.gen_range(0..equivalents.len())];
+                let result = EquivalenceRule::replace_subformula(formula, subformula, equivalent);
+
+                if is_tautology(&result) {
+                    return Some(result);
+                }
+            }
+        }
+
+        None
     }
 
     /// Try to apply a random equivalence transformation to some subformula
@@ -425,16 +592,51 @@ mod tests {
     fn test_config_easy() {
         let config = ObfuscateConfig::for_difficulty_value(10);
         assert_eq!(config.difficulty, Difficulty::Easy);
-        assert!(config.transform_count <= 2);
+        assert!(config.transform_count <= 3, "Easy should have 1-3 transforms, got {}", config.transform_count);
         assert_eq!(config.atom_pool.len(), 2);
     }
 
     #[test]
     fn test_config_expert() {
-        let config = ObfuscateConfig::for_difficulty_value(90);
+        let config = ObfuscateConfig::for_difficulty_value(80);
         assert_eq!(config.difficulty, Difficulty::Expert);
-        assert!(config.transform_count >= 8);
-        assert!(config.atom_pool.len() >= 3);
+        assert!(config.transform_count >= 11, "Expert should have 11+ transforms, got {}", config.transform_count);
+        assert!(config.atom_pool.len() >= 4, "Expert (80) should have 4 atoms");
+    }
+
+    #[test]
+    fn test_config_nightmare() {
+        let config = ObfuscateConfig::for_difficulty_value(90);
+        assert_eq!(config.difficulty, Difficulty::Expert); // Still maps to Expert preset
+        assert!(config.transform_count >= 16, "Nightmare should have 16+ transforms, got {}", config.transform_count);
+        assert_eq!(config.atom_pool.len(), 5, "Nightmare (90) should have 5 atoms");
+    }
+
+    #[test]
+    fn test_config_marathon() {
+        let config = ObfuscateConfig::for_difficulty_value(98);
+        assert_eq!(config.difficulty, Difficulty::Expert); // Still maps to Expert preset
+        assert!(config.transform_count >= 20, "Marathon should have 20+ transforms, got {}", config.transform_count);
+        assert_eq!(config.atom_pool.len(), 5, "Marathon should have 5 atoms");
+    }
+
+    #[test]
+    fn test_difficulty_scaling_progression() {
+        // Verify transform counts increase with difficulty
+        let configs: Vec<_> = [10, 30, 50, 75, 90, 98]
+            .iter()
+            .map(|&d| (d, ObfuscateConfig::for_difficulty_value(d)))
+            .collect();
+
+        for window in configs.windows(2) {
+            let (d1, c1) = &window[0];
+            let (d2, c2) = &window[1];
+            assert!(
+                c2.transform_count >= c1.transform_count,
+                "Transforms should increase: d={} has {}, d={} has {}",
+                d1, c1.transform_count, d2, c2.transform_count
+            );
+        }
     }
 
     #[test]
