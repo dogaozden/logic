@@ -1,0 +1,25 @@
+{
+  "": {
+    "dependencies": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/LogicProofTrainerTests.d",
+    "object": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/LogicProofTrainerTests.o",
+    "swift-dependencies": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/master.swiftdeps"
+  },
+  "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/Tests/LogicProofTrainerTests/FormulaTests.swift": {
+    "object": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/FormulaTests.swift.o",
+    "swiftmodule": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/FormulaTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/FormulaTests.swiftdeps",
+    "diagnostics": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/FormulaTests.dia"
+  },
+  "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/Tests/LogicProofTrainerTests/InferenceRuleTests.swift": {
+    "object": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/InferenceRuleTests.swift.o",
+    "swiftmodule": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/InferenceRuleTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/InferenceRuleTests.swiftdeps",
+    "diagnostics": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/InferenceRuleTests.dia"
+  },
+  "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/Tests/LogicProofTrainerTests/ProofTests.swift": {
+    "object": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/ProofTests.swift.o",
+    "swiftmodule": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/ProofTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/ProofTests.swiftdeps",
+    "diagnostics": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerTests.build/ProofTests.dia"
+  }
+}

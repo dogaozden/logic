@@ -1,0 +1,13 @@
+{
+  "": {
+    "dependencies": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerPackageTests.build/LogicProofTrainerPackageTests.d",
+    "object": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerPackageTests.build/LogicProofTrainerPackageTests.o",
+    "swift-dependencies": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerPackageTests.build/master.swiftdeps"
+  },
+  "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerPackageTests.derived/runner.swift": {
+    "object": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerPackageTests.build/runner.swift.o",
+    "swiftmodule": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerPackageTests.build/runner~partial.swiftmodule",
+    "swift-dependencies": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerPackageTests.build/runner.swiftdeps",
+    "diagnostics": "/Users/dogaozden/Documents/AI_Projects/logic/LogicProofTrainer/.build/arm64-apple-macosx/release/LogicProofTrainerPackageTests.build/runner.dia"
+  }
+}
