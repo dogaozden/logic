@@ -196,6 +196,33 @@ Each rule implements:
 - `equivalent_forms(&self, formula: &Formula) -> Vec<Formula>`
 - `can_transform(&self, from: &Formula, to: &Formula) -> bool`
 
+### Theorem Model (`models/theorem.rs`)
+
+```rust
+pub struct Theorem {
+    pub id: String,
+    pub premises: Vec<Formula>,
+    pub conclusion: Formula,
+    pub difficulty: Difficulty,      // Preset: Easy, Medium, Hard, Expert
+    pub difficulty_value: u8,        // Actual 1-100 value used for generation
+    pub theme: Option<Theme>,
+    pub name: Option<String>,
+    pub is_classic: bool,
+}
+
+pub enum Difficulty {
+    Easy,    // difficulty_value 1-25
+    Medium,  // difficulty_value 26-45
+    Hard,    // difficulty_value 46-70
+    Expert,  // difficulty_value 71-100
+}
+```
+
+Key methods:
+- `Theorem::new(...)` - Creates theorem with default difficulty value for preset
+- `Theorem::with_difficulty_value(...)` - Creates theorem with specific 1-100 value
+- `Theorem::default_value_for_preset(difficulty)` - Gets midpoint value for a preset
+
 ### Proof Model (`models/proof.rs`)
 
 ```rust
@@ -251,7 +278,29 @@ Manages subproof nesting for CP and IP:
 
 **Generator** (`services/generator.rs`):
 - Creates provable theorems by working backwards from conclusion
-- Difficulty levels control formula complexity and proof depth
+- Uses proof-tree compositional approach for Medium/Hard/Expert difficulties
+- Legacy template-based generation for Easy theorems
+
+**Difficulty System** (`services/tree_gen.rs`):
+- Continuous 1-100 difficulty scale with smooth parameter interpolation
+- Preset buttons (Easy/Medium/Hard/Expert) randomize within ranges for natural variety
+- Parameters scale based on difficulty value:
+
+| Parameter | At 1 | At 100 | Formula |
+|-----------|------|--------|---------|
+| atom_count | 2 | 5 | `2 + (d * 3 / 100)` |
+| target_fragments | 2 | 12 | `2 + (d * 10 / 100)` |
+| max_nesting | 1 | 5 | `1 + (d * 4 / 100)` |
+| min_fragments | 1 | 8 | `1 + (d * 7 / 100)` |
+| min_proof_steps | 1 | 7 | `1 + (d * 6 / 100)` |
+| force_cp | false | true | `d >= 30` |
+| force_case_split | false | true | `d >= 50` |
+
+- Preset ranges:
+  - **Easy**: 1-25 (simple proofs, 2 atoms, no CP required)
+  - **Medium**: 26-45 (3 atoms, may require CP)
+  - **Hard**: 46-70 (4 atoms, requires CP, may require case split)
+  - **Expert**: 71-100 (5 atoms, requires CP and case split)
 
 **Storage** (`services/storage.rs`):
 - Persists data to JSON files in OS-appropriate data directory

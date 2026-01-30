@@ -197,6 +197,8 @@ pub enum DegenerateProofError {
     ContradictoryPremises,
     /// Conclusion is a tautology (always true regardless of premises)
     TautologicalConclusion,
+    /// A premise is a tautology (always true, contributes nothing)
+    TautologicalPremise,
     /// A single premise alone entails the conclusion
     SinglePremiseEntails,
     /// The negation of the conclusion is semantically available as a premise
@@ -213,6 +215,12 @@ pub enum DegenerateProofError {
     TooEasy { min_steps: usize, actual_steps: usize },
     /// Theorem doesn't require subproof rules (CP/IP) - too easy for hard/expert
     NoSubproofRequired,
+    /// Theorem doesn't force conditional proof (conclusion is A⊃B but premises entail B)
+    DoesNotForceCP,
+    /// Theorem doesn't force case split (no disjunction without available negation)
+    DoesNotForceCaseSplit,
+    /// Theorem doesn't force indirect proof
+    DoesNotForceIP,
 }
 
 impl std::fmt::Display for DegenerateProofError {
@@ -223,6 +231,9 @@ impl std::fmt::Display for DegenerateProofError {
             }
             DegenerateProofError::TautologicalConclusion => {
                 write!(f, "Conclusion is a tautology (no proof needed)")
+            }
+            DegenerateProofError::TautologicalPremise => {
+                write!(f, "A premise is a tautology (always true, contributes nothing)")
             }
             DegenerateProofError::SinglePremiseEntails => {
                 write!(f, "A single premise entails the conclusion (trivial proof)")
@@ -247,6 +258,15 @@ impl std::fmt::Display for DegenerateProofError {
             }
             DegenerateProofError::NoSubproofRequired => {
                 write!(f, "Theorem solvable without subproof rules (CP/IP required for this difficulty)")
+            }
+            DegenerateProofError::DoesNotForceCP => {
+                write!(f, "Theorem doesn't force conditional proof (conclusion A⊃B but premises entail B)")
+            }
+            DegenerateProofError::DoesNotForceCaseSplit => {
+                write!(f, "Theorem doesn't force case split (no disjunction requires it)")
+            }
+            DegenerateProofError::DoesNotForceIP => {
+                write!(f, "Theorem doesn't force indirect proof")
             }
         }
     }
@@ -295,11 +315,26 @@ impl ProofTree {
 
     /// Check if this proof tree is valid with difficulty requirements
     /// min_proof_steps: minimum number of steps the shortest proof should require
-    /// requires_subproof: if true, theorem must need CP/IP to solve
-    pub fn validate_with_difficulty(&self, min_proof_steps: usize, requires_subproof: bool) -> Result<(), DegenerateProofError> {
+    /// require_cp: if true, theorem must force conditional proof
+    /// require_case_split: if true, theorem must force case split
+    /// require_ip: if true, theorem must force indirect proof
+    pub fn validate_with_difficulty(
+        &self,
+        min_proof_steps: usize,
+        require_cp: bool,
+        require_case_split: bool,
+        require_ip: bool,
+    ) -> Result<(), DegenerateProofError> {
         let premises = self.premises();
         let conclusion = self.conclusion();
-        super::truth_table::validate_theorem_with_difficulty(&premises, conclusion, Some(min_proof_steps), requires_subproof)
+        super::truth_table::validate_theorem_with_difficulty(
+            &premises,
+            conclusion,
+            Some(min_proof_steps),
+            require_cp,
+            require_case_split,
+            require_ip,
+        )
     }
 
     /// Check if this proof tree is valid (non-degenerate)
@@ -308,8 +343,14 @@ impl ProofTree {
     }
 
     /// Check if this proof tree is valid with difficulty requirements
-    pub fn is_valid_with_difficulty(&self, min_proof_steps: usize, requires_subproof: bool) -> bool {
-        self.validate_with_difficulty(min_proof_steps, requires_subproof).is_ok()
+    pub fn is_valid_with_difficulty(
+        &self,
+        min_proof_steps: usize,
+        require_cp: bool,
+        require_case_split: bool,
+        require_ip: bool,
+    ) -> bool {
+        self.validate_with_difficulty(min_proof_steps, require_cp, require_case_split, require_ip).is_ok()
     }
 
     /// Pretty print the entire proof tree

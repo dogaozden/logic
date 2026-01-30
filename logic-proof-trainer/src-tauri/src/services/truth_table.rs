@@ -129,27 +129,177 @@ pub fn has_redundant_premises(premises: &[Formula]) -> bool {
     truth_tables.len() != unique.len()
 }
 
+// === Forcing Check Functions ===
+
+/// Check if theorem FORCES conditional proof.
+/// True if: conclusion is A⊃B AND premises alone don't entail B
+pub fn forces_cp(premises: &[Formula], conclusion: &Formula) -> bool {
+    if let Formula::Implies(_, consequent) = conclusion {
+        // If premises already entail the consequent, CP is optional
+        // (can just derive B, then wrap in trivial CP)
+        !entails(premises, consequent)
+    } else {
+        false // Not a conditional conclusion
+    }
+}
+
+/// Check if theorem FORCES case split (∨-Elim).
+/// True if: premises contain A∨B AND neither ~A nor ~B is available
+pub fn forces_case_split(premises: &[Formula]) -> bool {
+    for p in premises {
+        if let Formula::Or(left, right) = p {
+            let neg_left_tt = !compute_truth_table(left) & MASK_32;
+            let neg_right_tt = !compute_truth_table(right) & MASK_32;
+
+            let neg_left_available = premises.iter()
+                .any(|q| compute_truth_table(q) == neg_left_tt);
+            let neg_right_available = premises.iter()
+                .any(|q| compute_truth_table(q) == neg_right_tt);
+
+            // If neither negation available, DS is blocked → must case split
+            if !neg_left_available && !neg_right_available {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Check if theorem FORCES indirect proof.
+/// True if: conclusion is not directly derivable via single basic rule application
+/// AND not a conditional (which would use CP instead)
+pub fn forces_ip(premises: &[Formula], conclusion: &Formula) -> bool {
+    // IP is typically needed for:
+    // 1. Atomic conclusions not derivable via MP/Simp/DS
+    // 2. Negation conclusions not derivable via MT
+    // 3. Classical tautology patterns
+
+    // Skip if it's a conditional (CP territory)
+    if matches!(conclusion, Formula::Implies(_, _)) {
+        return false;
+    }
+
+    // Skip if it's a disjunction (Add territory) or conjunction (Conj territory)
+    if matches!(conclusion, Formula::Or(_, _) | Formula::And(_, _)) {
+        return false;
+    }
+
+    // For atoms and negations: check if directly derivable
+    !can_derive_directly(premises, conclusion)
+}
+
+/// Helper: Check if conclusion is directly derivable via ONE basic rule application
+fn can_derive_directly(premises: &[Formula], conclusion: &Formula) -> bool {
+    let conclusion_tt = compute_truth_table(conclusion);
+
+    // 1. Direct availability (0 steps)
+    if premises.iter().any(|p| compute_truth_table(p) == conclusion_tt) {
+        return true;
+    }
+
+    // 2. MP: Find A⊃B where B ≡ conclusion, and A available
+    for p in premises {
+        if let Formula::Implies(ant, cons) = p {
+            if compute_truth_table(cons.as_ref()) == conclusion_tt {
+                let ant_tt = compute_truth_table(ant.as_ref());
+                if premises.iter().any(|q| compute_truth_table(q) == ant_tt) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // 3. MT: If conclusion is ~A, find A⊃B and ~B
+    if let Formula::Not(inner) = conclusion {
+        let inner_tt = compute_truth_table(inner.as_ref());
+        for p in premises {
+            if let Formula::Implies(ant, cons) = p {
+                if compute_truth_table(ant.as_ref()) == inner_tt {
+                    // Found A⊃B where A matches. Need ~B available.
+                    let neg_cons_tt = !compute_truth_table(cons.as_ref()) & MASK_32;
+                    if premises.iter().any(|q| compute_truth_table(q) == neg_cons_tt) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Simp: Find A∧B where A ≡ conclusion or B ≡ conclusion
+    for p in premises {
+        if let Formula::And(left, right) = p {
+            if compute_truth_table(left.as_ref()) == conclusion_tt ||
+               compute_truth_table(right.as_ref()) == conclusion_tt {
+                return true;
+            }
+        }
+    }
+
+    // 5. DS: Find A∨B and ~A where B ≡ conclusion (or vice versa)
+    for p in premises {
+        if let Formula::Or(left, right) = p {
+            // A∨B, ~A ⊢ B
+            if compute_truth_table(right.as_ref()) == conclusion_tt {
+                let neg_left_tt = !compute_truth_table(left.as_ref()) & MASK_32;
+                if premises.iter().any(|q| compute_truth_table(q) == neg_left_tt) {
+                    return true;
+                }
+            }
+            // A∨B, ~B ⊢ A
+            if compute_truth_table(left.as_ref()) == conclusion_tt {
+                let neg_right_tt = !compute_truth_table(right.as_ref()) & MASK_32;
+                if premises.iter().any(|q| compute_truth_table(q) == neg_right_tt) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // 6. DN: If conclusion is ~~A, check if A is available
+    if let Formula::Not(inner) = conclusion {
+        if let Formula::Not(inner2) = inner.as_ref() {
+            let inner2_tt = compute_truth_table(inner2.as_ref());
+            if premises.iter().any(|q| compute_truth_table(q) == inner2_tt) {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
 // === Main Validation ===
 
 use super::proof_tree::DegenerateProofError;
 
 /// Validate that a theorem is non-degenerate
 pub fn validate_theorem(premises: &[Formula], conclusion: &Formula) -> Result<(), DegenerateProofError> {
-    validate_theorem_with_difficulty(premises, conclusion, None, false)
+    validate_theorem_with_difficulty(premises, conclusion, None, false, false, false)
 }
 
 /// Validate theorem with optional difficulty-based requirements
 /// - min_steps: minimum number of proof steps required
-/// - requires_subproof: if true, theorem must require CP/IP (not solvable with basic rules alone)
+/// - require_cp: if true, theorem must force conditional proof
+/// - require_case_split: if true, theorem must force case split (disjunction elimination)
+/// - require_ip: if true, theorem must force indirect proof
 pub fn validate_theorem_with_difficulty(
     premises: &[Formula],
     conclusion: &Formula,
     min_steps: Option<usize>,
-    requires_subproof: bool,
+    require_cp: bool,
+    require_case_split: bool,
+    require_ip: bool,
 ) -> Result<(), DegenerateProofError> {
     // 1. Premises consistent
     if !premises_consistent(premises) {
         return Err(DegenerateProofError::ContradictoryPremises);
+    }
+
+    // 1.5. No tautological premises (P⊃P, P∨~P, etc. - always true, useless)
+    for premise in premises {
+        if is_tautology(premise) {
+            return Err(DegenerateProofError::TautologicalPremise);
+        }
     }
 
     // 2. Conclusion not a tautology
@@ -199,11 +349,17 @@ pub fn validate_theorem_with_difficulty(
         }
     }
 
-    // 10. Check subproof requirement (for Hard/Expert difficulty)
-    if requires_subproof {
-        if !super::proof_search::requires_subproof(premises, conclusion, 15) {
-            return Err(DegenerateProofError::NoSubproofRequired);
-        }
+    // 10. Forcing requirements (structural difficulty checks)
+    if require_cp && !forces_cp(premises, conclusion) {
+        return Err(DegenerateProofError::DoesNotForceCP);
+    }
+
+    if require_case_split && !forces_case_split(premises) {
+        return Err(DegenerateProofError::DoesNotForceCaseSplit);
+    }
+
+    if require_ip && !forces_ip(premises, conclusion) {
+        return Err(DegenerateProofError::DoesNotForceIP);
     }
 
     Ok(())
@@ -468,5 +624,137 @@ mod tests {
         ];
         let conclusion = implies(atom("P"), atom("R"));
         assert!(validate_theorem(&premises, &conclusion).is_ok());
+    }
+
+    // === Forcing Check Tests ===
+
+    #[test]
+    fn test_forces_cp_true() {
+        // A⊃B, C⊃D ⊢ (A∧C)⊃(B∧D) - premises don't entail B∧D
+        let a = atom("P");
+        let b = atom("Q");
+        let c = atom("R");
+        let d = atom("S");
+        let premises = vec![implies(a.clone(), b.clone()), implies(c.clone(), d.clone())];
+        let conclusion = implies(and(a, c), and(b, d));
+        assert!(forces_cp(&premises, &conclusion));
+    }
+
+    #[test]
+    fn test_forces_cp_false() {
+        // A, B ⊢ C⊃(A∧B) - premises DO entail A∧B, so CP is trivial
+        let a = atom("P");
+        let b = atom("Q");
+        let c = atom("R");
+        let premises = vec![a.clone(), b.clone()];
+        let conclusion = implies(c, and(a, b));
+        assert!(!forces_cp(&premises, &conclusion));
+    }
+
+    #[test]
+    fn test_forces_cp_not_conditional() {
+        // P, P⊃Q ⊢ Q - conclusion is not conditional, so CP not forced
+        let premises = vec![atom("P"), implies(atom("P"), atom("Q"))];
+        let conclusion = atom("Q");
+        assert!(!forces_cp(&premises, &conclusion));
+    }
+
+    #[test]
+    fn test_forces_case_split_true() {
+        // A∨B, A⊃C, B⊃C ⊢ C - no ~A or ~B available
+        let a = atom("P");
+        let b = atom("Q");
+        let c = atom("R");
+        let premises = vec![or(a.clone(), b.clone()), implies(a, c.clone()), implies(b, c)];
+        assert!(forces_case_split(&premises));
+    }
+
+    #[test]
+    fn test_forces_case_split_false() {
+        // A∨B, ~A ⊢ B - DS works, no case split needed
+        let a = atom("P");
+        let b = atom("Q");
+        let premises = vec![or(a.clone(), b), not(a)];
+        assert!(!forces_case_split(&premises));
+    }
+
+    #[test]
+    fn test_forces_case_split_no_disjunction() {
+        // P, P⊃Q ⊢ Q - no disjunction in premises
+        let premises = vec![atom("P"), implies(atom("P"), atom("Q"))];
+        assert!(!forces_case_split(&premises));
+    }
+
+    #[test]
+    fn test_rejects_tautological_premise() {
+        // P⊃P, Q ⊢ Q - P⊃P is tautology
+        let premises = vec![implies(atom("P"), atom("P")), atom("Q")];
+        let conclusion = atom("Q");
+        assert!(matches!(
+            validate_theorem(&premises, &conclusion),
+            Err(DegenerateProofError::TautologicalPremise)
+        ));
+    }
+
+    #[test]
+    fn test_rejects_lem_premise() {
+        // P∨~P, Q ⊢ Q - P∨~P is tautology
+        let premises = vec![or(atom("P"), not(atom("P"))), atom("Q")];
+        let conclusion = atom("Q");
+        assert!(matches!(
+            validate_theorem(&premises, &conclusion),
+            Err(DegenerateProofError::TautologicalPremise)
+        ));
+    }
+
+    #[test]
+    fn test_forces_ip_atom_not_directly_derivable() {
+        // P⊃Q, Q⊃R ⊢ P (hypothetically - this is invalid but tests the function)
+        // forces_ip checks structure, not validity
+        let premises = vec![implies(atom("P"), atom("Q")), implies(atom("Q"), atom("R"))];
+        let conclusion = atom("P");
+        // P is not directly derivable from these premises via basic rules
+        assert!(forces_ip(&premises, &conclusion));
+    }
+
+    #[test]
+    fn test_forces_ip_atom_directly_derivable() {
+        // P, P⊃Q ⊢ Q - Q is derivable via MP
+        let premises = vec![atom("P"), implies(atom("P"), atom("Q"))];
+        let conclusion = atom("Q");
+        // Q is directly derivable via MP
+        assert!(!forces_ip(&premises, &conclusion));
+    }
+
+    #[test]
+    fn test_forces_ip_conditional_conclusion() {
+        // ... ⊢ P⊃Q - conditionals use CP, not IP
+        let premises = vec![atom("P")];
+        let conclusion = implies(atom("P"), atom("Q"));
+        assert!(!forces_ip(&premises, &conclusion));
+    }
+
+    #[test]
+    fn test_can_derive_directly_via_simp() {
+        // P∧Q ⊢ P - derivable via Simp
+        let premises = vec![and(atom("P"), atom("Q"))];
+        let conclusion = atom("P");
+        assert!(can_derive_directly(&premises, &conclusion));
+    }
+
+    #[test]
+    fn test_can_derive_directly_via_ds() {
+        // P∨Q, ~P ⊢ Q - derivable via DS
+        let premises = vec![or(atom("P"), atom("Q")), not(atom("P"))];
+        let conclusion = atom("Q");
+        assert!(can_derive_directly(&premises, &conclusion));
+    }
+
+    #[test]
+    fn test_can_derive_directly_via_mt() {
+        // P⊃Q, ~Q ⊢ ~P - derivable via MT
+        let premises = vec![implies(atom("P"), atom("Q")), not(atom("Q"))];
+        let conclusion = not(atom("P"));
+        assert!(can_derive_directly(&premises, &conclusion));
     }
 }

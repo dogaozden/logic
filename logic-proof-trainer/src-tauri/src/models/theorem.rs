@@ -66,9 +66,18 @@ pub struct Theorem {
     pub premises: Vec<Formula>,
     pub conclusion: Formula,
     pub difficulty: Difficulty,
+    /// The actual 1-100 difficulty value used to generate this theorem.
+    /// For classic theorems, this is derived from the preset difficulty.
+    #[serde(default = "default_difficulty_value")]
+    pub difficulty_value: u8,
     pub theme: Option<Theme>,
     pub name: Option<String>,
     pub is_classic: bool,
+}
+
+/// Default difficulty value for backwards compatibility with serialized data
+fn default_difficulty_value() -> u8 {
+    50 // Mid-range default
 }
 
 impl Theorem {
@@ -79,14 +88,38 @@ impl Theorem {
         theme: Option<Theme>,
         name: Option<String>,
     ) -> Self {
+        // Use midpoint of difficulty range as default
+        let difficulty_value = Self::default_value_for_preset(difficulty);
+        Self::with_difficulty_value(premises, conclusion, difficulty, difficulty_value, theme, name)
+    }
+
+    pub fn with_difficulty_value(
+        premises: Vec<Formula>,
+        conclusion: Formula,
+        difficulty: Difficulty,
+        difficulty_value: u8,
+        theme: Option<Theme>,
+        name: Option<String>,
+    ) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             premises,
             conclusion,
             difficulty,
+            difficulty_value,
             theme,
             name,
             is_classic: false,
+        }
+    }
+
+    /// Get the midpoint difficulty value for a preset
+    pub fn default_value_for_preset(difficulty: Difficulty) -> u8 {
+        match difficulty {
+            Difficulty::Easy => 13,     // midpoint of 1-25
+            Difficulty::Medium => 35,   // midpoint of 26-45
+            Difficulty::Hard => 58,     // midpoint of 46-70
+            Difficulty::Expert => 85,   // midpoint of 71-100
         }
     }
 
@@ -117,6 +150,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             ],
             conclusion: Formula::parse("Q").unwrap(),
             difficulty: Difficulty::Easy,
+            difficulty_value: Theorem::default_value_for_preset(Difficulty::Easy),
             theme: Some(Theme::ModusPonens),
             name: Some("Modus Ponens".to_string()),
             is_classic: true,
@@ -130,6 +164,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             ],
             conclusion: Formula::parse("~P").unwrap(),
             difficulty: Difficulty::Easy,
+            difficulty_value: Theorem::default_value_for_preset(Difficulty::Easy),
             theme: Some(Theme::ModusTollens),
             name: Some("Modus Tollens".to_string()),
             is_classic: true,
@@ -143,6 +178,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             ],
             conclusion: Formula::parse("P -> R").unwrap(),
             difficulty: Difficulty::Easy,
+            difficulty_value: Theorem::default_value_for_preset(Difficulty::Easy),
             theme: Some(Theme::HypotheticalSyllogism),
             name: Some("Hypothetical Syllogism".to_string()),
             is_classic: true,
@@ -156,6 +192,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             ],
             conclusion: Formula::parse("Q").unwrap(),
             difficulty: Difficulty::Easy,
+            difficulty_value: Theorem::default_value_for_preset(Difficulty::Easy),
             theme: Some(Theme::DisjunctiveSyllogism),
             name: Some("Disjunctive Syllogism".to_string()),
             is_classic: true,
@@ -169,6 +206,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             ],
             conclusion: Formula::parse("Q | S").unwrap(),
             difficulty: Difficulty::Medium,
+            difficulty_value: Theorem::default_value_for_preset(Difficulty::Medium),
             theme: Some(Theme::ConstructiveDilemma),
             name: Some("Constructive Dilemma".to_string()),
             is_classic: true,
@@ -179,6 +217,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             premises: vec![],
             conclusion: Formula::parse("P | ~P").unwrap(),
             difficulty: Difficulty::Medium,
+            difficulty_value: Theorem::default_value_for_preset(Difficulty::Medium),
             theme: Some(Theme::IndirectProof),
             name: Some("Law of Excluded Middle".to_string()),
             is_classic: true,
@@ -189,6 +228,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             premises: vec![Formula::parse("~~P").unwrap()],
             conclusion: Formula::parse("P").unwrap(),
             difficulty: Difficulty::Easy,
+            difficulty_value: Theorem::default_value_for_preset(Difficulty::Easy),
             theme: Some(Theme::DoubleNegation),
             name: Some("Double Negation Elimination".to_string()),
             is_classic: true,
@@ -199,6 +239,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             premises: vec![Formula::parse("P -> Q").unwrap()],
             conclusion: Formula::parse("~Q -> ~P").unwrap(),
             difficulty: Difficulty::Medium,
+            difficulty_value: Theorem::default_value_for_preset(Difficulty::Medium),
             theme: Some(Theme::ConditionalProof),
             name: Some("Contraposition".to_string()),
             is_classic: true,
@@ -209,6 +250,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             premises: vec![Formula::parse("~(P & Q)").unwrap()],
             conclusion: Formula::parse("~P | ~Q").unwrap(),
             difficulty: Difficulty::Hard,
+            difficulty_value: Theorem::default_value_for_preset(Difficulty::Hard),
             theme: Some(Theme::Equivalence),
             name: Some("De Morgan (And to Or)".to_string()),
             is_classic: true,
@@ -219,6 +261,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             premises: vec![Formula::parse("~(P | Q)").unwrap()],
             conclusion: Formula::parse("~P & ~Q").unwrap(),
             difficulty: Difficulty::Hard,
+            difficulty_value: Theorem::default_value_for_preset(Difficulty::Hard),
             theme: Some(Theme::Equivalence),
             name: Some("De Morgan (Or to And)".to_string()),
             is_classic: true,
@@ -229,6 +272,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             premises: vec![Formula::parse("P -> Q").unwrap()],
             conclusion: Formula::parse("~P | Q").unwrap(),
             difficulty: Difficulty::Medium,
+            difficulty_value: Theorem::default_value_for_preset(Difficulty::Medium),
             theme: Some(Theme::Equivalence),
             name: Some("Material Implication".to_string()),
             is_classic: true,
@@ -239,6 +283,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             premises: vec![Formula::parse("(P & Q) -> R").unwrap()],
             conclusion: Formula::parse("P -> (Q -> R)").unwrap(),
             difficulty: Difficulty::Hard,
+            difficulty_value: Theorem::default_value_for_preset(Difficulty::Hard),
             theme: Some(Theme::ConditionalProof),
             name: Some("Exportation".to_string()),
             is_classic: true,
@@ -249,6 +294,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             premises: vec![],
             conclusion: Formula::parse("((P -> Q) -> P) -> P").unwrap(),
             difficulty: Difficulty::Expert,
+            difficulty_value: Theorem::default_value_for_preset(Difficulty::Expert),
             theme: Some(Theme::IndirectProof),
             name: Some("Peirce's Law".to_string()),
             is_classic: true,

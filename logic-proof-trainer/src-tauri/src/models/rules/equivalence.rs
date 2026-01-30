@@ -327,7 +327,8 @@ impl EquivalenceRule {
         Some(Self::replace_subformula(formula, target_subformula, replacement))
     }
 
-    fn replace_subformula(formula: &Formula, target: &Formula, replacement: &Formula) -> Formula {
+    /// Replace all occurrences of a target subformula with a replacement
+    pub fn replace_subformula(formula: &Formula, target: &Formula, replacement: &Formula) -> Formula {
         if formula == target {
             return replacement.clone();
         }

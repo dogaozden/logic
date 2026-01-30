@@ -25,8 +25,26 @@ Generate provable theorems of propositional logic for the user to prove. Every g
 ## Theorem Generation
 
 - **Method**: Backwards from proof — generate a valid proof structure first, then present its conclusion as the theorem
-- **Difficulty**: Explicit levels 1-5, mapping to proof depth, connective count, and subproof nesting
 - **Themes**: Random by default, but user can request rule-focused exercises (e.g., "disjunction elimination practice")
+
+### Difficulty System
+
+Continuous 1-100 scale with smooth parameter interpolation. Preset buttons randomize within ranges:
+
+| Preset | Range | Atoms | Requires CP | Requires Case Split |
+|--------|-------|-------|-------------|---------------------|
+| Easy | 1-25 | 2 | No | No |
+| Medium | 26-45 | 2-3 | Maybe (d≥30) | No |
+| Hard | 46-70 | 3-4 | Yes | Maybe (d≥50) |
+| Expert | 71-100 | 4-5 | Yes | Yes |
+
+Parameters scale linearly:
+- **atom_count**: 2-5 atoms (P, Q, R, S, T)
+- **target_fragments**: 2-12 inference steps
+- **max_nesting**: 1-5 subproof depth
+- **min_proof_steps**: 1-7 minimum solution length
+
+Each theorem stores both its preset difficulty and the exact 1-100 value used, enabling variety while maintaining expected difficulty levels
 
 ## User Interface
 

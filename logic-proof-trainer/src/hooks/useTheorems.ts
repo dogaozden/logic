@@ -13,6 +13,7 @@ interface TheoremsState {
   loadClassicTheorems: () => Promise<void>;
   loadCustomTheorems: () => Promise<void>;
   generateTheorem: (difficulty: Difficulty) => Promise<Theorem>;
+  generateTheoremWithValue: (difficultyValue: number) => Promise<Theorem>;
   selectTheorem: (theorem: Theorem | null) => void;
   saveCustomTheorem: (theorem: Theorem) => Promise<void>;
 }
@@ -48,6 +49,18 @@ export const useTheorems = create<TheoremsState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const theorem = await invoke<Theorem>('generate_theorem', { difficulty });
+      set({ selectedTheorem: theorem, isLoading: false });
+      return theorem;
+    } catch (e) {
+      set({ error: String(e), isLoading: false });
+      throw e;
+    }
+  },
+
+  generateTheoremWithValue: async (difficultyValue: number) => {
+    set({ isLoading: true, error: null });
+    try {
+      const theorem = await invoke<Theorem>('generate_theorem_with_value', { difficultyValue });
       set({ selectedTheorem: theorem, isLoading: false });
       return theorem;
     } catch (e) {

@@ -23,6 +23,13 @@ pub fn generate_theorem(difficulty: Difficulty) -> Theorem {
     generator.generate(difficulty)
 }
 
+/// Generate a theorem with a specific difficulty value (1-100)
+#[tauri::command]
+pub fn generate_theorem_with_value(difficulty_value: u8) -> Theorem {
+    let generator = TheoremGenerator::with_difficulty_value(difficulty_value);
+    generator.generate_with_value(difficulty_value)
+}
+
 /// Generate a theorem with its proof tree (solution)
 /// The proof tree contains the complete solution structure
 #[tauri::command]

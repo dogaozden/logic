@@ -11,6 +11,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_classic_theorems,
             generate_theorem,
+            generate_theorem_with_value,
             create_proof,
             apply_rule,
             open_subproof,

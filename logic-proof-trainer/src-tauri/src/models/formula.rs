@@ -151,7 +151,9 @@ impl Formula {
     }
 
     fn needs_parens_for_not(&self) -> bool {
-        !matches!(self, Formula::Atom(_) | Formula::Not(_) | Formula::Contradiction)
+        // Always show brackets after negation except for atoms and contradiction
+        // This preserves user's bracket structure like ~{~[X]} instead of collapsing to ~~[X]
+        !matches!(self, Formula::Atom(_) | Formula::Contradiction)
     }
 
     fn precedence(&self) -> u8 {
@@ -552,7 +554,8 @@ mod tests {
             )),
             Box::new(Formula::Atom("R".to_string())),
         );
-        assert_eq!(f.display_string(), "P · Q ⊃ R");
+        // Compound formulas are wrapped with brackets for clarity
+        assert_eq!(f.display_string(), "(P . Q) ⊃ R");
     }
 
     #[test]

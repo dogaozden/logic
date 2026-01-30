@@ -33,6 +33,8 @@ export interface Theorem {
   premises: Formula[];
   conclusion: Formula;
   difficulty: Difficulty;
+  /** The actual 1-100 difficulty value used to generate this theorem */
+  difficulty_value: number;
   theme?: Theme;
   name?: string;
   is_classic: boolean;

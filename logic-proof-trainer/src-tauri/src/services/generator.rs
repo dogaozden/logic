@@ -3,8 +3,9 @@ use crate::models::{
     Formula, Theorem,
     theorem::{Difficulty, Theme},
 };
-use super::tree_gen::ProofTreeGenerator;
+use super::tree_gen::{ProofTreeGenerator, TreeGenConfig};
 use super::proof_tree::ProofTree;
+use super::obfuscate_gen::{ObfuscateConfig, ObfuscateGenerator};
 
 /// Configuration for theorem generation (legacy - kept for compatibility)
 #[derive(Debug, Clone)]
@@ -102,21 +103,67 @@ impl TheoremGenerator {
         Self::new(GeneratorConfig::for_difficulty(difficulty))
     }
 
+    /// Create generator with a specific difficulty value (1-100)
+    pub fn with_difficulty_value(value: u8) -> Self {
+        let difficulty = Self::preset_for_value(value);
+        Self::new(GeneratorConfig::for_difficulty(difficulty))
+    }
+
+    /// Get a random difficulty value within a preset's range
+    fn random_difficulty_value(preset: Difficulty) -> u8 {
+        let mut rng = rand::thread_rng();
+        match preset {
+            Difficulty::Easy => rng.gen_range(1..=25),
+            Difficulty::Medium => rng.gen_range(26..=45),
+            Difficulty::Hard => rng.gen_range(46..=70),
+            Difficulty::Expert => rng.gen_range(71..=100),
+        }
+    }
+
+    /// Map a difficulty value (1-100) to a preset
+    fn preset_for_value(value: u8) -> Difficulty {
+        match value {
+            1..=25 => Difficulty::Easy,
+            26..=45 => Difficulty::Medium,
+            46..=70 => Difficulty::Hard,
+            _ => Difficulty::Expert,
+        }
+    }
+
+    /// Generate a theorem with a specific difficulty value (1-100)
+    pub fn generate_with_value(&self, difficulty_value: u8) -> Theorem {
+        let mut rng = rand::thread_rng();
+        let difficulty = Self::preset_for_value(difficulty_value);
+        match difficulty {
+            Difficulty::Easy => self.generate_legacy(difficulty, difficulty_value),
+            _ => self.generate_from_obfuscation(difficulty_value, &mut rng),
+        }
+    }
+
     /// Generate a random provable theorem using the new proof-tree approach
     /// This generates theorems with guaranteed structural complexity
     pub fn generate(&self, difficulty: Difficulty) -> Theorem {
-        // Use the new tree-based generator for Medium, Hard, Expert
+        // Use obfuscation for Medium, Hard, Expert (tautologies via equivalence transforms)
         // Keep legacy for Easy to ensure simple, predictable theorems
+        let mut rng = rand::thread_rng();
+        let difficulty_value = Self::random_difficulty_value(difficulty);
         match difficulty {
-            Difficulty::Easy => self.generate_legacy(difficulty),
-            _ => self.generate_from_tree(difficulty),
+            Difficulty::Easy => self.generate_legacy(difficulty, difficulty_value),
+            _ => self.generate_from_obfuscation(difficulty_value, &mut rng),
         }
     }
 
     /// Generate theorem using the new proof-tree compositional approach
     /// Returns both the theorem and the proof tree (solution)
     pub fn generate_with_proof(&self, difficulty: Difficulty) -> GeneratedTheorem {
-        let mut tree_gen = ProofTreeGenerator::with_difficulty(difficulty);
+        let difficulty_value = Self::random_difficulty_value(difficulty);
+        self.generate_with_proof_and_value(difficulty, difficulty_value)
+    }
+
+    /// Generate theorem with a specific difficulty value
+    fn generate_with_proof_and_value(&self, difficulty: Difficulty, difficulty_value: u8) -> GeneratedTheorem {
+        let config = TreeGenConfig::for_difficulty_value(difficulty_value);
+        let mut tree_gen = ProofTreeGenerator::new(config);
         let proof_tree = tree_gen.generate();
 
         let premises = proof_tree.premises();
@@ -125,10 +172,11 @@ impl TheoremGenerator {
         // Determine theme based on proof structure
         let theme = self.infer_theme_from_tree(&proof_tree);
 
-        let theorem = Theorem::new(
+        let theorem = Theorem::with_difficulty_value(
             premises,
             conclusion,
             difficulty,
+            difficulty_value,
             Some(theme),
             None,
         );
@@ -137,8 +185,16 @@ impl TheoremGenerator {
     }
 
     /// Generate theorem from proof tree (without returning the tree)
-    fn generate_from_tree(&self, difficulty: Difficulty) -> Theorem {
-        self.generate_with_proof(difficulty).theorem
+    fn generate_from_tree(&self, difficulty: Difficulty, difficulty_value: u8) -> Theorem {
+        self.generate_with_proof_and_value(difficulty, difficulty_value).theorem
+    }
+
+    /// Generate theorem using equivalence obfuscation
+    /// Creates a tautology by wrapping a valid argument and applying random equivalence transforms
+    fn generate_from_obfuscation(&self, difficulty_value: u8, rng: &mut impl Rng) -> Theorem {
+        let config = ObfuscateConfig::for_difficulty_value(difficulty_value);
+        let gen = ObfuscateGenerator::new(config);
+        gen.generate(rng)
     }
 
     /// Infer the theme from a proof tree based on the root rule
@@ -160,21 +216,21 @@ impl TheoremGenerator {
     }
 
     /// Legacy generation method (template-based)
-    fn generate_legacy(&self, difficulty: Difficulty) -> Theorem {
+    fn generate_legacy(&self, difficulty: Difficulty, difficulty_value: u8) -> Theorem {
         let mut rng = rand::thread_rng();
 
         // Choose a generation strategy based on difficulty
         let theme = self.choose_theme(&mut rng, difficulty);
 
         match theme {
-            Theme::ModusPonens => self.generate_mp_style(&mut rng, difficulty),
-            Theme::ModusTollens => self.generate_mt_style(&mut rng, difficulty),
-            Theme::HypotheticalSyllogism => self.generate_hs_style(&mut rng, difficulty),
-            Theme::DisjunctiveSyllogism => self.generate_ds_style(&mut rng, difficulty),
-            Theme::Conjunction => self.generate_conj_style(&mut rng, difficulty),
-            Theme::ConditionalProof => self.generate_cp_style(&mut rng, difficulty),
-            Theme::IndirectProof => self.generate_ip_style(&mut rng, difficulty),
-            _ => self.generate_mixed_style(&mut rng, difficulty),
+            Theme::ModusPonens => self.generate_mp_style(&mut rng, difficulty, difficulty_value),
+            Theme::ModusTollens => self.generate_mt_style(&mut rng, difficulty, difficulty_value),
+            Theme::HypotheticalSyllogism => self.generate_hs_style(&mut rng, difficulty, difficulty_value),
+            Theme::DisjunctiveSyllogism => self.generate_ds_style(&mut rng, difficulty, difficulty_value),
+            Theme::Conjunction => self.generate_conj_style(&mut rng, difficulty, difficulty_value),
+            Theme::ConditionalProof => self.generate_cp_style(&mut rng, difficulty, difficulty_value),
+            Theme::IndirectProof => self.generate_ip_style(&mut rng, difficulty, difficulty_value),
+            _ => self.generate_mixed_style(&mut rng, difficulty, difficulty_value),
         }
     }
 
@@ -251,126 +307,133 @@ impl TheoremGenerator {
         }
     }
 
-    fn generate_mp_style(&self, rng: &mut impl Rng, difficulty: Difficulty) -> Theorem {
+    fn generate_mp_style(&self, rng: &mut impl Rng, difficulty: Difficulty, difficulty_value: u8) -> Theorem {
         let p = self.random_atom(rng);
         let q = self.random_atom(rng);
 
-        Theorem::new(
+        Theorem::with_difficulty_value(
             vec![
                 Formula::Implies(Box::new(p.clone()), Box::new(q.clone())),
                 p,
             ],
             q,
             difficulty,
+            difficulty_value,
             Some(Theme::ModusPonens),
             None,
         )
     }
 
-    fn generate_mt_style(&self, rng: &mut impl Rng, difficulty: Difficulty) -> Theorem {
+    fn generate_mt_style(&self, rng: &mut impl Rng, difficulty: Difficulty, difficulty_value: u8) -> Theorem {
         let p = self.random_atom(rng);
         let q = self.random_atom(rng);
 
-        Theorem::new(
+        Theorem::with_difficulty_value(
             vec![
                 Formula::Implies(Box::new(p.clone()), Box::new(q.clone())),
                 Formula::Not(Box::new(q)),
             ],
             Formula::Not(Box::new(p)),
             difficulty,
+            difficulty_value,
             Some(Theme::ModusTollens),
             None,
         )
     }
 
-    fn generate_hs_style(&self, rng: &mut impl Rng, difficulty: Difficulty) -> Theorem {
+    fn generate_hs_style(&self, rng: &mut impl Rng, difficulty: Difficulty, difficulty_value: u8) -> Theorem {
         let p = self.random_atom(rng);
         let q = self.random_atom(rng);
         let r = self.random_atom(rng);
 
-        Theorem::new(
+        Theorem::with_difficulty_value(
             vec![
                 Formula::Implies(Box::new(p.clone()), Box::new(q.clone())),
                 Formula::Implies(Box::new(q), Box::new(r.clone())),
             ],
             Formula::Implies(Box::new(p), Box::new(r)),
             difficulty,
+            difficulty_value,
             Some(Theme::HypotheticalSyllogism),
             None,
         )
     }
 
-    fn generate_ds_style(&self, rng: &mut impl Rng, difficulty: Difficulty) -> Theorem {
+    fn generate_ds_style(&self, rng: &mut impl Rng, difficulty: Difficulty, difficulty_value: u8) -> Theorem {
         let p = self.random_atom(rng);
         let q = self.random_atom(rng);
 
-        Theorem::new(
+        Theorem::with_difficulty_value(
             vec![
                 Formula::Or(Box::new(p.clone()), Box::new(q.clone())),
                 Formula::Not(Box::new(p)),
             ],
             q,
             difficulty,
+            difficulty_value,
             Some(Theme::DisjunctiveSyllogism),
             None,
         )
     }
 
-    fn generate_conj_style(&self, rng: &mut impl Rng, difficulty: Difficulty) -> Theorem {
+    fn generate_conj_style(&self, rng: &mut impl Rng, difficulty: Difficulty, difficulty_value: u8) -> Theorem {
         let p = self.random_atom(rng);
         let q = self.random_atom(rng);
 
         // P, Q ⊢ P ∧ Q
-        Theorem::new(
+        Theorem::with_difficulty_value(
             vec![p.clone(), q.clone()],
             Formula::And(Box::new(p), Box::new(q)),
             difficulty,
+            difficulty_value,
             Some(Theme::Conjunction),
             None,
         )
     }
 
-    fn generate_cp_style(&self, rng: &mut impl Rng, difficulty: Difficulty) -> Theorem {
+    fn generate_cp_style(&self, rng: &mut impl Rng, difficulty: Difficulty, difficulty_value: u8) -> Theorem {
         let p = self.random_atom(rng);
         let q = self.random_atom(rng);
 
         // P → Q ⊢ ¬Q → ¬P (contraposition via conditional proof)
-        Theorem::new(
+        Theorem::with_difficulty_value(
             vec![Formula::Implies(Box::new(p.clone()), Box::new(q.clone()))],
             Formula::Implies(
                 Box::new(Formula::Not(Box::new(q))),
                 Box::new(Formula::Not(Box::new(p))),
             ),
             difficulty,
+            difficulty_value,
             Some(Theme::ConditionalProof),
             None,
         )
     }
 
-    fn generate_ip_style(&self, rng: &mut impl Rng, difficulty: Difficulty) -> Theorem {
+    fn generate_ip_style(&self, rng: &mut impl Rng, difficulty: Difficulty, difficulty_value: u8) -> Theorem {
         let p = self.random_atom(rng);
 
         // ⊢ P ∨ ¬P (law of excluded middle)
-        Theorem::new(
+        Theorem::with_difficulty_value(
             vec![],
             Formula::Or(
                 Box::new(p.clone()),
                 Box::new(Formula::Not(Box::new(p))),
             ),
             difficulty,
+            difficulty_value,
             Some(Theme::IndirectProof),
             None,
         )
     }
 
-    fn generate_mixed_style(&self, rng: &mut impl Rng, difficulty: Difficulty) -> Theorem {
+    fn generate_mixed_style(&self, rng: &mut impl Rng, difficulty: Difficulty, difficulty_value: u8) -> Theorem {
         // Generate a random but solvable theorem
         let p = self.random_atom(rng);
         let q = self.random_atom(rng);
         let r = self.random_atom(rng);
 
         // (P → Q) ∧ (Q → R), P ⊢ R
-        Theorem::new(
+        Theorem::with_difficulty_value(
             vec![
                 Formula::And(
                     Box::new(Formula::Implies(Box::new(p.clone()), Box::new(q.clone()))),
@@ -380,6 +443,7 @@ impl TheoremGenerator {
             ],
             r,
             difficulty,
+            difficulty_value,
             Some(Theme::Mixed),
             None,
         )
