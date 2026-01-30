@@ -4,14 +4,15 @@ import type { Proof, ProofScope } from '../../types';
 
 interface FitchBoxProps {
   proof: Proof;
-  selectedLines: number[];
-  onLineClick: (lineNumber: number) => void;
-  scopeGoals: Record<string, string>;
-  pendingGoalScopeId: string | null;
-  goalInput: string;
-  onGoalInputChange: (value: string) => void;
-  onGoalSubmit: () => void;
-  onGoalSkip: () => void;
+  selectedLines?: number[];
+  onLineClick?: (lineNumber: number) => void;
+  scopeGoals?: Record<string, string>;
+  pendingGoalScopeId?: string | null;
+  goalInput?: string;
+  onGoalInputChange?: (value: string) => void;
+  onGoalSubmit?: () => void;
+  onGoalSkip?: () => void;
+  readOnly?: boolean;
 }
 
 // Calculate which scopes are active at each line
@@ -64,14 +65,15 @@ function getScopeInfo(proof: Proof) {
 
 export const FitchBox: React.FC<FitchBoxProps> = ({
   proof,
-  selectedLines,
-  onLineClick,
-  scopeGoals,
-  pendingGoalScopeId,
-  goalInput,
-  onGoalInputChange,
-  onGoalSubmit,
-  onGoalSkip,
+  selectedLines = [],
+  onLineClick = () => { },
+  scopeGoals = {},
+  pendingGoalScopeId = null,
+  goalInput = '',
+  onGoalInputChange = () => { },
+  onGoalSubmit = () => { },
+  onGoalSkip = () => { },
+  readOnly = false,
 }) => {
   const scopeInfo = getScopeInfo(proof);
 
@@ -100,6 +102,7 @@ export const FitchBox: React.FC<FitchBoxProps> = ({
               endsScope={info?.endsScope || null}
               maxScopes={maxScopes}
               goal={goal}
+              readOnly={readOnly}
             />
             {showGoalInput && (
               <div

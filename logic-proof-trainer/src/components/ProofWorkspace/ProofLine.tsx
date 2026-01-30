@@ -11,6 +11,7 @@ interface ProofLineProps {
   endsScope: ProofScope | null;
   maxScopes: number;
   goal?: string;
+  readOnly?: boolean;
 }
 
 export const ProofLine: React.FC<ProofLineProps> = ({
@@ -22,11 +23,13 @@ export const ProofLine: React.FC<ProofLineProps> = ({
   endsScope,
   maxScopes,
   goal,
+  readOnly = false,
 }) => {
   const classNames = [
     'proof-line',
     isSelected ? 'selected' : '',
     !line.is_valid ? 'invalid' : '',
+    readOnly ? 'read-only' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -81,7 +84,7 @@ export const ProofLine: React.FC<ProofLineProps> = ({
     <div
       className={classNames}
       data-depth={line.depth}
-      onClick={onClick}
+      onClick={readOnly ? undefined : onClick}
       title={line.validation_message || undefined}
     >
       {goal && (

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { usePortfolio } from '../../hooks/usePortfolio';
 import { formulaToString, justificationToString } from '../../types';
 import type { PortfolioEntry } from '../../types';
+import { FitchBox } from '../ProofWorkspace/FitchBox';
 
 export const Portfolio: React.FC = () => {
   const {
@@ -182,15 +183,10 @@ export const Portfolio: React.FC = () => {
 
             <div className="detail-proof">
               <div className="label">Solution</div>
-              <div className="proof-lines">
-                {selectedEntry.proof.lines.map((line) => (
-                  <div key={line.id} className="proof-line-display" data-depth={line.depth}>
-                    <span className="line-number">{line.line_number}.</span>
-                    <span className="formula">{formulaToString(line.formula)}</span>
-                    <span className="justification">{justificationToString(line.justification)}</span>
-                  </div>
-                ))}
-              </div>
+              <FitchBox
+                proof={selectedEntry.proof}
+                readOnly={true}
+              />
             </div>
 
             <div className="detail-notes">

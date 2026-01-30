@@ -171,8 +171,12 @@ body {
   position: relative;
 }
 
-.proof-line:hover {
+.proof-line:hover:not(.read-only) {
   background-color: var(--bg-tertiary);
+}
+
+.proof-line.read-only {
+  cursor: default;
 }
 
 .proof-line.selected {
@@ -901,38 +905,6 @@ body {
   margin-bottom: 8px;
 }
 
-.proof-lines {
-  background-color: var(--bg-primary);
-  border-radius: 6px;
-  padding: 12px;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.proof-line-display {
-  display: flex;
-  gap: 12px;
-  padding: 4px 0;
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-}
-
-.proof-line-display[data-depth="1"] { padding-left: 20px; }
-.proof-line-display[data-depth="2"] { padding-left: 40px; }
-.proof-line-display[data-depth="3"] { padding-left: 60px; }
-
-.proof-line-display .line-number {
-  color: var(--text-secondary);
-  min-width: 24px;
-}
-
-.proof-line-display .formula {
-  flex: 1;
-}
-
-.proof-line-display .justification {
-  color: var(--text-secondary);
-}
 
 .detail-notes .label {
   font-size: 0.75rem;
