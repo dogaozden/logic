@@ -1,0 +1,577 @@
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+
+/// Represents a propositional logic formula
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
+pub enum Formula {
+    Atom(String),
+    Not(Box<Formula>),
+    And(Box<Formula>, Box<Formula>),
+    Or(Box<Formula>, Box<Formula>),
+    Implies(Box<Formula>, Box<Formula>),
+    Biconditional(Box<Formula>, Box<Formula>),
+    Contradiction,
+}
+
+impl Formula {
+    /// Display string using logical symbols (⊃, ∨, ., ≡, ~, ⊥)
+    /// Uses bracket hierarchy: innermost () → [] → {} outermost
+    pub fn display_string(&self) -> String {
+        let max_depth = self.bracket_depth();
+        self.display_with_depth(0, max_depth)
+    }
+
+    /// Calculate maximum bracket nesting depth needed
+    fn bracket_depth(&self) -> usize {
+        match self {
+            Formula::Atom(_) | Formula::Contradiction => 0,
+            Formula::Not(inner) => {
+                if inner.needs_parens_for_not() {
+                    1 + inner.bracket_depth()
+                } else {
+                    inner.bracket_depth()
+                }
+            }
+            Formula::And(left, right)
+            | Formula::Or(left, right)
+            | Formula::Implies(left, right)
+            | Formula::Biconditional(left, right) => {
+                let left_needs = Self::subformula_bracket_depth(left);
+                let right_needs = Self::subformula_bracket_depth(right);
+                left_needs.max(right_needs)
+            }
+        }
+    }
+
+    fn subformula_bracket_depth(formula: &Formula) -> usize {
+        match formula {
+            Formula::Atom(_) | Formula::Contradiction => 0,
+            Formula::Not(inner) if matches!(inner.as_ref(), Formula::Atom(_)) => 0,
+            _ => 1 + formula.bracket_depth(),
+        }
+    }
+
+    fn display_with_depth(&self, current_depth: usize, max_depth: usize) -> String {
+        match self {
+            Formula::Atom(name) => name.clone(),
+            Formula::Not(inner) => {
+                if inner.needs_parens_for_not() {
+                    let inner_str = inner.display_with_depth(current_depth + 1, max_depth);
+                    let (open, close) = Self::brackets_for_level(current_depth, max_depth);
+                    format!("~{}{}{}", open, inner_str, close)
+                } else {
+                    let inner_str = inner.display_with_depth(current_depth, max_depth);
+                    format!("~{}", inner_str)
+                }
+            }
+            Formula::And(left, right) => {
+                let left_str = Self::wrap_if_compound(left, current_depth, max_depth);
+                let right_str = Self::wrap_if_compound(right, current_depth, max_depth);
+                format!("{} . {}", left_str, right_str)
+            }
+            Formula::Or(left, right) => {
+                let left_str = Self::wrap_if_compound(left, current_depth, max_depth);
+                let right_str = Self::wrap_if_compound(right, current_depth, max_depth);
+                format!("{} ∨ {}", left_str, right_str)
+            }
+            Formula::Implies(left, right) => {
+                let left_str = Self::wrap_if_compound(left, current_depth, max_depth);
+                let right_str = Self::wrap_if_compound(right, current_depth, max_depth);
+                format!("{} ⊃ {}", left_str, right_str)
+            }
+            Formula::Biconditional(left, right) => {
+                let left_str = Self::wrap_if_compound(left, current_depth, max_depth);
+                let right_str = Self::wrap_if_compound(right, current_depth, max_depth);
+                format!("{} ≡ {}", left_str, right_str)
+            }
+            Formula::Contradiction => "⊥".to_string(),
+        }
+    }
+
+    /// Get bracket pair based on level from inside out: () innermost, [] middle, {} outermost
+    fn brackets_for_level(current_depth: usize, max_depth: usize) -> (&'static str, &'static str) {
+        let level_from_inside = max_depth - current_depth - 1;
+        match level_from_inside % 3 {
+            0 => ("(", ")"),
+            1 => ("[", "]"),
+            _ => ("{", "}"),
+        }
+    }
+
+    /// Wrap in brackets if compound
+    fn wrap_if_compound(formula: &Formula, current_depth: usize, max_depth: usize) -> String {
+        match formula {
+            Formula::Atom(_) | Formula::Contradiction => formula.display_with_depth(current_depth, max_depth),
+            Formula::Not(inner) if matches!(inner.as_ref(), Formula::Atom(_)) => {
+                formula.display_with_depth(current_depth, max_depth)
+            }
+            _ => {
+                let (open, close) = Self::brackets_for_level(current_depth, max_depth);
+                let inner = formula.display_with_depth(current_depth + 1, max_depth);
+                format!("{}{}{}", open, inner, close)
+            }
+        }
+    }
+
+    /// ASCII string for parsing/input
+    pub fn ascii_string(&self) -> String {
+        match self {
+            Formula::Atom(name) => name.clone(),
+            Formula::Not(inner) => {
+                let inner_str = inner.ascii_string();
+                if inner.needs_parens_for_not() {
+                    format!("~({})", inner_str)
+                } else {
+                    format!("~{}", inner_str)
+                }
+            }
+            Formula::And(left, right) => {
+                let left_str = Self::maybe_paren_ascii(left, self, true);
+                let right_str = Self::maybe_paren_ascii(right, self, false);
+                format!("{} & {}", left_str, right_str)
+            }
+            Formula::Or(left, right) => {
+                let left_str = Self::maybe_paren_ascii(left, self, true);
+                let right_str = Self::maybe_paren_ascii(right, self, false);
+                format!("{} | {}", left_str, right_str)
+            }
+            Formula::Implies(left, right) => {
+                let left_str = Self::maybe_paren_ascii(left, self, true);
+                let right_str = Self::maybe_paren_ascii(right, self, false);
+                format!("{} -> {}", left_str, right_str)
+            }
+            Formula::Biconditional(left, right) => {
+                let left_str = Self::maybe_paren_ascii(left, self, true);
+                let right_str = Self::maybe_paren_ascii(right, self, false);
+                format!("{} <-> {}", left_str, right_str)
+            }
+            Formula::Contradiction => "_|_".to_string(),
+        }
+    }
+
+    fn needs_parens_for_not(&self) -> bool {
+        !matches!(self, Formula::Atom(_) | Formula::Not(_) | Formula::Contradiction)
+    }
+
+    fn precedence(&self) -> u8 {
+        match self {
+            Formula::Atom(_) | Formula::Contradiction => 6,
+            Formula::Not(_) => 5,
+            Formula::And(_, _) => 4,
+            Formula::Or(_, _) => 3,
+            Formula::Implies(_, _) => 2,
+            Formula::Biconditional(_, _) => 1,
+        }
+    }
+
+    fn maybe_paren(inner: &Formula, outer: &Formula, is_left: bool) -> String {
+        let inner_prec = inner.precedence();
+        let outer_prec = outer.precedence();
+        let needs_parens = inner_prec < outer_prec
+            || (inner_prec == outer_prec && !is_left && matches!(outer, Formula::Implies(_, _)));
+        if needs_parens {
+            format!("({})", inner.display_string())
+        } else {
+            inner.display_string()
+        }
+    }
+
+    fn maybe_paren_ascii(inner: &Formula, outer: &Formula, is_left: bool) -> String {
+        let inner_prec = inner.precedence();
+        let outer_prec = outer.precedence();
+        let needs_parens = inner_prec < outer_prec
+            || (inner_prec == outer_prec && !is_left && matches!(outer, Formula::Implies(_, _)));
+        if needs_parens {
+            format!("({})", inner.ascii_string())
+        } else {
+            inner.ascii_string()
+        }
+    }
+
+    /// Get all atomic propositions in the formula
+    pub fn atoms(&self) -> HashSet<String> {
+        let mut result = HashSet::new();
+        self.collect_atoms(&mut result);
+        result
+    }
+
+    fn collect_atoms(&self, set: &mut HashSet<String>) {
+        match self {
+            Formula::Atom(name) => {
+                set.insert(name.clone());
+            }
+            Formula::Not(inner) => inner.collect_atoms(set),
+            Formula::And(left, right)
+            | Formula::Or(left, right)
+            | Formula::Implies(left, right)
+            | Formula::Biconditional(left, right) => {
+                left.collect_atoms(set);
+                right.collect_atoms(set);
+            }
+            Formula::Contradiction => {}
+        }
+    }
+
+    /// Get the depth (nesting level) of the formula
+    pub fn depth(&self) -> usize {
+        match self {
+            Formula::Atom(_) | Formula::Contradiction => 0,
+            Formula::Not(inner) => 1 + inner.depth(),
+            Formula::And(left, right)
+            | Formula::Or(left, right)
+            | Formula::Implies(left, right)
+            | Formula::Biconditional(left, right) => 1 + left.depth().max(right.depth()),
+        }
+    }
+
+    /// Get the main connective as a string
+    pub fn main_connective(&self) -> Option<&'static str> {
+        match self {
+            Formula::Atom(_) | Formula::Contradiction => None,
+            Formula::Not(_) => Some("~"),
+            Formula::And(_, _) => Some("·"),
+            Formula::Or(_, _) => Some("∨"),
+            Formula::Implies(_, _) => Some("⊃"),
+            Formula::Biconditional(_, _) => Some("≡"),
+        }
+    }
+
+    /// Get all subformulas including self
+    pub fn subformulas(&self) -> Vec<Formula> {
+        let mut result = vec![self.clone()];
+        match self {
+            Formula::Atom(_) | Formula::Contradiction => {}
+            Formula::Not(inner) => {
+                result.extend(inner.subformulas());
+            }
+            Formula::And(left, right)
+            | Formula::Or(left, right)
+            | Formula::Implies(left, right)
+            | Formula::Biconditional(left, right) => {
+                result.extend(left.subformulas());
+                result.extend(right.subformulas());
+            }
+        }
+        result
+    }
+
+    /// Substitute all occurrences of a variable with a replacement formula
+    pub fn substitute(&self, variable: &str, replacement: &Formula) -> Formula {
+        match self {
+            Formula::Atom(name) => {
+                if name == variable {
+                    replacement.clone()
+                } else {
+                    self.clone()
+                }
+            }
+            Formula::Not(inner) => Formula::Not(Box::new(inner.substitute(variable, replacement))),
+            Formula::And(left, right) => Formula::And(
+                Box::new(left.substitute(variable, replacement)),
+                Box::new(right.substitute(variable, replacement)),
+            ),
+            Formula::Or(left, right) => Formula::Or(
+                Box::new(left.substitute(variable, replacement)),
+                Box::new(right.substitute(variable, replacement)),
+            ),
+            Formula::Implies(left, right) => Formula::Implies(
+                Box::new(left.substitute(variable, replacement)),
+                Box::new(right.substitute(variable, replacement)),
+            ),
+            Formula::Biconditional(left, right) => Formula::Biconditional(
+                Box::new(left.substitute(variable, replacement)),
+                Box::new(right.substitute(variable, replacement)),
+            ),
+            Formula::Contradiction => Formula::Contradiction,
+        }
+    }
+
+    /// Check if this formula is a negation
+    pub fn is_negation(&self) -> bool {
+        matches!(self, Formula::Not(_))
+    }
+
+    /// Get the inner formula if this is a negation
+    pub fn negated_inner(&self) -> Option<&Formula> {
+        match self {
+            Formula::Not(inner) => Some(inner),
+            _ => None,
+        }
+    }
+
+    /// Create the negation of this formula
+    pub fn negate(&self) -> Formula {
+        Formula::Not(Box::new(self.clone()))
+    }
+
+    /// Check structural equality
+    pub fn equals(&self, other: &Formula) -> bool {
+        self == other
+    }
+}
+
+/// Parser for propositional logic formulas
+pub struct FormulaParser<'a> {
+    input: &'a str,
+    pos: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct ParseError {
+    pub message: String,
+    pub position: usize,
+}
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Parse error at position {}: {}", self.position, self.message)
+    }
+}
+
+impl<'a> FormulaParser<'a> {
+    pub fn new(input: &'a str) -> Self {
+        Self { input, pos: 0 }
+    }
+
+    pub fn parse(&mut self) -> Result<Formula, ParseError> {
+        self.skip_whitespace();
+        let result = self.parse_biconditional()?;
+        self.skip_whitespace();
+        if self.pos < self.input.len() {
+            return Err(ParseError {
+                message: format!("Unexpected character: '{}'", self.current_char().unwrap()),
+                position: self.pos,
+            });
+        }
+        Ok(result)
+    }
+
+    fn parse_biconditional(&mut self) -> Result<Formula, ParseError> {
+        let mut left = self.parse_implication()?;
+        self.skip_whitespace();
+        while self.matches("<->") || self.matches("≡") || self.matches("<=>") {
+            let right = self.parse_implication()?;
+            left = Formula::Biconditional(Box::new(left), Box::new(right));
+            self.skip_whitespace();
+        }
+        Ok(left)
+    }
+
+    fn parse_implication(&mut self) -> Result<Formula, ParseError> {
+        let mut left = self.parse_disjunction()?;
+        self.skip_whitespace();
+        // Note: ">" must come after "->" to avoid matching "-" then ">"
+        while self.matches("->") || self.matches("⊃") || self.matches("=>") || self.matches(">") {
+            let right = self.parse_implication()?; // Right associative
+            left = Formula::Implies(Box::new(left), Box::new(right));
+            self.skip_whitespace();
+        }
+        Ok(left)
+    }
+
+    fn parse_disjunction(&mut self) -> Result<Formula, ParseError> {
+        let mut left = self.parse_conjunction()?;
+        self.skip_whitespace();
+        while self.matches("|") || self.matches("∨") || self.matches("v") || self.matches("V") {
+            let right = self.parse_conjunction()?;
+            left = Formula::Or(Box::new(left), Box::new(right));
+            self.skip_whitespace();
+        }
+        Ok(left)
+    }
+
+    fn parse_conjunction(&mut self) -> Result<Formula, ParseError> {
+        let mut left = self.parse_negation()?;
+        self.skip_whitespace();
+        while self.matches("&") || self.matches("·") || self.matches("^") || self.matches(".") || self.matches("*") {
+            let right = self.parse_negation()?;
+            left = Formula::And(Box::new(left), Box::new(right));
+            self.skip_whitespace();
+        }
+        Ok(left)
+    }
+
+    fn parse_negation(&mut self) -> Result<Formula, ParseError> {
+        self.skip_whitespace();
+        if self.matches("~") || self.matches("!") || self.matches("¬") || self.matches("-") {
+            let inner = self.parse_negation()?;
+            Ok(Formula::Not(Box::new(inner)))
+        } else {
+            self.parse_atom()
+        }
+    }
+
+    fn parse_atom(&mut self) -> Result<Formula, ParseError> {
+        self.skip_whitespace();
+
+        // Check for contradiction
+        if self.matches("_|_") || self.matches("⊥") || self.matches("#") {
+            return Ok(Formula::Contradiction);
+        }
+
+        // Check for parenthesized expression (supports (), [], {})
+        if self.matches("(") {
+            let inner = self.parse_biconditional()?;
+            self.skip_whitespace();
+            if !self.matches(")") {
+                return Err(ParseError {
+                    message: "Expected closing parenthesis ')'".to_string(),
+                    position: self.pos,
+                });
+            }
+            return Ok(inner);
+        }
+        if self.matches("[") {
+            let inner = self.parse_biconditional()?;
+            self.skip_whitespace();
+            if !self.matches("]") {
+                return Err(ParseError {
+                    message: "Expected closing bracket ']'".to_string(),
+                    position: self.pos,
+                });
+            }
+            return Ok(inner);
+        }
+        if self.matches("{") {
+            let inner = self.parse_biconditional()?;
+            self.skip_whitespace();
+            if !self.matches("}") {
+                return Err(ParseError {
+                    message: "Expected closing brace '}'".to_string(),
+                    position: self.pos,
+                });
+            }
+            return Ok(inner);
+        }
+
+        // Parse atom name
+        let start = self.pos;
+        while let Some(c) = self.current_char() {
+            if c.is_alphanumeric() || c == '_' || c == '\'' {
+                self.pos += 1;
+            } else {
+                break;
+            }
+        }
+
+        if self.pos == start {
+            return Err(ParseError {
+                message: "Expected atom, negation, or parenthesized expression".to_string(),
+                position: self.pos,
+            });
+        }
+
+        Ok(Formula::Atom(self.input[start..self.pos].to_string()))
+    }
+
+    fn skip_whitespace(&mut self) {
+        while let Some(c) = self.current_char() {
+            if c.is_whitespace() {
+                self.pos += 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn current_char(&self) -> Option<char> {
+        self.input[self.pos..].chars().next()
+    }
+
+    fn matches(&mut self, s: &str) -> bool {
+        self.skip_whitespace();
+        if self.input[self.pos..].starts_with(s) {
+            self.pos += s.len();
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl Formula {
+    /// Parse a formula from a string
+    pub fn parse(input: &str) -> Result<Formula, ParseError> {
+        let mut parser = FormulaParser::new(input);
+        parser.parse()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_atom() {
+        let f = Formula::parse("P").unwrap();
+        assert_eq!(f, Formula::Atom("P".to_string()));
+    }
+
+    #[test]
+    fn test_parse_negation() {
+        let f = Formula::parse("~P").unwrap();
+        assert_eq!(f, Formula::Not(Box::new(Formula::Atom("P".to_string()))));
+    }
+
+    #[test]
+    fn test_parse_conjunction() {
+        let f = Formula::parse("P & Q").unwrap();
+        assert_eq!(
+            f,
+            Formula::And(
+                Box::new(Formula::Atom("P".to_string())),
+                Box::new(Formula::Atom("Q".to_string()))
+            )
+        );
+    }
+
+    #[test]
+    fn test_parse_implication() {
+        let f = Formula::parse("P -> Q").unwrap();
+        assert_eq!(
+            f,
+            Formula::Implies(
+                Box::new(Formula::Atom("P".to_string())),
+                Box::new(Formula::Atom("Q".to_string()))
+            )
+        );
+    }
+
+    #[test]
+    fn test_display_string() {
+        let f = Formula::Implies(
+            Box::new(Formula::And(
+                Box::new(Formula::Atom("P".to_string())),
+                Box::new(Formula::Atom("Q".to_string())),
+            )),
+            Box::new(Formula::Atom("R".to_string())),
+        );
+        assert_eq!(f.display_string(), "P · Q ⊃ R");
+    }
+
+    #[test]
+    fn test_atoms() {
+        let f = Formula::parse("P & Q -> R").unwrap();
+        let atoms = f.atoms();
+        assert!(atoms.contains("P"));
+        assert!(atoms.contains("Q"));
+        assert!(atoms.contains("R"));
+        assert_eq!(atoms.len(), 3);
+    }
+
+    #[test]
+    fn test_depth() {
+        let f = Formula::parse("P").unwrap();
+        assert_eq!(f.depth(), 0);
+
+        let f = Formula::parse("~P").unwrap();
+        assert_eq!(f.depth(), 1);
+
+        let f = Formula::parse("P & Q").unwrap();
+        assert_eq!(f.depth(), 1);
+
+        let f = Formula::parse("(P & Q) -> R").unwrap();
+        assert_eq!(f.depth(), 2);
+    }
+}
