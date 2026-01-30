@@ -1,7 +1,7 @@
 use tauri;
 use crate::models::{
     Formula, Proof, Theorem, UserStatistics, Justification,
-    theorem::{Difficulty, Theme, get_classic_theorems as get_classics},
+    theorem::{Difficulty, get_classic_theorems as get_classics},
     rules::{InferenceRule, EquivalenceRule, ProofTechnique},
 };
 use crate::services::{

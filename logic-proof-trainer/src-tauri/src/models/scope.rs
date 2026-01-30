@@ -157,12 +157,6 @@ impl ScopeManager {
             .filter(|s| s.contains_line(to_line))
             .collect();
 
-        // Get the scope of the current line
-        let current_scopes: Vec<&ProofScope> = self
-            .scopes
-            .iter()
-            .filter(|s| s.contains_line(from_line))
-            .collect();
 
         // A line is accessible if all its scopes are either:
         // 1. Still open (from current line's perspective)

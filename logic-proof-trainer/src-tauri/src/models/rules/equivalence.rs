@@ -443,4 +443,21 @@ mod tests {
         let forms = EquivalenceRule::Exportation.equivalent_forms(&formula);
         assert!(forms.contains(&expected));
     }
+    #[test]
+    fn test_implication_subformula() {
+        let formula = Formula::parse("~(P -> Q)").unwrap();
+        let target = Formula::parse("~(~P | Q)").unwrap();
+
+        let mut found = false;
+        for sub in formula.subformulas() {
+            for equiv in EquivalenceRule::Implication.equivalent_forms(&sub) {
+                let transformed = EquivalenceRule::replace_subformula(&formula, &sub, &equiv);
+                if transformed == target {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        assert!(found);
+    }
 }

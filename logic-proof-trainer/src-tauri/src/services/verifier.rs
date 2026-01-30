@@ -67,7 +67,7 @@ impl ProofVerifier {
     }
 
     fn verify_assumption(
-        line: &ProofLine,
+        _line: &ProofLine,
         _technique: ProofTechnique,
         _proof: &Proof,
     ) -> VerificationResult {
@@ -201,15 +201,70 @@ impl ProofVerifier {
         }
 
         // Check if the target formula can be derived from the source using this rule
-        // This includes checking subformulas
         if Self::is_valid_equivalence_application(&source_line.formula, &line.formula, rule) {
             VerificationResult::valid()
         } else {
+            // Check for case-sensitivity issues to provide a better error message
+            if Self::is_valid_equivalence_application_case_insensitive(&source_line.formula, &line.formula, rule) {
+                return VerificationResult::invalid(format!(
+                    "Cannot derive the formula using {}. Note: Propositional logic is case-sensitive (e.g., 'P' vs 'p'). Check your casing.",
+                    rule.name()
+                ));
+            }
+
             VerificationResult::invalid(format!(
                 "Cannot derive the formula from line {} using {}",
                 ref_line,
                 rule.name()
             ))
+        }
+    }
+
+    fn is_valid_equivalence_application_case_insensitive(source: &Formula, target: &Formula, rule: EquivalenceRule) -> bool {
+        // Convert both to a canonical lowercase representation for comparison
+        let lowercase_source = Self::to_lowercase_formula(source);
+        let lowercase_target = Self::to_lowercase_formula(target);
+        
+        // This is a bit complex because we need to check if the rule applies to the lowercase versions
+        // and if those transformed versions match the lowercase target.
+        let top_level_forms = rule.equivalent_forms(&lowercase_source);
+        if top_level_forms.iter().any(|f| Self::to_lowercase_formula(f) == lowercase_target) {
+            return true;
+        }
+
+        // Check subformulas (lowercase)
+        for subformula in lowercase_source.subformulas() {
+            for equivalent in rule.equivalent_forms(&subformula) {
+                let transformed = Self::replace_subformula(&lowercase_source, &subformula, &equivalent);
+                if Self::to_lowercase_formula(&transformed) == lowercase_target {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn to_lowercase_formula(formula: &Formula) -> Formula {
+        match formula {
+            Formula::Atom(name) => Formula::Atom(name.to_lowercase()),
+            Formula::Not(inner) => Formula::Not(Box::new(Self::to_lowercase_formula(inner))),
+            Formula::And(left, right) => Formula::And(
+                Box::new(Self::to_lowercase_formula(left)),
+                Box::new(Self::to_lowercase_formula(right)),
+            ),
+            Formula::Or(left, right) => Formula::Or(
+                Box::new(Self::to_lowercase_formula(left)),
+                Box::new(Self::to_lowercase_formula(right)),
+            ),
+            Formula::Implies(left, right) => Formula::Implies(
+                Box::new(Self::to_lowercase_formula(left)),
+                Box::new(Self::to_lowercase_formula(right)),
+            ),
+            Formula::Biconditional(left, right) => Formula::Biconditional(
+                Box::new(Self::to_lowercase_formula(left)),
+                Box::new(Self::to_lowercase_formula(right)),
+            ),
+            Formula::Contradiction => Formula::Contradiction,
         }
     }
 
