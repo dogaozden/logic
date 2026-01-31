@@ -270,15 +270,18 @@ function bracketsForLevel(currentDepth: number, maxDepth: number): [string, stri
 }
 
 // Wrap in brackets if compound
-function wrapIfCompound(formula: Formula, currentDepth: number, maxDepth: number): string {
+// Uses LOCAL bracket depth of the subformula to determine bracket type
+function wrapIfCompound(formula: Formula, _currentDepth: number, _maxDepth: number): string {
   if (formula.type === 'Atom' || formula.type === 'Contradiction') {
-    return formulaToStringWithDepth(formula, currentDepth, maxDepth);
+    return formulaToString(formula);
   }
   if (formula.type === 'Not' && formula.value.type === 'Atom') {
-    return formulaToStringWithDepth(formula, currentDepth, maxDepth);
+    return formulaToString(formula);
   }
-  const [open, close] = bracketsForLevel(currentDepth, maxDepth);
-  const inner = formulaToStringWithDepth(formula, currentDepth + 1, maxDepth);
+  // Use the subformula's LOCAL bracket depth for bracket selection
+  const localDepth = bracketDepth(formula);
+  const [open, close] = bracketsForLevel(0, localDepth + 1);
+  const inner = formulaToString(formula);
   return `${open}${inner}${close}`;
 }
 
