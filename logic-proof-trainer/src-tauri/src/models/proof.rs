@@ -273,6 +273,24 @@ impl Proof {
             .filter(|&line| self.is_line_accessible(current, line))
             .collect()
     }
+
+    /// Check if current subproof can be auto-closed and return the conclusion
+    /// Returns (technique, conclusion_formula) if auto-close is possible
+    pub fn get_auto_close_conclusion(&self) -> Option<(ProofTechnique, Formula)> {
+        // Get current open scope
+        let current_scope = self.scope_manager.current_scope()?;
+        let assumption = &current_scope.assumption;
+        let technique = current_scope.technique;
+
+        // Get the last line in the subproof (within the current scope)
+        let last_line = self.lines.last()?;
+        let derived = &last_line.formula;
+
+        // Use technique to compute expected conclusion
+        let conclusion = technique.get_conclusion(assumption, derived)?;
+
+        Some((technique, conclusion))
+    }
 }
 
 #[cfg(test)]

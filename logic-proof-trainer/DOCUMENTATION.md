@@ -11,61 +11,62 @@ A cross-platform desktop application for practicing propositional logic proofs u
 3. [Project Structure](#project-structure)
 4. [Backend (Rust)](#backend-rust)
 5. [Frontend (React/TypeScript)](#frontend-reacttypescript)
-6. [Data Flow](#data-flow)
-7. [Building and Running](#building-and-running)
+6. [Tauri Commands](#tauri-commands)
+7. [Data Flow](#data-flow)
+8. [Building and Running](#building-and-running)
 
 ---
 
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Tauri Application                         │
-├─────────────────────────────────────────────────────────────┤
-│  Frontend (React + TypeScript)                               │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
-│  │ TheoremList │  │ProofWorkspace│  │  Portfolio  │          │
-│  └─────────────┘  └─────────────┘  └─────────────┘          │
-│         │                │                │                  │
-│         └────────────────┼────────────────┘                  │
-│                          │                                   │
-│              Tauri IPC (invoke commands)                     │
-│                          │                                   │
-├──────────────────────────┼──────────────────────────────────┤
-│  Backend (Rust)          │                                   │
-│  ┌───────────────────────┴───────────────────────┐          │
-│  │                  Commands                      │          │
-│  └───────────────────────┬───────────────────────┘          │
-│         ┌────────────────┼────────────────┐                  │
-│  ┌──────┴──────┐  ┌──────┴──────┐  ┌──────┴──────┐          │
-│  │   Models    │  │  Services   │  │   Storage   │          │
-│  │ - Formula   │  │ - Verifier  │  │ - JSON files│          │
-│  │ - Proof     │  │ - Generator │  │ - Portfolio │          │
-│  │ - Rules     │  │ - Dependency│  │ - Stats     │          │
-│  └─────────────┘  └─────────────┘  └─────────────┘          │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                      Tauri Application                           │
+├─────────────────────────────────────────────────────────────────┤
+│  Frontend (React + TypeScript)                                   │
+│  ┌───────────┐ ┌─────────────┐ ┌─────────┐ ┌──────────┐         │
+│  │TheoremList│ │ProofWorkspace│ │Portfolio│ │ Settings │         │
+│  └───────────┘ └─────────────┘ └─────────┘ └──────────┘         │
+│        │              │              │            │              │
+│        └──────────────┼──────────────┴────────────┘              │
+│                       │                                          │
+│            Tauri IPC (invoke commands)                           │
+│                       │                                          │
+├───────────────────────┼──────────────────────────────────────────┤
+│  Backend (Rust)       │                                          │
+│  ┌────────────────────┴──────────────────────┐                  │
+│  │                 Commands                   │                  │
+│  └────────────────────┬──────────────────────┘                  │
+│       ┌───────────────┼───────────────┐                         │
+│  ┌────┴────┐    ┌─────┴─────┐    ┌────┴────┐                    │
+│  │ Models  │    │ Services  │    │ Storage │                    │
+│  │-Formula │    │-Verifier  │    │-JSON    │                    │
+│  │-Proof   │    │-Generator │    │-Portfolio│                   │
+│  │-Theorem │    │-TreeGen   │    │-Stats   │                    │
+│  │-Rules   │    │-TruthTable│    │         │                    │
+│  │-Scope   │    │-ProofTree │    │         │                    │
+│  └─────────┘    └───────────┘    └─────────┘                    │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Logical System
 
-The app implements a natural deduction proof system for propositional logic based on the rules defined in `rules.md`.
+The app implements a natural deduction proof system for propositional logic.
 
 ### Symbols
 
 | Symbol | Meaning | ASCII Input |
 |--------|---------|-------------|
-| `⊃` | Implies (conditional) | `->` |
-| `∨` | Or (disjunction) | `\|` |
-| `·` | And (conjunction) | `&` |
-| `~` | Not (negation) | `~` |
-| `≡` | Biconditional | `<->` |
-| `⊥` | Contradiction | `_\|_` or `!` |
+| `⊃` | Implies (conditional) | `->` or `>` |
+| `∨` | Or (disjunction) | `\|` or `v` |
+| `·` | And (conjunction) | `&` or `.` |
+| `~` | Not (negation) | `~` or `!` |
+| `≡` | Biconditional | `<->` or `<>` |
+| `⊥` | Contradiction | `_\|_` |
 
-### Valid Argument Forms (Inference Rules 1-8)
-
-These rules derive new formulas from existing lines:
+### Valid Argument Forms (Inference Rules 1-9)
 
 | # | Name | Abbrev | Pattern |
 |---|------|--------|---------|
@@ -77,30 +78,30 @@ These rules derive new formulas from existing lines:
 | 6 | Hypothetical Syllogism | HS | p ⊃ q, q ⊃ r ∴ p ⊃ r |
 | 7 | Addition | Add | p ∴ p ∨ q |
 | 8 | Constructive Dilemma | CD | p ∨ q, p ⊃ r, q ⊃ s ∴ r ∨ s |
+| 9 | Negation Elimination | NegE | p, ~p ∴ ⊥ |
 
-### Valid Equivalence Forms (Rules 9-18)
-
-These rules transform formulas bidirectionally (replacement rules):
+### Valid Equivalence Forms (Rules 10-19)
 
 | # | Name | Abbrev | Pattern |
 |---|------|--------|---------|
-| 9 | Double Negation | DN | p :: ~~p |
-| 10 | DeMorgan's Theorem | DeM | ~(p · q) :: (~p ∨ ~q) |
-| 11 | Commutation | Comm | (p ∨ q) :: (q ∨ p) |
-| 12 | Association | Assoc | [p ∨ (q ∨ r)] :: [(p ∨ q) ∨ r] |
-| 13 | Distribution | Dist | [p · (q ∨ r)] :: [(p · q) ∨ (p · r)] |
-| 14 | Contraposition | Contra | (p ⊃ q) :: (~q ⊃ ~p) |
-| 15 | Implication | Impl | (p ⊃ q) :: (~p ∨ q) |
-| 16 | Exportation | Exp | [(p · q) ⊃ r] :: [p ⊃ (q ⊃ r)] |
-| 17 | Tautology | Taut | p :: (p · p), p :: (p ∨ p) |
-| 18 | Equivalence | Equiv | (p ≡ q) :: [(p ⊃ q) · (q ⊃ p)] |
+| 10 | Double Negation | DN | p :: ~~p |
+| 11 | DeMorgan's Theorem | DeM | ~(p · q) :: (~p ∨ ~q) |
+| 12 | Commutation | Comm | (p ∨ q) :: (q ∨ p) |
+| 13 | Association | Assoc | [p ∨ (q ∨ r)] :: [(p ∨ q) ∨ r] |
+| 14 | Distribution | Dist | [p · (q ∨ r)] :: [(p · q) ∨ (p · r)] |
+| 15 | Contraposition | Contra | (p ⊃ q) :: (~q ⊃ ~p) |
+| 16 | Implication | Impl | (p ⊃ q) :: (~p ∨ q) |
+| 17 | Exportation | Exp | [(p · q) ⊃ r] :: [p ⊃ (q ⊃ r)] |
+| 18 | Tautology | Taut | p :: (p · p), p :: (p ∨ p) |
+| 19 | Equivalence | Equiv | (p ≡ q) :: [(p ⊃ q) · (q ⊃ p)] |
 
 ### Proof Techniques
 
 | Name | Abbrev | Description |
 |------|--------|-------------|
 | Conditional Proof | CP | Assume p, derive q, conclude p ⊃ q |
-| Indirect Proof | IP | Assume ~p, derive contradiction, conclude p |
+| Indirect Proof | IP | Assume ~p, derive ⊥, conclude p |
+| Negation Introduction | ~I | Assume p, derive ⊥, conclude ~p |
 
 ---
 
@@ -108,67 +109,75 @@ These rules transform formulas bidirectionally (replacement rules):
 
 ```
 logic-proof-trainer/
-├── src-tauri/                    # Rust backend
-│   ├── Cargo.toml               # Rust dependencies
-│   ├── tauri.conf.json          # Tauri configuration
+├── src-tauri/                       # Rust backend
+│   ├── Cargo.toml
+│   ├── tauri.conf.json
 │   └── src/
-│       ├── main.rs              # Tauri entry point
-│       ├── lib.rs               # Module exports
-│       ├── commands.rs          # IPC command handlers
+│       ├── main.rs
+│       ├── lib.rs                   # Command registration
+│       ├── commands.rs              # 22 IPC command handlers
 │       ├── models/
-│       │   ├── mod.rs
-│       │   ├── formula.rs       # Formula AST and parser
-│       │   ├── theorem.rs       # Theorem definitions
-│       │   ├── proof.rs         # Proof and ProofLine
-│       │   ├── scope.rs         # Subproof scope management
-│       │   ├── statistics.rs    # User statistics
+│       │   ├── formula.rs           # Formula AST and parser
+│       │   ├── theorem.rs           # Theorem + Difficulty + Theme
+│       │   ├── proof.rs             # Proof, ProofLine, Justification
+│       │   ├── scope.rs             # ScopeManager for subproofs
+│       │   ├── statistics.rs        # User statistics
 │       │   └── rules/
-│       │       ├── mod.rs
-│       │       ├── inference.rs  # 8 inference rules
-│       │       ├── equivalence.rs # 10 equivalence rules
-│       │       └── technique.rs  # CP, IP techniques
+│       │       ├── inference.rs     # 9 inference rules
+│       │       ├── equivalence.rs   # 10 equivalence rules
+│       │       └── technique.rs     # CP, IP, ~I techniques
 │       └── services/
-│           ├── mod.rs
-│           ├── verifier.rs      # Proof step validation
-│           ├── generator.rs     # Theorem generation
-│           ├── dependency.rs    # Line dependency tracking
-│           └── storage.rs       # JSON file persistence
-├── src/                         # React frontend
-│   ├── main.tsx                # React entry point
-│   ├── App.tsx                 # Main app component
+│           ├── verifier.rs          # Proof step validation
+│           ├── generator.rs         # High-level theorem generation
+│           ├── tree_gen.rs          # Backward proof tree construction
+│           ├── proof_tree.rs        # ProofNode/ProofTree structures
+│           ├── fragments.rs         # 12 composable proof rules
+│           ├── truth_table.rs       # 32-bit semantic validation
+│           ├── proof_search.rs      # Difficulty analysis
+│           ├── obfuscate_gen.rs     # Equivalence obfuscation
+│           ├── dependency.rs        # Line dependency tracking
+│           └── storage.rs           # JSON file persistence
+├── src/                             # React frontend
+│   ├── main.tsx
+│   ├── App.tsx                      # Main app + navigation
 │   ├── types/
-│   │   └── index.ts            # TypeScript types (mirrors Rust)
+│   │   └── index.ts                 # TypeScript types
 │   ├── hooks/
-│   │   ├── useProof.ts         # Proof state management (Zustand)
-│   │   ├── useTheorems.ts      # Theorem state management
-│   │   └── usePortfolio.ts     # Portfolio state management
+│   │   ├── useProof.ts              # Proof state (Zustand)
+│   │   ├── useTheorems.ts           # Theorem state
+│   │   ├── usePortfolio.ts          # Portfolio state
+│   │   └── useTheme.ts              # Theme state (dark/high-contrast)
 │   ├── components/
+│   │   ├── FormulaDisplay.tsx       # Color-coded bracket rendering
 │   │   ├── TheoremList/
-│   │   │   └── TheoremList.tsx # Theorem browser sidebar
+│   │   │   └── TheoremList.tsx      # Theorem browser + generator
 │   │   ├── ProofWorkspace/
-│   │   │   ├── ProofWorkspace.tsx # Main proof editor
-│   │   │   ├── RulePalette.tsx    # Rule selection panel
-│   │   │   └── FormulaInput.tsx   # Formula text input
-│   │   └── Portfolio/
-│   │       └── Portfolio.tsx   # Completed proofs gallery
+│   │   │   ├── ProofWorkspace.tsx   # Main proof editor
+│   │   │   ├── FitchBox.tsx         # Fitch-style display + drag-drop
+│   │   │   ├── ProofLine.tsx        # Individual proof line
+│   │   │   ├── RulePalette.tsx      # Rule selection panel
+│   │   │   └── FormulaInput.tsx     # Formula input + symbol toolbar
+│   │   ├── Portfolio/
+│   │   │   └── Portfolio.tsx        # Completed proofs gallery
+│   │   └── Settings/
+│   │       └── Settings.tsx         # Theme + preferences
 │   └── styles/
-│       └── main.css            # Application styles
-├── package.json                # Node dependencies
-├── tsconfig.json               # TypeScript config
-└── vite.config.ts              # Vite bundler config
+│       └── main.css
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
 ```
 
 ---
 
 ## Backend (Rust)
 
-### Formula Model (`models/formula.rs`)
+### Models
 
-The core AST for propositional logic formulas:
-
+**Formula** (`models/formula.rs`):
 ```rust
 pub enum Formula {
-    Atom(String),                        // P, Q, R, etc.
+    Atom(String),                        // P, Q, R
     Not(Box<Formula>),                   // ~P
     And(Box<Formula>, Box<Formula>),     // P · Q
     Or(Box<Formula>, Box<Formula>),      // P ∨ Q
@@ -178,53 +187,21 @@ pub enum Formula {
 }
 ```
 
-Key methods:
-- `Formula::parse(input: &str)` - Recursive descent parser
-- `formula.display_string()` - Pretty print with logical symbols
-- `formula.atoms()` - Extract all atomic propositions
-
-### Inference Rules (`models/rules/inference.rs`)
-
-Each rule implements:
-- `apply(&self, premises: &[&Formula], additional: Option<&Formula>) -> Option<Formula>`
-- `verify(&self, premises: &[&Formula], conclusion: &Formula) -> bool`
-- `all_conclusions(&self, premises: &[&Formula], additional: Option<&Formula>) -> Vec<Formula>`
-
-### Equivalence Rules (`models/rules/equivalence.rs`)
-
-Each rule implements:
-- `equivalent_forms(&self, formula: &Formula) -> Vec<Formula>`
-- `can_transform(&self, from: &Formula, to: &Formula) -> bool`
-
-### Theorem Model (`models/theorem.rs`)
-
+**Theorem** (`models/theorem.rs`):
 ```rust
 pub struct Theorem {
     pub id: String,
     pub premises: Vec<Formula>,
     pub conclusion: Formula,
-    pub difficulty: Difficulty,      // Preset: Easy, Medium, Hard, Expert
-    pub difficulty_value: u8,        // Actual 1-100 value used for generation
+    pub difficulty: Difficulty,      // Easy, Medium, Hard, Expert
+    pub difficulty_value: u8,        // 1-100
     pub theme: Option<Theme>,
     pub name: Option<String>,
     pub is_classic: bool,
 }
-
-pub enum Difficulty {
-    Easy,    // difficulty_value 1-25
-    Medium,  // difficulty_value 26-45
-    Hard,    // difficulty_value 46-70
-    Expert,  // difficulty_value 71-100
-}
 ```
 
-Key methods:
-- `Theorem::new(...)` - Creates theorem with default difficulty value for preset
-- `Theorem::with_difficulty_value(...)` - Creates theorem with specific 1-100 value
-- `Theorem::default_value_for_preset(difficulty)` - Gets midpoint value for a preset
-
-### Proof Model (`models/proof.rs`)
-
+**Proof** (`models/proof.rs`):
 ```rust
 pub struct Proof {
     pub id: String,
@@ -234,77 +211,55 @@ pub struct Proof {
     pub is_complete: bool,
 }
 
-pub struct ProofLine {
-    pub id: String,
-    pub line_number: usize,
-    pub formula: Formula,
-    pub justification: Justification,
-    pub depth: usize,           // Subproof nesting level
-    pub scope_id: Option<String>,
-    pub is_valid: bool,
-    pub validation_message: Option<String>,
-}
-```
-
-### Justification Types
-
-```rust
 pub enum Justification {
     Premise,
     Assumption { technique: ProofTechnique },
     Inference { rule: InferenceRule, lines: Vec<usize> },
     Equivalence { rule: EquivalenceRule, line: usize },
-    SubproofConclusion {
-        technique: ProofTechnique,
-        subproof_start: usize,
-        subproof_end: usize
-    },
+    SubproofConclusion { technique, subproof_start, subproof_end },
 }
 ```
-
-### Scope Manager (`models/scope.rs`)
-
-Manages subproof nesting for CP and IP:
-- Tracks open/closed scopes
-- Determines line accessibility (can only cite lines in current or parent scopes)
-- Validates subproof closures
 
 ### Services
 
 **Verifier** (`services/verifier.rs`):
-- Validates each proof step against its cited justification
+- Validates proof steps against cited justification
 - Checks line accessibility within scopes
-- Marks invalid lines and propagates invalidity to dependents
+- Propagates invalidity to dependent lines
 
 **Generator** (`services/generator.rs`):
-- Creates provable theorems by working backwards from conclusion
-- Uses proof-tree compositional approach for Medium/Hard/Expert difficulties
-- Legacy template-based generation for Easy theorems
+- High-level theorem generation orchestrator
+- Easy: legacy template-based
+- Medium+: obfuscation-based (see `architecture.md`)
 
-**Difficulty System** (`services/tree_gen.rs`):
-- Continuous 1-100 difficulty scale with smooth parameter interpolation
-- Preset buttons (Easy/Medium/Hard/Expert) randomize within ranges for natural variety
-- Parameters scale based on difficulty value:
+**TreeGen** (`services/tree_gen.rs`):
+- Backward proof tree construction
+- `RequiredTechniques`: tracks CP/CaseSplit/IP requirements
+- `ConstructionContext`: premises, assumptions, depth budget
+- `ProofTreeGenerator`: main generation algorithm
 
-| Parameter | At 1 | At 100 | Formula |
-|-----------|------|--------|---------|
-| atom_count | 2 | 5 | `2 + (d * 3 / 100)` |
-| target_fragments | 2 | 12 | `2 + (d * 10 / 100)` |
-| max_nesting | 1 | 5 | `1 + (d * 4 / 100)` |
-| min_fragments | 1 | 8 | `1 + (d * 7 / 100)` |
-| min_proof_steps | 1 | 7 | `1 + (d * 6 / 100)` |
-| force_cp | false | true | `d >= 30` |
-| force_case_split | false | true | `d >= 50` |
+**ProofTree** (`services/proof_tree.rs`):
+- `ProofNode`: Premise | Assumption | Derivation
+- `DegenerateProofError`: 15 types of invalid theorems
+- Semantic validation via truth tables
 
-- Preset ranges:
-  - **Easy**: 1-25 (simple proofs, 2 atoms, no CP required)
-  - **Medium**: 26-45 (3 atoms, may require CP)
-  - **Hard**: 46-70 (4 atoms, requires CP, may require case split)
-  - **Expert**: 71-100 (5 atoms, requires CP and case split)
+**Fragments** (`services/fragments.rs`):
+- 12 composable proof rules
+- Basic: MP, MT, HS, DS, Simp, Conj, Add, CD
+- Nesting: CP, IP, NegIntro, CaseSplit
+
+**TruthTable** (`services/truth_table.rs`):
+- 32-bit truth table computation
+- `is_tautology()`, `is_contradiction()`
+- `entails()`, `forces_cp()`, `forces_case_split()`
+
+**ObfuscateGen** (`services/obfuscate_gen.rs`):
+- 3-layer theorem generation (see `architecture.md`)
+- Base forms → Atom substitution → Wrap + Transform
 
 **Storage** (`services/storage.rs`):
-- Persists data to JSON files in OS-appropriate data directory
-- Stores: portfolio entries, custom theorems, user statistics
+- JSON persistence to OS data directory
+- Portfolio, custom theorems, statistics
 
 ---
 
@@ -312,97 +267,113 @@ Manages subproof nesting for CP and IP:
 
 ### State Management (Zustand)
 
-**useProof** (`hooks/useProof.ts`):
-```typescript
-interface ProofState {
-  proof: Proof | null;
-  selectedLines: number[];
-  error: string | null;
+**useProof**:
+- `proof`, `selectedLines`, `isLoading`, `error`, `hint`
+- Actions: `createProof`, `applyInferenceRule`, `applyEquivalenceRule`, `openSubproof`, `closeSubproof`, `undoLine`, `getHint`, `reorderProof`
 
-  setProof: (proof: Proof | null) => void;
-  toggleLineSelection: (lineNumber: number) => void;
-  applyInferenceRule: (rule: InferenceRule, formula?: string) => Promise<void>;
-  applyEquivalenceRule: (rule: EquivalenceRule) => Promise<void>;
-  openSubproof: (technique: ProofTechnique, assumption: string, goal?: string) => Promise<void>;
-  closeSubproof: () => Promise<void>;
-}
-```
+**useTheorems**:
+- `classicTheorems`, `customTheorems`, `selectedTheorem`
+- Actions: `loadClassicTheorems`, `generateTheorem`, `generateTheoremWithValue`
 
-**useTheorems** (`hooks/useTheorems.ts`):
-- Loads classic theorems from backend
-- Generates random theorems by difficulty
-- Tracks selected theorem
+**usePortfolio**:
+- `entries`, `selectedEntry`
+- Actions: `loadPortfolio`, `saveToPortfolio`, `deleteEntry`, `updateNotes`
 
-**usePortfolio** (`hooks/usePortfolio.ts`):
-- Loads completed proofs from storage
-- Adds new completed proofs
-- Provides portfolio statistics
+**useTheme**:
+- `theme`: 'dark' | 'high-contrast'
+- Actions: `setTheme`, `toggleHighContrast`
+- Persisted to localStorage
 
-### Key Components
+### Components
 
-**ProofWorkspace** (`components/ProofWorkspace/ProofWorkspace.tsx`):
-- Main proof editing area
-- Displays proof lines with Fitch-style indentation
-- Formula input with syntax toolbar
-- Error display and validation feedback
+**FormulaDisplay**: Renders formulas with color-coded brackets (5 depth levels)
 
-**RulePalette** (`components/ProofWorkspace/RulePalette.tsx`):
-- Three sections: Inference Rules (1-8), Equivalence Rules (9-18), Proof Techniques
-- Click to select rule, then click "Apply" with selected lines
+**FitchBox**: Fitch-style proof display with drag-and-drop reordering (@dnd-kit)
 
-**TheoremList** (`components/TheoremList/TheoremList.tsx`):
-- Lists classic theorems
-- Difficulty filter
-- "Generate Random" button
+**ProofLine / SortableProofLine**: Individual proof line with scope brackets and drag handles
 
-**Portfolio** (`components/Portfolio/Portfolio.tsx`):
-- Gallery of completed proofs
-- Click to view full proof details
+**ProofWorkspace**: Main proof editor with input parsing:
+- New format: `Q 1,2 MP`
+- Legacy format: `Q //MP 1, 2`
+- Subproof: `P //CP`
+
+**RulePalette**: Three sections - Inference (9), Equivalence (10), Techniques (3)
+
+**TheoremList**: Theorem browser with difficulty filter and custom generation (1-100)
+
+**Portfolio**: Two-pane view with proof details, notes, retry/delete
+
+**Settings**: Theme toggle (dark/high-contrast), bracket color legend
+
+---
+
+## Tauri Commands
+
+### Theorem Commands
+| Command | Parameters | Returns |
+|---------|-----------|---------|
+| `get_classic_theorems` | - | `Vec<Theorem>` |
+| `generate_theorem` | `difficulty` | `Theorem` |
+| `generate_theorem_with_value` | `difficulty_value: u8` | `Theorem` |
+
+### Proof Commands
+| Command | Parameters | Returns |
+|---------|-----------|---------|
+| `create_proof` | `theorem` | `Proof` |
+| `apply_rule` | `proof, rule_application, formula_str` | `Result<Proof>` |
+| `open_subproof` | `proof, technique, assumption_str` | `Result<Proof>` |
+| `close_subproof` | `proof, technique, conclusion_str` | `Result<Proof>` |
+| `delete_line` | `proof, line_number` | `Result<Proof>` |
+| `undo_line` | `proof` | `Proof` |
+| `check_proof_complete` | `proof` | `Proof` |
+| `get_hint` | `proof` | `String` |
+| `parse_formula` | `input` | `Result<Formula>` |
+
+### Storage Commands
+| Command | Parameters | Returns |
+|---------|-----------|---------|
+| `save_proof` | `proof` | `Result<()>` |
+| `load_proofs` | - | `Result<Vec<Proof>>` |
+| `get_statistics` | - | `Result<UserStatistics>` |
+| `save_custom_theorem` | `theorem` | `Result<()>` |
+| `load_custom_theorems` | - | `Result<Vec<Theorem>>` |
+
+### Portfolio Commands
+| Command | Parameters | Returns |
+|---------|-----------|---------|
+| `save_to_portfolio` | `proof, time_spent_secs?, hints_used` | `Result<PortfolioEntry>` |
+| `load_portfolio` | - | `Result<Vec<PortfolioEntry>>` |
+| `get_portfolio_entry` | `id` | `Result<PortfolioEntry>` |
+| `delete_portfolio_entry` | `id` | `Result<()>` |
+| `update_portfolio_notes` | `id, notes` | `Result<()>` |
 
 ---
 
 ## Data Flow
 
 ### Applying an Inference Rule
-
 ```
 1. User selects lines [1, 3] in ProofWorkspace
-2. User clicks "MP" in RulePalette
-3. User clicks "Apply Rule"
-4. Frontend calls: invoke('apply_rule', { proof, rule, lines: [1, 3] })
-5. Backend:
-   - Retrieves formulas from lines 1 and 3
-   - Calls InferenceRule::ModusPonens.apply(...)
-   - If valid: creates new ProofLine, appends to proof
-   - If invalid: returns error message
-6. Frontend receives updated Proof or error
-7. UI updates to show new line or error message
+2. User types "Q 1,3 MP" or clicks MP in RulePalette
+3. Frontend calls: invoke('apply_rule', { proof, rule_application, formula_str })
+4. Backend validates rule application
+5. If valid: new ProofLine added, check completion
+6. Frontend receives updated Proof
 ```
 
 ### Opening a Subproof (CP)
-
 ```
-1. User clicks "CP" in RulePalette
-2. User enters assumption formula (e.g., "P")
-3. User optionally enters goal formula (e.g., "Q")
-4. Frontend calls: invoke('open_subproof', { proof, technique: 'conditionalProof', assumption: 'P' })
-5. Backend:
-   - Creates new ProofScope
-   - Creates assumption line with depth + 1
-   - Returns updated proof
-6. UI shows indented subproof box with assumption
+1. User types "P //CP" or clicks CP in RulePalette
+2. Frontend calls: invoke('open_subproof', { proof, technique, assumption_str })
+3. Backend creates ProofScope, adds assumption line at depth+1
+4. UI shows indented subproof with assumption
 ```
 
-### Closing a Subproof
-
+### Completing a Proof
 ```
-1. User clicks "Close Subproof"
-2. Frontend calls: invoke('close_subproof', { proof })
-3. Backend:
-   - Validates subproof can be closed (has assumption and required conclusion)
-   - Creates SubproofConclusion line at parent depth
-   - Marks scope as closed
-4. UI shows completed subproof with conclusion
+1. User derives conclusion at depth 0
+2. Backend marks proof.is_complete = true
+3. Frontend auto-saves to portfolio with timing/hints
 ```
 
 ---
@@ -410,106 +381,66 @@ interface ProofState {
 ## Building and Running
 
 ### Prerequisites
-
 - Node.js 18+
 - Rust 1.70+
 - Tauri CLI: `npm install -g @tauri-apps/cli`
 
 ### Development
-
 ```bash
-# Install dependencies
 npm install
-
-# Run in development mode (hot reload)
 npm run tauri dev
 ```
 
 ### Production Build
-
 ```bash
-# Build for current platform
 npm run tauri build
 ```
 
-Output: `src-tauri/target/release/bundle/`
-
-### Running Tests
-
+### Tests
 ```bash
-# Rust tests
 cd src-tauri && cargo test
-
-# TypeScript type checking
 npm run typecheck
 ```
 
 ---
 
-## Input Syntax
+## Difficulty System
 
-### Formula Input
+| Tier | Value | Atoms | Transforms | Techniques |
+|------|-------|-------|------------|------------|
+| Easy | 1-25 | 2 | 1-3 | None |
+| Medium | 26-45 | 2-3 | 3-6 | CP optional |
+| Hard | 46-70 | 3-4 | 6-11 | CP required |
+| Expert | 71-85 | 4-5 | 11-16 | CP + CaseSplit |
+| Nightmare | 86-95 | 5 | 16-20 | All techniques |
+| Marathon | 96-100 | 5 | 20-24 | All + deep substitution |
 
-Users type formulas using ASCII-friendly syntax:
-
-| Input | Renders As |
-|-------|------------|
-| `P` | P |
-| `~P` | ~P |
-| `P & Q` | P · Q |
-| `P \| Q` | P ∨ Q |
-| `P -> Q` | P ⊃ Q |
-| `P <-> Q` | P ≡ Q |
-| `(P & Q) -> R` | (P · Q) ⊃ R |
-
-### Justification Input
-
-When entering a new line, format is:
-```
-FORMULA //RULE LINE_REFS
-```
-
-Examples:
-- `Q //MP 1, 2` - Modus Ponens from lines 1 and 2
-- `~P //MT 3, 4` - Modus Tollens from lines 3 and 4
-- `P | Q //Add 5` - Addition from line 5
-- `P //Simp 6` - Simplification from line 6
-- `~~P //DN 7` - Double Negation from line 7
-- `P //CP` - Start Conditional Proof with assumption P
-- `P //IP` - Start Indirect Proof with assumption ~P
+See `architecture.md` for the 3-layer generation algorithm.
 
 ---
 
-## Classic Theorems
+## Theme System
 
-The app includes 13 pre-defined classic theorems for practice:
+Two themes: **Dark** (default) and **High Contrast**
 
-1. Simple MP: P, P → Q ∴ Q
-2. Simple MT: P → Q, ~Q ∴ ~P
-3. Chain Rule: P → Q, Q → R ∴ P → R
-4. Disjunctive Syllogism: P ∨ Q, ~P ∴ Q
-5. Constructive Dilemma
-6. Contraposition: P → Q ∴ ~Q → ~P
-7. DeMorgan: ~(P · Q) ∴ ~P ∨ ~Q
-8. Distribution
-9. Exportation: (P · Q) → R ∴ P → (Q → R)
-10. Material Implication: P → Q ∴ ~P ∨ Q
-11. Double Negation: ~~P ∴ P
-12. Identity (requires CP): ∴ P → P
-13. Excluded Middle (requires IP): ∴ P ∨ ~P
+Bracket colors by depth (1-5):
+- Dark: blue, orange, teal, purple, magenta
+- High Contrast: cyan, yellow, bright green, magenta, orange
+
+Theme persisted in localStorage via `useTheme` hook.
 
 ---
 
 ## Portfolio System
 
-Completed proofs are saved to the portfolio with:
-- Theorem details (premises, conclusion)
-- Complete proof with all lines
+Completed proofs saved with:
+- Theorem details
+- Complete proof lines
 - Completion timestamp
-- Step count
-- Time spent (if tracked)
+- Step count, time spent, hints used
+- User notes (editable)
 
-Portfolio data is stored at:
-- macOS: `~/Library/Application Support/logic-proof-trainer/portfolio.json`
-- Windows: `%APPDATA%/logic-proof-trainer/portfolio.json`
-- Linux: `~/.local/share/logic-proof-trainer/portfolio.json`
+Storage locations:
+- macOS: `~/Library/Application Support/logic-proof-trainer/`
+- Windows: `%APPDATA%/logic-proof-trainer/`
+- Linux: `~/.local/share/logic-proof-trainer/`

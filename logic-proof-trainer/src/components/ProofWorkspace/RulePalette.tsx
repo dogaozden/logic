@@ -6,6 +6,7 @@ interface RulePaletteProps {
   selectedInferenceRule: InferenceRule | null;
   selectedEquivalenceRule: EquivalenceRule | null;
   selectedTechnique: ProofTechnique | null;
+  openSubproofTechnique: ProofTechnique | null;
   onSelectInferenceRule: (rule: InferenceRule | null) => void;
   onSelectEquivalenceRule: (rule: EquivalenceRule | null) => void;
   onSelectTechnique: (technique: ProofTechnique | null) => void;
@@ -45,6 +46,7 @@ export const RulePalette: React.FC<RulePaletteProps> = ({
   selectedInferenceRule,
   selectedEquivalenceRule,
   selectedTechnique,
+  openSubproofTechnique,
   onSelectInferenceRule,
   onSelectEquivalenceRule,
   onSelectTechnique,
@@ -146,17 +148,23 @@ export const RulePalette: React.FC<RulePaletteProps> = ({
               indirectProof: 'Assume ~p... derive q · ~q ∴ p',
               negationIntroduction: 'Assume p... derive ⊥ ∴ ~p',
             };
+            const isOpen = openSubproofTechnique === technique;
+            const buttonClass = `rule-button ${selectedTechnique === technique ? 'selected' : ''} ${isOpen ? 'subproof-open' : ''}`;
+            const tooltip = isOpen
+              ? `Click to close ${info.name} subproof`
+              : symbolMap[technique];
             return (
               <button
                 key={technique}
-                className={`rule-button ${selectedTechnique === technique ? 'selected' : ''}`}
+                className={buttonClass}
                 onClick={() => handleTechniqueClick(technique)}
-                title={symbolMap[technique]}
+                title={tooltip}
               >
                 <div className="rule-button-content">
                   <div className="rule-header">
                     <span className="rule-abbreviation">{info.abbrev}</span>
                     <span className="rule-name">{info.name}</span>
+                    {isOpen && <span className="close-hint">(click to close)</span>}
                   </div>
                   <div className="rule-symbol">{symbolMap[technique]}</div>
                 </div>

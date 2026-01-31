@@ -127,7 +127,7 @@ body {
 
 .sidebar-toggle {
   position: absolute;
-  left: 320px;
+  left: 300px;
   top: 50%;
   transform: translateY(-50%);
   width: 20px;
@@ -153,7 +153,7 @@ body {
 }
 
 .sidebar.collapsed + .sidebar-toggle {
-  left: 60px;
+  left: 40px;
 }
 
 /* Theme toggle button */
@@ -670,6 +670,23 @@ body {
 .rule-button.selected {
   background-color: var(--bg-tertiary);
   border-color: var(--accent);
+}
+
+.rule-button.subproof-open {
+  background-color: rgba(93, 126, 62, 0.15);
+  border-color: var(--success);
+  border-width: 2px;
+}
+
+.rule-button.subproof-open:hover {
+  background-color: rgba(93, 126, 62, 0.25);
+}
+
+.close-hint {
+  font-size: 0.7rem;
+  color: var(--success);
+  font-style: italic;
+  margin-left: auto;
 }
 
 .rule-button-content {

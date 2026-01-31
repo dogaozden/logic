@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useProof } from '../../hooks/useProof';
 import { usePortfolio } from '../../hooks/usePortfolio';
 import { FitchBox } from './FitchBox';
@@ -7,6 +8,12 @@ import { RulePalette } from './RulePalette';
 import type { InferenceRule, EquivalenceRule, ProofTechnique } from '../../types';
 import { inferenceRuleInfo, equivalenceRuleInfo, proofTechniqueInfo } from '../../types';
 import { FormulaDisplay } from '../FormulaDisplay';
+
+// Type for auto-close info from backend
+interface AutoCloseInfo {
+  technique: string;
+  conclusion: string;
+}
 
 // Create reverse lookup maps from abbreviations to rule keys
 // Includes official abbreviations plus common shorthands
@@ -122,15 +129,32 @@ function parseInput(input: string): {
     }
   }
 
-  // Try new format: "Q 1,2 MP" or "Q 1, 2 MP" or "Q 1,2, MP"
-  // Pattern: formula + space + digits/commas/spaces + optional comma + rule
-  const newMatch = input.match(/^(.+?)\s+(\d[\d,\s]*?)\s*,?\s*([A-Za-z~]+)$/);
+  // Try new format: "Q 1,2 MP" or "Q 1, 2 MP" or "Q 1,2, MP" or "Q 3 4 MP"
+  // Pattern: formula + space + digits/commas/spaces (greedy, ending with digit) + space + rule
+  const newMatch = input.match(/^(.+?)\s+(\d(?:[\d\s,]*\d)?)\s+([A-Za-z~]+)$/);
   if (newMatch) {
     const formula = newMatch[1].trim();
     const linesPart = newMatch[2];
     const rule = newMatch[3];
 
     // Parse line numbers: handle "1, 2" or "1,2" or "1 2"
+    const lines = linesPart
+      .split(/[\s,]+/)
+      .map(s => parseInt(s, 10))
+      .filter(n => !isNaN(n));
+
+    if (lines.length > 0) {
+      return { formula, lines, rule };
+    }
+  }
+
+  // Format C: "MP 3,4" or "MP 3 4" (rule first, then lines, optional formula)
+  const ruleFirstMatch = input.match(/^([A-Za-z~]+)\s+(\d(?:[\d\s,]*\d)?)\s*(?:,\s*)?(.*)$/);
+  if (ruleFirstMatch) {
+    const rule = ruleFirstMatch[1].trim();
+    const linesPart = ruleFirstMatch[2];
+    const formula = ruleFirstMatch[3]?.trim() || '';
+
     const lines = linesPart
       .split(/[\s,]+/)
       .map(s => parseInt(s, 10))
@@ -505,11 +529,47 @@ export const ProofWorkspace: React.FC = () => {
     if (rule) setMode('apply');
   };
 
-  const handleSelectTechnique = (technique: ProofTechnique | null) => {
-    setSelectedTechnique(technique);
-    setSelectedInferenceRule(null);
-    setSelectedEquivalenceRule(null);
-    if (technique) setMode('open');
+  const handleSelectTechnique = async (technique: ProofTechnique | null) => {
+    if (!technique) {
+      setSelectedTechnique(null);
+      return;
+    }
+
+    // Check if we're in an open subproof of this technique type
+    const currentScope = proof?.scope_manager.scopes.find(
+      s => s.end_line === undefined && s.technique === technique
+    );
+
+    if (currentScope) {
+      // We're in an open subproof of the same type - try to auto-close
+      try {
+        const autoClose = await invoke<AutoCloseInfo | null>('get_subproof_auto_close', { proof });
+
+        if (autoClose) {
+          // Auto-close with computed conclusion
+          const success = await closeSubproof(technique, autoClose.conclusion);
+          if (success) {
+            setSelectedTechnique(null);
+            setMode('apply');
+          }
+        } else {
+          // Can't auto-close (e.g., IP without contradiction)
+          if (technique === 'indirectProof' || technique === 'negationIntroduction') {
+            setError('Cannot close: derive a contradiction (⊥) first');
+          } else {
+            setError('Cannot auto-close subproof');
+          }
+        }
+      } catch (err) {
+        setError(`Error closing subproof: ${err}`);
+      }
+    } else {
+      // Not in matching subproof - open new one or select technique
+      setSelectedTechnique(technique);
+      setSelectedInferenceRule(null);
+      setSelectedEquivalenceRule(null);
+      setMode('open');
+    }
   };
 
   const currentDepth = proof.scope_manager.scopes.filter(s => s.end_line === undefined).length;
@@ -670,6 +730,7 @@ export const ProofWorkspace: React.FC = () => {
           selectedInferenceRule={selectedInferenceRule}
           selectedEquivalenceRule={selectedEquivalenceRule}
           selectedTechnique={selectedTechnique}
+          openSubproofTechnique={currentScopeTechnique as ProofTechnique | null}
           onSelectInferenceRule={handleSelectInferenceRule}
           onSelectEquivalenceRule={handleSelectEquivalenceRule}
           onSelectTechnique={handleSelectTechnique}

@@ -303,6 +303,25 @@ pub fn parse_formula(input: String) -> Result<Formula, String> {
     Formula::parse(&input).map_err(|e| e.to_string())
 }
 
+/// Get auto-close information for the current subproof
+#[derive(Debug, Clone, Serialize)]
+pub struct AutoCloseInfo {
+    pub technique: String,
+    pub conclusion: String,
+}
+
+#[tauri::command]
+pub fn get_subproof_auto_close(proof: Proof) -> Option<AutoCloseInfo> {
+    if let Some((technique, conclusion)) = proof.get_auto_close_conclusion() {
+        Some(AutoCloseInfo {
+            technique: technique.abbreviation().to_string(),
+            conclusion: conclusion.display_string(),
+        })
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
