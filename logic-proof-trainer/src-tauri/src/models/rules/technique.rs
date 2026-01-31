@@ -60,16 +60,17 @@ impl ProofTechnique {
                 ))
             }
             ProofTechnique::IndirectProof => {
-                // Assume ~P, derive ⊥ → conclude P
+                // Must derive contradiction
                 if !matches!(derived, Formula::Contradiction) {
                     return None;
                 }
-                // The assumption should be ~P, and we conclude P
+                // IP handles both directions:
+                // - Assume ~P, derive ⊥ → conclude P (removes negation)
+                // - Assume P, derive ⊥ → conclude ~P (adds negation)
                 if let Formula::Not(inner) = assumption {
                     Some(inner.as_ref().clone())
                 } else {
-                    // If assumption is P (not negated), this is actually negation introduction
-                    None
+                    Some(Formula::Not(Box::new(assumption.clone())))
                 }
             }
             ProofTechnique::NegationIntroduction => {
@@ -180,5 +181,36 @@ mod tests {
 
         let conclusion = ProofTechnique::IndirectProof.get_conclusion(&assumption, &derived);
         assert!(conclusion.is_none());
+    }
+
+    #[test]
+    fn test_indirect_proof_non_negated_assumption() {
+        // IP can also handle: Assume P, derive ⊥ → conclude ~P
+        let assumption = Formula::parse("P").unwrap();
+        let derived = Formula::Contradiction;
+        let expected = Formula::parse("~P").unwrap();
+
+        let conclusion = ProofTechnique::IndirectProof
+            .get_conclusion(&assumption, &derived)
+            .unwrap();
+        assert_eq!(conclusion, expected);
+    }
+
+    #[test]
+    fn test_indirect_proof_complex_formula() {
+        // Test with complex formula: Assume (P ∨ Q) . R, derive ⊥ → conclude ~[(P ∨ Q) . R]
+        let assumption = Formula::parse("(P | Q) & R").unwrap();
+        let derived = Formula::Contradiction;
+
+        let conclusion = ProofTechnique::IndirectProof
+            .get_conclusion(&assumption, &derived)
+            .unwrap();
+
+        // Should be ~[(P ∨ Q) . R]
+        if let Formula::Not(inner) = &conclusion {
+            assert_eq!(**inner, assumption);
+        } else {
+            panic!("Expected negation");
+        }
     }
 }

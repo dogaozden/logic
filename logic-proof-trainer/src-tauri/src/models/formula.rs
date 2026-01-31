@@ -100,15 +100,18 @@ impl Formula {
     }
 
     /// Wrap in brackets if compound
-    fn wrap_if_compound(formula: &Formula, current_depth: usize, max_depth: usize) -> String {
+    /// Uses LOCAL bracket depth of the subformula to determine bracket type
+    fn wrap_if_compound(formula: &Formula, _current_depth: usize, _max_depth: usize) -> String {
         match formula {
-            Formula::Atom(_) | Formula::Contradiction => formula.display_with_depth(current_depth, max_depth),
+            Formula::Atom(_) | Formula::Contradiction => formula.display_string(),
             Formula::Not(inner) if matches!(inner.as_ref(), Formula::Atom(_)) => {
-                formula.display_with_depth(current_depth, max_depth)
+                formula.display_string()
             }
             _ => {
-                let (open, close) = Self::brackets_for_level(current_depth, max_depth);
-                let inner = formula.display_with_depth(current_depth + 1, max_depth);
+                // Use the subformula's LOCAL bracket depth for bracket selection
+                let local_depth = formula.bracket_depth();
+                let (open, close) = Self::brackets_for_level(0, local_depth + 1);
+                let inner = formula.display_string();
                 format!("{}{}{}", open, inner, close)
             }
         }
@@ -581,5 +584,31 @@ mod tests {
 
         let f = Formula::parse("(P & Q) -> R").unwrap();
         assert_eq!(f.depth(), 2);
+    }
+
+    #[test]
+    fn test_bracket_hierarchy_local_depth() {
+        // Bug fix: {[P ∨ Q] . [(~R ⊃ ~P) . R]} was wrong
+        // P ∨ Q should use () because its local depth is 0 (atoms don't need brackets)
+        // The fix ensures we use LOCAL depth, not global position
+        let f = Formula::parse("(P | Q) & ((~R -> ~P) & R)").unwrap();
+        let display = f.display_string();
+
+        // P ∨ Q is atomic disjunction → should use ()
+        // (~R ⊃ ~P) . R has depth 1 → should use []
+        // The outer formula at top level doesn't need extra wrapping
+        // Expected: (P ∨ Q) . [(~R ⊃ ~P) . R]
+        assert!(display.contains("(P ∨ Q)"), "P ∨ Q should use () not []: {}", display);
+        assert!(display.contains("[(~R ⊃ ~P) . R]"), "Nested conjunction should use []: {}", display);
+        assert_eq!(display, "(P ∨ Q) . [(~R ⊃ ~P) . R]");
+    }
+
+    #[test]
+    fn test_simple_subformula_brackets() {
+        // Simple case: (P ∨ Q) . R
+        // P ∨ Q has local depth 0, so should use ()
+        let f = Formula::parse("(P | Q) & R").unwrap();
+        let display = f.display_string();
+        assert_eq!(display, "(P ∨ Q) . R");
     }
 }

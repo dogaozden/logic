@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
 import { usePortfolio } from '../../hooks/usePortfolio';
+import { useProof } from '../../hooks/useProof';
 import { formulaToString } from '../../types';
 import type { PortfolioEntry } from '../../types';
 import { FitchBox } from '../ProofWorkspace/FitchBox';
 
-export const Portfolio: React.FC = () => {
+interface PortfolioProps {
+  onRetry?: () => void;
+}
+
+export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
   const {
     entries,
     isLoading,
@@ -16,6 +21,8 @@ export const Portfolio: React.FC = () => {
     selectEntry,
     clearError,
   } = usePortfolio();
+
+  const { createProof } = useProof();
 
   const [notesInput, setNotesInput] = useState('');
   const [editingNotes, setEditingNotes] = useState(false);
@@ -62,6 +69,11 @@ export const Portfolio: React.FC = () => {
     if (confirm('Are you sure you want to delete this proof from your portfolio?')) {
       await deleteEntry(entry.id);
     }
+  };
+
+  const handleRetry = async (entry: PortfolioEntry) => {
+    await createProof(entry.proof.theorem);
+    onRetry?.();
   };
 
   if (isLoading && entries.length === 0) {
@@ -136,12 +148,20 @@ export const Portfolio: React.FC = () => {
           <div className="portfolio-detail">
             <div className="detail-header">
               <h3>{selectedEntry.proof.theorem.name || 'Custom Proof'}</h3>
-              <button
-                className="btn btn-secondary"
-                onClick={() => handleDelete(selectedEntry)}
-              >
-                Delete
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => handleRetry(selectedEntry)}
+                >
+                  Retry
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => handleDelete(selectedEntry)}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
 
             <div className="detail-theorem">

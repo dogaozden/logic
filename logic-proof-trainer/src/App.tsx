@@ -56,7 +56,7 @@ function App() {
       >
         {theme === 'dark' ? '◐' : '◑'}
       </button>
-      {view === 'theorems' ? <ProofWorkspace /> : <Portfolio />}
+      {view === 'theorems' ? <ProofWorkspace /> : <Portfolio onRetry={() => setView('theorems')} />}
     </div>
   );
 }

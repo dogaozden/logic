@@ -21,6 +21,8 @@ pub struct ObfuscateConfig {
     pub transform_count: usize,
     pub difficulty: Difficulty,
     pub difficulty_value: u8,
+    /// Depth of formula substitutions (0 = no substitution, 1-2 = complex formulas)
+    pub substitution_depth: usize,
 }
 
 impl ObfuscateConfig {
@@ -58,11 +60,22 @@ impl ObfuscateConfig {
             _ => 20 + (d_clamped - 96) * 4 / 4, // 20-24
         };
 
+        // Layer 3: substitution depth based on difficulty
+        // 1-69: 0 (no substitution)
+        // 70-84: 1 (simple substitutions like A ∨ B)
+        // 85-100: 2 (nested substitutions like (A ∨ B) ⊃ C)
+        let substitution_depth = match d_clamped {
+            1..=69 => 0,
+            70..=84 => 1,
+            _ => 2,
+        };
+
         Self {
             atom_pool: atoms,
             transform_count,
             difficulty: Self::preset_for_value(d),
             difficulty_value: d,
+            substitution_depth,
         }
     }
 
@@ -181,22 +194,27 @@ impl ObfuscateGenerator {
 
     /// Generate an obfuscated theorem (tautology format)
     pub fn generate(&self, rng: &mut impl Rng) -> Theorem {
-        // Step 1: Generate simple base theorem
+        // Layer 1: Generate simple base theorem
         let (premises, conclusion) = self.generate_base_theorem(rng);
 
-        // Step 2: Wrap as single tautology
+        // Layer 3: Apply atom substitutions for high difficulty
+        // This replaces simple atoms (P, Q, R) with complex formulas (A∨~B, C.D, E⊃F)
+        // dramatically increasing the "surface area" for equivalence transformations
+        let (premises, conclusion) = self.apply_substitutions(premises, conclusion, rng);
+
+        // Layer 2: Wrap as single tautology
         let wrapped = self.wrap_as_conditional(&premises, &conclusion);
 
         // Verify the wrapped formula is a tautology before transforming
         debug_assert!(is_tautology(&wrapped), "Wrapped formula should be a tautology");
 
-        // Step 3: Apply random transformations
+        // Apply random transformations
         let obfuscated = self.apply_transformations(wrapped, rng);
 
         // Verify the obfuscated formula is still a tautology
         debug_assert!(is_tautology(&obfuscated), "Obfuscated formula should still be a tautology");
 
-        // Step 4: Return as tautology (no premises)
+        // Return as tautology (no premises)
         Theorem::with_difficulty_value(
             vec![], // No premises - it's a tautology
             obfuscated,
@@ -339,6 +357,130 @@ impl ObfuscateGenerator {
                     s,
                 )
             }
+        }
+    }
+
+    /// Layer 3: Apply atom substitutions for high difficulty.
+    /// Replaces simple atoms (P, Q, R) with complex formulas (A∨~B, C.D, E⊃F).
+    fn apply_substitutions(
+        &self,
+        premises: Vec<Formula>,
+        conclusion: Formula,
+        rng: &mut impl Rng,
+    ) -> (Vec<Formula>, Formula) {
+        if self.config.substitution_depth == 0 {
+            return (premises, conclusion);
+        }
+
+        // Collect all unique atoms from the base theorem
+        let mut base_atoms: Vec<String> = vec![];
+        for p in &premises {
+            for atom in p.atoms() {
+                if !base_atoms.contains(&atom) {
+                    base_atoms.push(atom);
+                }
+            }
+        }
+        for atom in conclusion.atoms() {
+            if !base_atoms.contains(&atom) {
+                base_atoms.push(atom);
+            }
+        }
+
+        // Sort for deterministic behavior
+        base_atoms.sort();
+
+        // Create substitution atoms (A, B, C, D, E, F, ...)
+        // We need 2 atoms per base atom for interesting substitutions
+        let sub_atoms: Vec<String> = ('A'..='Z')
+            .take(base_atoms.len() * 2)
+            .map(|c| c.to_string())
+            .collect();
+
+        // Build substitution map: P -> complex formula using A,B; Q -> complex formula using C,D; etc.
+        let mut substitutions: std::collections::HashMap<String, Formula> = std::collections::HashMap::new();
+        for (i, atom) in base_atoms.iter().enumerate() {
+            let start_idx = i * 2;
+            let end_idx = (start_idx + 2).min(sub_atoms.len());
+            let atom_slice = &sub_atoms[start_idx..end_idx];
+            let replacement = self.random_formula(rng, self.config.substitution_depth, atom_slice);
+            substitutions.insert(atom.clone(), replacement);
+        }
+
+        // Apply substitutions to all premises and conclusion
+        let new_premises: Vec<Formula> = premises
+            .into_iter()
+            .map(|p| self.substitute_all(&p, &substitutions))
+            .collect();
+        let new_conclusion = self.substitute_all(&conclusion, &substitutions);
+
+        (new_premises, new_conclusion)
+    }
+
+    /// Generate a random formula of given depth using the provided atoms.
+    fn random_formula(&self, rng: &mut impl Rng, depth: usize, atoms: &[String]) -> Formula {
+        // Base case: return atom if depth is 0 or randomly (30% chance)
+        if depth == 0 || atoms.is_empty() || rng.gen_bool(0.3) {
+            let idx = rng.gen_range(0..atoms.len().max(1));
+            return if atoms.is_empty() {
+                Formula::Atom("X".to_string()) // fallback
+            } else {
+                Formula::Atom(atoms[idx].clone())
+            };
+        }
+
+        // Pick random connective
+        match rng.gen_range(0..4) {
+            0 => Formula::Not(Box::new(self.random_formula(rng, depth - 1, atoms))),
+            1 => Formula::And(
+                Box::new(self.random_formula(rng, depth - 1, atoms)),
+                Box::new(self.random_formula(rng, depth - 1, atoms)),
+            ),
+            2 => Formula::Or(
+                Box::new(self.random_formula(rng, depth - 1, atoms)),
+                Box::new(self.random_formula(rng, depth - 1, atoms)),
+            ),
+            _ => Formula::Implies(
+                Box::new(self.random_formula(rng, depth - 1, atoms)),
+                Box::new(self.random_formula(rng, depth - 1, atoms)),
+            ),
+        }
+    }
+
+    /// Apply all substitutions from the map to a formula.
+    fn substitute_all(&self, formula: &Formula, subs: &std::collections::HashMap<String, Formula>) -> Formula {
+        match formula {
+            Formula::Atom(name) => {
+                subs.get(name).cloned().unwrap_or_else(|| formula.clone())
+            }
+            Formula::Not(inner) => {
+                Formula::Not(Box::new(self.substitute_all(inner, subs)))
+            }
+            Formula::And(l, r) => {
+                Formula::And(
+                    Box::new(self.substitute_all(l, subs)),
+                    Box::new(self.substitute_all(r, subs)),
+                )
+            }
+            Formula::Or(l, r) => {
+                Formula::Or(
+                    Box::new(self.substitute_all(l, subs)),
+                    Box::new(self.substitute_all(r, subs)),
+                )
+            }
+            Formula::Implies(l, r) => {
+                Formula::Implies(
+                    Box::new(self.substitute_all(l, subs)),
+                    Box::new(self.substitute_all(r, subs)),
+                )
+            }
+            Formula::Biconditional(l, r) => {
+                Formula::Biconditional(
+                    Box::new(self.substitute_all(l, subs)),
+                    Box::new(self.substitute_all(r, subs)),
+                )
+            }
+            Formula::Contradiction => Formula::Contradiction,
         }
     }
 
@@ -783,5 +925,90 @@ mod tests {
             Formula::Not(Box::new(p.clone()))
         ))));
         assert_eq!(super::count_leading_negations(&triple_neg), 3);
+    }
+
+    #[test]
+    fn test_substitution_config_scaling() {
+        // Low difficulty: no substitution
+        let low_config = ObfuscateConfig::for_difficulty_value(50);
+        assert_eq!(low_config.substitution_depth, 0, "Low difficulty should have no substitution");
+
+        // Medium-high difficulty: simple substitution
+        let mid_config = ObfuscateConfig::for_difficulty_value(75);
+        assert_eq!(mid_config.substitution_depth, 1, "Difficulty 75 should have depth 1 substitution");
+
+        // High difficulty: complex substitution
+        let high_config = ObfuscateConfig::for_difficulty_value(90);
+        assert_eq!(high_config.substitution_depth, 2, "High difficulty should have depth 2 substitution");
+    }
+
+    #[test]
+    fn test_substitution_increases_complexity() {
+        let mut rng = rand::thread_rng();
+
+        // High difficulty: has substitution
+        let high_config = ObfuscateConfig::for_difficulty_value(90);
+        assert!(high_config.substitution_depth >= 1);
+
+        let gen = ObfuscateGenerator::new(high_config);
+        let theorem = gen.generate(&mut rng);
+
+        // Should be a tautology
+        assert!(is_tautology(&theorem.conclusion), "Generated formula should be a tautology");
+
+        // Should have multiple atoms (A, B, C, D, etc. from substitutions)
+        let atoms = theorem.conclusion.atoms();
+        assert!(atoms.len() >= 3, "High difficulty with substitutions should have 3+ atoms, got {}", atoms.len());
+
+        // Should be deep
+        assert!(theorem.conclusion.depth() >= 4, "High difficulty should produce deep formulas, got {}", theorem.conclusion.depth());
+    }
+
+    #[test]
+    fn test_substitution_preserves_validity() {
+        let mut rng = rand::thread_rng();
+
+        // Test multiple times for randomness
+        for difficulty in [70, 80, 90, 100] {
+            let config = ObfuscateConfig::for_difficulty_value(difficulty);
+            let gen = ObfuscateGenerator::new(config);
+
+            for _ in 0..5 {
+                let theorem = gen.generate(&mut rng);
+                assert!(
+                    is_tautology(&theorem.conclusion),
+                    "Difficulty {} should produce tautology, got: {}",
+                    difficulty,
+                    theorem.conclusion.display_string()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_random_formula_generation() {
+        let config = ObfuscateConfig::for_difficulty_value(90);
+        let gen = ObfuscateGenerator::new(config);
+        let mut rng = rand::thread_rng();
+
+        // Test that random formulas have expected properties
+        let atoms = vec!["A".to_string(), "B".to_string()];
+
+        for _ in 0..10 {
+            let formula = gen.random_formula(&mut rng, 2, &atoms);
+            let formula_atoms = formula.atoms();
+
+            // All atoms should be from the provided list
+            for atom in formula_atoms.iter() {
+                assert!(
+                    atoms.contains(atom),
+                    "Formula atom {} not in provided atoms {:?}",
+                    atom, atoms
+                );
+            }
+
+            // Should have reasonable depth
+            assert!(formula.depth() <= 4, "Random formula depth should be bounded");
+        }
     }
 }
