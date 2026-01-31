@@ -6,7 +6,7 @@ export const Settings: React.FC = () => {
 
   // Bracket colors based on theme
   // [] = always color 1
-  // {} = depth-based: colors 2, 3, 4, 5 for depth 0, 1, 2, 3
+  // {} = depth-based: colors 2-8 for depth 0-6
   const squareColor = theme === 'high-contrast'
     ? { color: '#00ccff', name: 'Cyan' }
     : { color: '#0077ee', name: 'Blue' };
@@ -17,12 +17,18 @@ export const Settings: React.FC = () => {
       { color: '#33ff66', name: 'Lime (depth 1)' },
       { color: '#ff66ff', name: 'Magenta (depth 2)' },
       { color: '#ff9933', name: 'Orange (depth 3)' },
+      { color: '#aaff44', name: 'Lime (depth 4)' },
+      { color: '#66ddff', name: 'Sky Blue (depth 5)' },
+      { color: '#ff7799', name: 'Coral (depth 6)' },
     ]
     : [
       { color: '#dd4422', name: 'Red-Orange (depth 0)' },
       { color: '#00aa77', name: 'Teal (depth 1)' },
       { color: '#aa44dd', name: 'Purple (depth 2)' },
       { color: '#dd2266', name: 'Magenta (depth 3)' },
+      { color: '#88bb22', name: 'Lime (depth 4)' },
+      { color: '#2299dd', name: 'Sky Blue (depth 5)' },
+      { color: '#ee8800', name: 'Amber (depth 6)' },
     ];
 
   return (

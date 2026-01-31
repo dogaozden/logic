@@ -122,11 +122,11 @@ export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, classNa
   // Coloring scheme:
   // () = NEVER colored
   // [] = ALWAYS color 1 (blue in light mode, cyan in high contrast)
-  // {} = depth-based (depth 0 = color 2, depth 1 = color 3, etc.)
+  // {} = depth-based (depth 0 = color 2, depth 1 = color 3, ... depth 6 = color 8)
   const getColorForCurly = (depth: number): string => {
     // Start at color 2 (color 1 is reserved for [])
-    // Cycle through colors 2-5 (4 colors)
-    return `var(--bracket-${(depth % 4) + 2})`;
+    // Cycle through colors 2-8 (7 colors for depths 0-6)
+    return `var(--bracket-${(depth % 7) + 2})`;
   };
 
   // Clear refs at start of render to ensure no stale entries from previous formulas
@@ -199,10 +199,10 @@ export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, classNa
   const maxDepth = bracketPositions?.pairs.reduce((max, p) => Math.max(max, p.depth), 0) ?? 0;
 
   // Helper to get color index for SVG lines (matches inline coloring)
-  // {} = depth-based using colors 2-5
+  // {} = depth-based using colors 2-8
   const getColorIndexForPair = (pair: BracketPair) => {
-    // For {}, use colors 2-5 based on depth
-    return (pair.depth % 4) + 2;
+    // For {}, use colors 2-8 based on depth
+    return (pair.depth % 7) + 2;
   };
 
   // Calculate heights for each SVG layer

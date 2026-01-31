@@ -27,6 +27,12 @@
   /* bright purple */
   --bracket-5: #dd2266;
   /* bright magenta */
+  --bracket-6: #88bb22;
+  /* lime green */
+  --bracket-7: #2299dd;
+  /* sky blue */
+  --bracket-8: #ee8800;
+  /* bright amber */
 }
 
 /* High Contrast Theme */
@@ -54,7 +60,13 @@
   --bracket-4: #ff66ff;
   /* magenta */
   --bracket-5: #ff9933;
-  /* bright orange - more visible */
+  /* bright orange */
+  --bracket-6: #aaff44;
+  /* bright lime */
+  --bracket-7: #66ddff;
+  /* bright sky blue */
+  --bracket-8: #ff7799;
+  /* bright coral */
 }
 
 /* Reset */
