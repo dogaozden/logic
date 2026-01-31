@@ -7,6 +7,11 @@ import { FormulaDisplay } from '../FormulaDisplay';
 
 type FilterType = 'all' | 'classic' | 'custom' | Difficulty;
 
+// Unified difficulty mode - either preset or custom value
+type DifficultyMode =
+  | { type: 'preset'; value: Difficulty }
+  | { type: 'custom'; value: number };
+
 export const TheoremList: React.FC = () => {
   const {
     classicTheorems,
@@ -19,12 +24,14 @@ export const TheoremList: React.FC = () => {
     selectTheorem,
   } = useTheorems();
 
-  const { createProof, proof } = useProof();
+  const { createProof } = useProof();
   const [filter, setFilter] = useState<FilterType>('all');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [customDifficulty, setCustomDifficulty] = useState<string>('50');
-  const [showCustomInput, setShowCustomInput] = useState(false);
-  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | null>(null);
+
+  // Unified state: either preset difficulty or custom value (mutually exclusive)
+  const [difficultyMode, setDifficultyMode] = useState<DifficultyMode | null>(null);
+  // Separate input value for the custom field (allows typing without immediate mode switch)
+  const [customInputValue, setCustomInputValue] = useState<string>('50');
 
   useEffect(() => {
     loadClassicTheorems();
@@ -50,25 +57,40 @@ export const TheoremList: React.FC = () => {
     }
   };
 
-  const handleGenerate = async (difficulty: Difficulty) => {
-    setSelectedDifficulty(difficulty);
-    setIsGenerating(true);
-    try {
-      const theorem = await generateTheorem(difficulty);
-      selectTheorem(theorem);
-    } finally {
-      setIsGenerating(false);
+  // Selecting a preset difficulty (clears custom)
+  const handlePresetClick = (difficulty: Difficulty) => {
+    setDifficultyMode({ type: 'preset', value: difficulty });
+  };
+
+  // Entering custom value switches to custom mode
+  const handleCustomInputChange = (value: string) => {
+    setCustomInputValue(value);
+    const numValue = parseInt(value, 10);
+    if (!isNaN(numValue) && numValue >= 1 && numValue <= 100) {
+      setDifficultyMode({ type: 'custom', value: numValue });
     }
   };
 
-  const handleGenerateCustom = async () => {
-    const value = parseInt(customDifficulty, 10);
-    if (isNaN(value) || value < 1 || value > 100) {
-      return;
+  // Focus on custom input switches to custom mode
+  const handleCustomInputFocus = () => {
+    const numValue = parseInt(customInputValue, 10);
+    if (!isNaN(numValue) && numValue >= 1 && numValue <= 100) {
+      setDifficultyMode({ type: 'custom', value: numValue });
     }
+  };
+
+  // Single Generate New handler - uses current difficultyMode
+  const handleGenerateNew = async () => {
+    if (!difficultyMode) return;
+
     setIsGenerating(true);
     try {
-      const theorem = await generateTheoremWithValue(value);
+      let theorem: Theorem;
+      if (difficultyMode.type === 'preset') {
+        theorem = await generateTheorem(difficultyMode.value);
+      } else {
+        theorem = await generateTheoremWithValue(difficultyMode.value);
+      }
       selectTheorem(theorem);
     } finally {
       setIsGenerating(false);
@@ -89,6 +111,13 @@ export const TheoremList: React.FC = () => {
       </>
     );
   };
+
+  // Helper to check if a preset is selected
+  const isPresetSelected = (difficulty: Difficulty) =>
+    difficultyMode?.type === 'preset' && difficultyMode.value === difficulty;
+
+  // Helper to check if custom mode is active
+  const isCustomSelected = difficultyMode?.type === 'custom';
 
   return (
     <>
@@ -150,66 +179,67 @@ export const TheoremList: React.FC = () => {
         ))}
       </div>
 
+      {/* Difficulty Selection Section */}
       <div style={{ padding: '12px', borderTop: '1px solid var(--border)' }}>
         <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-          Generate Random:
+          Select Difficulty:
         </p>
-        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
+
+        {/* Preset difficulty buttons + Custom input - all in one row */}
+        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '8px' }}>
           {(['easy', 'medium', 'hard', 'expert'] as Difficulty[]).map((d) => (
             <button
               key={d}
-              className={`btn ${selectedDifficulty === d ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => handleGenerate(d)}
-              disabled={isGenerating}
+              className={`btn ${isPresetSelected(d) ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => handlePresetClick(d)}
               style={{ fontSize: '0.75rem', padding: '4px 8px' }}
             >
               {d}
             </button>
           ))}
-          <button
-            className={`btn ${showCustomInput ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setShowCustomInput(!showCustomInput)}
-            style={{ fontSize: '0.75rem', padding: '4px 8px' }}
-            title="Enter custom difficulty (1-100)"
-          >
-            #
-          </button>
-        </div>
-        {showCustomInput && (
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+
+          {/* Custom input inline */}
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginLeft: '4px' }}>
             <input
               type="number"
               min="1"
               max="100"
-              value={customDifficulty}
-              onChange={(e) => setCustomDifficulty(e.target.value)}
+              value={customInputValue}
+              onChange={(e) => handleCustomInputChange(e.target.value)}
+              onFocus={handleCustomInputFocus}
               style={{
-                width: '60px',
-                padding: '4px 8px',
+                width: '50px',
+                padding: '4px 6px',
                 fontSize: '0.75rem',
-                border: '1px solid var(--border)',
+                border: `2px solid ${isCustomSelected ? 'var(--accent)' : 'var(--border)'}`,
                 borderRadius: '4px',
                 background: 'var(--bg-secondary)',
                 color: 'var(--text-primary)',
               }}
               placeholder="1-100"
+              title="Custom difficulty (1-100)"
             />
-            <button
-              className="btn btn-primary"
-              onClick={handleGenerateCustom}
-              disabled={isGenerating}
-              style={{ fontSize: '0.75rem', padding: '4px 8px' }}
-            >
-              Go
-            </button>
-            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-              (1-25 easy, 26-45 med, 46-70 hard, 71-100 expert)
-            </span>
           </div>
-        )}
+        </div>
+
+        {/* Difficulty scale hint */}
+        <p style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+          1-25 easy · 26-45 medium · 46-70 hard · 71-100 expert
+        </p>
+
+        {/* Generate New button - always visible, enabled when difficulty selected */}
+        <button
+          className="btn btn-primary"
+          onClick={handleGenerateNew}
+          disabled={!difficultyMode || isGenerating}
+          style={{ width: '100%', marginBottom: '8px' }}
+        >
+          {isGenerating ? 'Generating...' : 'Generate New'}
+        </button>
       </div>
 
-      {selectedTheorem && !proof && (
+      {/* Start Proof button - visible whenever a theorem is selected */}
+      {selectedTheorem && (
         <div className="action-bar">
           <button className="btn btn-primary" onClick={handleStartProof} style={{ flex: 1 }}>
             Start Proof
