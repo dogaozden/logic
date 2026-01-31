@@ -9,20 +9,20 @@ export const Settings: React.FC = () => {
   // {} = depth-based: colors 2, 3, 4, 5 for depth 0, 1, 2, 3
   const squareColor = theme === 'high-contrast'
     ? { color: '#00ccff', name: 'Cyan' }
-    : { color: '#0066cc', name: 'Blue' };
+    : { color: '#0077ee', name: 'Blue' };
 
   const curlyColors = theme === 'high-contrast'
     ? [
-      { color: '#ffcc00', name: 'Yellow (depth 0)' },
-      { color: '#00ff99', name: 'Green (depth 1)' },
+      { color: '#ff3366', name: 'Crimson (depth 0)' },
+      { color: '#33ff66', name: 'Lime (depth 1)' },
       { color: '#ff66ff', name: 'Magenta (depth 2)' },
-      { color: '#ff6600', name: 'Orange (depth 3)' },
+      { color: '#ff9933', name: 'Orange (depth 3)' },
     ]
     : [
-      { color: '#cc6600', name: 'Orange (depth 0)' },
-      { color: '#009966', name: 'Teal (depth 1)' },
-      { color: '#9933cc', name: 'Purple (depth 2)' },
-      { color: '#cc3366', name: 'Magenta (depth 3)' },
+      { color: '#dd4422', name: 'Red-Orange (depth 0)' },
+      { color: '#00aa77', name: 'Teal (depth 1)' },
+      { color: '#aa44dd', name: 'Purple (depth 2)' },
+      { color: '#dd2266', name: 'Magenta (depth 3)' },
     ];
 
   return (

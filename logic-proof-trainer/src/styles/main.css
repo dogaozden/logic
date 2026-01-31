@@ -16,12 +16,17 @@
   --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
-  /* Bracket depth colors - colorblind-friendly palette */
-  --bracket-1: #0066cc;  /* blue */
-  --bracket-2: #cc6600;  /* orange */
-  --bracket-3: #009966;  /* teal */
-  --bracket-4: #9933cc;  /* purple */
-  --bracket-5: #cc3366;  /* magenta */
+  /* Bracket depth colors - brighter, more visible palette */
+  --bracket-1: #0077ee;
+  /* bright blue */
+  --bracket-2: #dd4422;
+  /* bright red-orange */
+  --bracket-3: #00aa77;
+  /* bright teal */
+  --bracket-4: #aa44dd;
+  /* bright purple */
+  --bracket-5: #dd2266;
+  /* bright magenta */
 }
 
 /* High Contrast Theme */
@@ -40,11 +45,16 @@
   --shadow: rgba(255, 255, 255, 0.1);
 
   /* Bracket depth colors - high contrast */
-  --bracket-1: #00ccff;  /* cyan */
-  --bracket-2: #ffcc00;  /* yellow */
-  --bracket-3: #00ff99;  /* bright green */
-  --bracket-4: #ff66ff;  /* magenta */
-  --bracket-5: #ff6600;  /* orange */
+  --bracket-1: #00ccff;
+  /* cyan */
+  --bracket-2: #ff3366;
+  /* bright crimson/burgundy */
+  --bracket-3: #33ff66;
+  /* bright lime green - more visible */
+  --bracket-4: #ff66ff;
+  /* magenta */
+  --bracket-5: #ff9933;
+  /* bright orange - more visible */
 }
 
 /* Reset */
@@ -54,7 +64,9 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   width: 100%;
 }
@@ -419,7 +431,8 @@ body {
   display: flex;
   align-items: center;
   padding: 6px 16px;
-  padding-right: 60px; /* Make room for scope brackets */
+  padding-right: 60px;
+  /* Make room for scope brackets */
   gap: 12px;
   cursor: pointer;
   transition: background-color 0.15s;
@@ -518,32 +531,50 @@ body {
   border-left: 2px solid var(--accent);
   margin-left: 8px;
 }
+
 .proof-line[data-depth="2"] {
   padding-left: calc(16px + 48px);
   border-left: 2px solid var(--warning);
   margin-left: 16px;
 }
+
 .proof-line[data-depth="3"] {
   padding-left: calc(16px + 72px);
   border-left: 2px solid var(--success);
   margin-left: 24px;
 }
+
 .proof-line[data-depth="4"] {
   padding-left: calc(16px + 96px);
   border-left: 2px solid #9c27b0;
   margin-left: 32px;
 }
+
 .proof-line[data-depth="5"] {
   padding-left: calc(16px + 120px);
   border-left: 2px solid #00bcd4;
   margin-left: 40px;
 }
 
-.proof-line.selected[data-depth="1"] { padding-left: calc(13px + 24px); }
-.proof-line.selected[data-depth="2"] { padding-left: calc(13px + 48px); }
-.proof-line.selected[data-depth="3"] { padding-left: calc(13px + 72px); }
-.proof-line.selected[data-depth="4"] { padding-left: calc(13px + 96px); }
-.proof-line.selected[data-depth="5"] { padding-left: calc(13px + 120px); }
+.proof-line.selected[data-depth="1"] {
+  padding-left: calc(13px + 24px);
+}
+
+.proof-line.selected[data-depth="2"] {
+  padding-left: calc(13px + 48px);
+}
+
+.proof-line.selected[data-depth="3"] {
+  padding-left: calc(13px + 72px);
+}
+
+.proof-line.selected[data-depth="4"] {
+  padding-left: calc(13px + 96px);
+}
+
+.proof-line.selected[data-depth="5"] {
+  padding-left: calc(13px + 120px);
+}
 
 /* Goal input also respects nesting */
 .goal-input-row[style*="depth"] {
@@ -650,11 +681,25 @@ body {
 }
 
 /* Match goal input row border to nesting depth */
-.goal-input-row[data-depth="1"] { border-left-color: var(--accent); }
-.goal-input-row[data-depth="2"] { border-left-color: var(--warning); }
-.goal-input-row[data-depth="3"] { border-left-color: var(--success); }
-.goal-input-row[data-depth="4"] { border-left-color: #9c27b0; }
-.goal-input-row[data-depth="5"] { border-left-color: #00bcd4; }
+.goal-input-row[data-depth="1"] {
+  border-left-color: var(--accent);
+}
+
+.goal-input-row[data-depth="2"] {
+  border-left-color: var(--warning);
+}
+
+.goal-input-row[data-depth="3"] {
+  border-left-color: var(--success);
+}
+
+.goal-input-row[data-depth="4"] {
+  border-left-color: #9c27b0;
+}
+
+.goal-input-row[data-depth="5"] {
+  border-left-color: #00bcd4;
+}
 
 .goal-input-container {
   display: flex;
@@ -954,6 +999,7 @@ body {
 [data-theme="high-contrast"] .btn-primary {
   background-color: #00aa00;
 }
+
 [data-theme="high-contrast"] .btn-primary:hover {
   background-color: #00cc00;
 }
@@ -1308,8 +1354,13 @@ body {
 
 /* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .fade-in {
@@ -1321,6 +1372,7 @@ body {
     opacity: 0;
     transform: translateX(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -1339,9 +1391,12 @@ body {
 
 /* Glow celebration animation */
 @keyframes glowPulse {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 5px var(--success), 0 0 10px var(--success);
   }
+
   50% {
     box-shadow: 0 0 20px var(--success), 0 0 40px var(--success), 0 0 60px var(--success);
   }

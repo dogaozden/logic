@@ -11,9 +11,8 @@ interface FormulaDisplayProps {
 interface BracketPair {
   openIndex: number;
   closeIndex: number;
-  depth: number;       // Line depth (only counts [] and {})
+  depth: number;       // Line depth (only counts {})
   visualDepth: number; // Visual depth for coloring (counts all brackets)
-  bracketType: '[' | '{'; // Bracket type for type-based coloring
 }
 
 export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, className, style }) => {
@@ -24,52 +23,36 @@ export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, classNa
   const [bracketPositions, setBracketPositions] = useState<{ pairs: BracketPair[], positions: Map<number, DOMRect> } | null>(null);
 
   // Parse bracket pairs using stack algorithm
-  // Only track [ ] and { } for line rendering - skip ( ) entirely
+  // Only track { } for line rendering - skip ( ) and [ ] entirely
   const parseBracketPairs = useCallback((): BracketPair[] => {
     const pairs: BracketPair[] = [];
-    const lineStack: { index: number; lineDepth: number; visualDepth: number; char: string }[] = [];
-    let lineDepth = 0;   // Depth counter for line-eligible brackets only ([] and {})
+    const lineStack: { index: number; lineDepth: number; visualDepth: number }[] = [];
+    let lineDepth = 0;   // Depth counter for line-eligible brackets only ({})
     let visualDepth = 0; // Depth counter for ALL brackets (for color matching)
 
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
-      if (char === '[' || char === '{') {
-        // Track square and curly brackets for lines
-        lineStack.push({ index: i, lineDepth, visualDepth, char });
+      if (char === '{') {
+        // Track curly brackets for lines
+        lineStack.push({ index: i, lineDepth, visualDepth });
         lineDepth++;
         visualDepth++;
-      } else if (char === ']') {
-        lineDepth--;
-        visualDepth--;
-        const opening = lineStack.pop();
-        // Only create pair if opening bracket type matches ([ with ])
-        if (opening !== undefined && opening.char === '[') {
-          pairs.push({
-            openIndex: opening.index,
-            closeIndex: i,
-            depth: opening.lineDepth,
-            visualDepth: opening.visualDepth,
-            bracketType: '[',
-          });
-        }
       } else if (char === '}') {
         lineDepth--;
         visualDepth--;
         const opening = lineStack.pop();
-        // Only create pair if opening bracket type matches ({ with })
-        if (opening !== undefined && opening.char === '{') {
+        if (opening !== undefined) {
           pairs.push({
             openIndex: opening.index,
             closeIndex: i,
             depth: opening.lineDepth,
             visualDepth: opening.visualDepth,
-            bracketType: '{',
           });
         }
-      } else if (char === '(') {
-        // Track visual depth for parentheses (for color matching) but don't create lines
+      } else if (char === '(' || char === '[') {
+        // Track visual depth for parentheses and square brackets (for color matching) but don't create lines
         visualDepth++;
-      } else if (char === ')') {
+      } else if (char === ')' || char === ']') {
         visualDepth--;
       }
     }
@@ -90,9 +73,10 @@ export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, classNa
     bracketRefs.current.forEach((span, index) => {
       if (span) {
         const char = text[index];
-        // Validate that the index points to an actual bracket in the current text
+        // Validate that the index points to an actual curly bracket in the current text
         // This guards against stale refs from previous formula renders
-        if (char === '[' || char === ']' || char === '{' || char === '}') {
+        // Only {} get lines, so only validate those
+        if (char === '{' || char === '}') {
           const rect = span.getBoundingClientRect();
           // Store position relative to container
           positions.set(index, new DOMRect(
@@ -106,7 +90,7 @@ export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, classNa
     });
 
     setBracketPositions({ pairs, positions });
-  }, [parseBracketPairs, showBracketLines, coloredBrackets]);
+  }, [parseBracketPairs, showBracketLines, coloredBrackets, text]);
 
   // Set up ResizeObserver and measure on mount/changes
   useEffect(() => {
@@ -160,17 +144,10 @@ export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, classNa
       // Parentheses are NEVER colored
       elements.push(<span key={i}>{char}</span>);
     } else if (char === '[' || char === ']') {
-      // Square brackets are ALWAYS color 1
+      // Square brackets are ALWAYS color 1 (no ref needed - no lines for [])
       const colorVar = coloredBrackets ? 'var(--bracket-1)' : undefined;
       elements.push(
-        <span
-          key={i}
-          ref={(el) => {
-            if (el) bracketRefs.current.set(i, el);
-            else bracketRefs.current.delete(i);
-          }}
-          style={{ color: colorVar }}
-        >
+        <span key={i} style={{ color: colorVar }}>
           {char}
         </span>
       );
@@ -222,10 +199,8 @@ export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, classNa
   const maxDepth = bracketPositions?.pairs.reduce((max, p) => Math.max(max, p.depth), 0) ?? 0;
 
   // Helper to get color index for SVG lines (matches inline coloring)
-  // [] = always color 1
   // {} = depth-based using colors 2-5
   const getColorIndexForPair = (pair: BracketPair) => {
-    if (pair.bracketType === '[') return 1;
     // For {}, use colors 2-5 based on depth
     return (pair.depth % 4) + 2;
   };
@@ -236,8 +211,8 @@ export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, classNa
   const lineSpacing = 8; // pixels between each depth level
   const maxAboveLevel = abovePairs.length > 0 ? Math.max(...abovePairs.map(p => Math.floor(p.depth / 2))) : -1;
   const maxBelowLevel = belowPairs.length > 0 ? Math.max(...belowPairs.map(p => Math.floor(p.depth / 2))) : -1;
-  const aboveSvgHeight = (maxAboveLevel + 1) * lineSpacing + 4;
-  const belowSvgHeight = (maxBelowLevel + 1) * lineSpacing + 4;
+  const aboveSvgHeight = (maxAboveLevel + 1) * lineSpacing + 2;
+  const belowSvgHeight = (maxBelowLevel + 1) * lineSpacing + 2;
 
   // Calculate stroke width and opacity based on depth (outer = thicker, more visible)
   const getStrokeWidth = (depth: number) => 1 + (maxDepth - depth) * 0.3;

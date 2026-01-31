@@ -286,7 +286,7 @@ pub enum Justification {
 
 ### Components
 
-**FormulaDisplay**: Renders formulas with color-coded brackets (5 depth levels). Optional bracket lines feature draws connecting lines for `[]` and `{}` brackets only (not parentheses), alternating above/below the formula for visual clarity. The component clears stale refs on each render and validates bracket type matching to prevent incorrect line connections.
+**FormulaDisplay**: Renders formulas with color-coded brackets. `[]` uses a fixed color, `{}` uses depth-based colors (2-5). Optional bracket lines feature draws connecting lines for `{}` curly brackets only (not `()` or `[]`), alternating above/below the formula for visual clarity. The component clears stale refs on each render to prevent incorrect line connections.
 
 **FitchBox**: Fitch-style proof display with drag-and-drop reordering (@dnd-kit)
 
