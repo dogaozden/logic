@@ -32,6 +32,7 @@ pub fn run() {
             get_portfolio_entry,
             delete_portfolio_entry,
             update_portfolio_notes,
+            rename_portfolio_entry,
             // Utility commands
             get_subproof_auto_close,
         ])

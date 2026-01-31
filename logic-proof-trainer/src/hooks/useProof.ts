@@ -34,6 +34,7 @@ interface ProofState {
   clearProof: () => void;
   clearError: () => void;
   reorderProof: (newProof: Proof) => void;
+  renameProof: (name: string) => void;
 }
 
 export const useProof = create<ProofState>((set, get) => ({
@@ -214,5 +215,16 @@ export const useProof = create<ProofState>((set, get) => ({
 
   reorderProof: (newProof: Proof) => {
     set({ proof: newProof, selectedLines: [] });
+  },
+
+  renameProof: (name: string) => {
+    const { proof } = get();
+    if (!proof) return;
+    set({
+      proof: {
+        ...proof,
+        theorem: { ...proof.theorem, name },
+      },
+    });
   },
 }));

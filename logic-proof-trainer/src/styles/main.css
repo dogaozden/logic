@@ -81,9 +81,10 @@ body {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   transition: width 0.2s ease;
   position: relative;
+  flex-shrink: 0;
 }
 
 .sidebar-nav {
@@ -125,44 +126,13 @@ body {
   font-size: 1.25rem;
 }
 
+/* Sidebar toggle - inside sidebar, sticks out from right edge */
 .sidebar-toggle {
   position: absolute;
-  left: 300px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 20px;
-  height: 60px;
-  background-color: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-left: none;
-  border-radius: 0 6px 6px 0;
-  color: var(--text-secondary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  font-weight: bold;
-  transition: all 0.2s;
-  z-index: 10;
-}
-
-.sidebar-toggle:hover {
-  background-color: var(--bg-secondary);
-  color: var(--text-primary);
-}
-
-.sidebar.collapsed + .sidebar-toggle {
-  left: 40px;
-}
-
-/* Theme toggle button */
-.theme-toggle {
-  position: fixed;
-  bottom: 16px;
-  left: 16px;
-  width: 36px;
-  height: 36px;
+  right: -12px;
+  top: 8px;
+  width: 24px;
+  height: 24px;
   background-color: var(--bg-tertiary);
   border: 1px solid var(--border);
   border-radius: 50%;
@@ -171,15 +141,144 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.25rem;
+  font-size: 0.875rem;
+  font-weight: bold;
   transition: all 0.2s;
-  z-index: 10;
+  z-index: 100;
 }
 
-.theme-toggle:hover {
+.sidebar-toggle:hover {
   background-color: var(--bg-secondary);
   color: var(--text-primary);
-  transform: scale(1.1);
+}
+
+/* Fixed position toggle when sidebar is collapsed */
+.sidebar-toggle-collapsed {
+  position: fixed;
+  left: 68px;
+  top: 8px;
+  width: 24px;
+  height: 24px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: bold;
+  transition: all 0.2s;
+  z-index: 100;
+}
+
+.sidebar-toggle-collapsed:hover {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* Settings Panel */
+.settings-panel {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.settings-description {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.theme-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.theme-option:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.theme-option.active {
+  border-color: var(--accent);
+  background-color: var(--bg-tertiary);
+}
+
+.theme-icon {
+  font-size: 1.25rem;
+}
+
+.bracket-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: var(--bg-primary);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.bracket-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.875rem;
+}
+
+.bracket-depth {
+  color: var(--text-secondary);
+  min-width: 60px;
+}
+
+.bracket-sample {
+  font-size: 1.1rem;
+  min-width: 36px;
+  text-align: center;
+}
+
+.bracket-color-name {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.bracket-example {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  background-color: var(--bg-primary);
+  border-radius: 6px;
+  padding: 12px;
+  text-align: center;
 }
 
 /* Sidebar content fade transition */

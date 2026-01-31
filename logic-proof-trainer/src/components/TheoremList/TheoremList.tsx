@@ -24,6 +24,7 @@ export const TheoremList: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [customDifficulty, setCustomDifficulty] = useState<string>('50');
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | null>(null);
 
   useEffect(() => {
     loadClassicTheorems();
@@ -50,6 +51,7 @@ export const TheoremList: React.FC = () => {
   };
 
   const handleGenerate = async (difficulty: Difficulty) => {
+    setSelectedDifficulty(difficulty);
     setIsGenerating(true);
     try {
       const theorem = await generateTheorem(difficulty);
@@ -156,7 +158,7 @@ export const TheoremList: React.FC = () => {
           {(['easy', 'medium', 'hard', 'expert'] as Difficulty[]).map((d) => (
             <button
               key={d}
-              className="btn btn-secondary"
+              className={`btn ${selectedDifficulty === d ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => handleGenerate(d)}
               disabled={isGenerating}
               style={{ fontSize: '0.75rem', padding: '4px 8px' }}

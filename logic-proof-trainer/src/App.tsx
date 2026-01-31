@@ -2,15 +2,16 @@ import { useState, useEffect } from 'react';
 import { TheoremList } from './components/TheoremList/TheoremList';
 import { ProofWorkspace } from './components/ProofWorkspace/ProofWorkspace';
 import { Portfolio } from './components/Portfolio/Portfolio';
+import { Settings } from './components/Settings/Settings';
 import { useTheme } from './hooks/useTheme';
 import './styles/main.css';
 
-type View = 'theorems' | 'portfolio';
+type View = 'theorems' | 'portfolio' | 'settings';
 
 function App() {
   const [view, setView] = useState<View>('theorems');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { theme, toggleHighContrast } = useTheme();
+  const { theme } = useTheme();
 
   // Initialize theme on mount
   useEffect(() => {
@@ -37,26 +38,44 @@ function App() {
           >
             {sidebarCollapsed ? '📁' : 'Portfolio'}
           </button>
+          <button
+            className={`nav-tab ${view === 'settings' ? 'active' : ''}`}
+            onClick={() => setView('settings')}
+            title="Settings"
+          >
+            {sidebarCollapsed ? '⚙️' : 'Settings'}
+          </button>
         </div>
         <div className={`sidebar-content ${sidebarCollapsed ? 'hidden' : ''}`}>
           {view === 'theorems' && <TheoremList />}
+          {view === 'settings' && <Settings />}
         </div>
+        {/* Toggle inside sidebar when expanded */}
+        {!sidebarCollapsed && (
+          <button
+            className="sidebar-toggle"
+            onClick={() => setSidebarCollapsed(true)}
+            title="Collapse sidebar"
+          >
+            ‹
+          </button>
+        )}
       </div>
-      <button
-        className="sidebar-toggle"
-        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-        title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-      >
-        {sidebarCollapsed ? '›' : '‹'}
-      </button>
-      <button
-        className="theme-toggle"
-        onClick={toggleHighContrast}
-        title={theme === 'dark' ? 'Switch to high contrast' : 'Switch to dark theme'}
-      >
-        {theme === 'dark' ? '◐' : '◑'}
-      </button>
-      {view === 'theorems' ? <ProofWorkspace /> : <Portfolio onRetry={() => setView('theorems')} />}
+      {/* Toggle at fixed position when collapsed */}
+      {sidebarCollapsed && (
+        <button
+          className="sidebar-toggle-collapsed"
+          onClick={() => setSidebarCollapsed(false)}
+          title="Expand sidebar"
+        >
+          ›
+        </button>
+      )}
+      {view === 'theorems' || view === 'settings' ? (
+        <ProofWorkspace />
+      ) : (
+        <Portfolio onRetry={() => setView('theorems')} />
+      )}
     </div>
   );
 }

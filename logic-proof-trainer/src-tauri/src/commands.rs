@@ -296,6 +296,12 @@ pub fn update_portfolio_notes(id: String, notes: String) -> Result<(), String> {
     storage.update_portfolio_notes(&id, notes).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn rename_portfolio_entry(id: String, name: String) -> Result<(), String> {
+    let storage = StorageService::new().map_err(|e| e.to_string())?;
+    storage.rename_portfolio_entry(&id, name).map_err(|e| e.to_string())
+}
+
 // ============ Utility Commands ============
 
 #[tauri::command]

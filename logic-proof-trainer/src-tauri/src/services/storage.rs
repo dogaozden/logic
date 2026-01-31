@@ -258,6 +258,13 @@ impl StorageService {
         Ok(())
     }
 
+    pub fn rename_portfolio_entry(&self, id: &str, name: String) -> Result<(), StorageError> {
+        let mut entry = self.load_portfolio_entry(id)?;
+        entry.proof.theorem.name = Some(name);
+        self.save_to_portfolio(&entry)?;
+        Ok(())
+    }
+
     // Export/Import operations
 
     pub fn export_all(&self) -> Result<String, StorageError> {

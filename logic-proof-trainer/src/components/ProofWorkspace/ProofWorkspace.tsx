@@ -186,6 +186,7 @@ export const ProofWorkspace: React.FC = () => {
     clearError,
     setError,
     reorderProof,
+    renameProof,
   } = useProof();
 
   const { saveToPortfolio } = usePortfolio();
@@ -200,6 +201,10 @@ export const ProofWorkspace: React.FC = () => {
   const [scopeGoals, setScopeGoals] = useState<Record<string, string>>({});
   const [pendingGoalScopeId, setPendingGoalScopeId] = useState<string | null>(null);
   const [goalInput, setGoalInput] = useState('');
+
+  // Proof renaming
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
 
   // Portfolio tracking
   const startTimeRef = useRef<number | null>(null);
@@ -580,10 +585,74 @@ export const ProofWorkspace: React.FC = () => {
     ? proof.scope_manager.scopes.find(s => s.end_line === undefined)?.technique
     : null;
 
+  const handleStartRename = () => {
+    setNameInput(proof.theorem.name || '');
+    setIsEditingName(true);
+  };
+
+  const handleSaveRename = () => {
+    if (nameInput.trim()) {
+      renameProof(nameInput.trim());
+    }
+    setIsEditingName(false);
+  };
+
+  const handleCancelRename = () => {
+    setIsEditingName(false);
+    setNameInput('');
+  };
+
   return (
     <div className="main-content">
       <div className="header">
-        <h1>Proof Workspace</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isEditingName ? (
+            <>
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveRename();
+                  if (e.key === 'Escape') handleCancelRename();
+                }}
+                autoFocus
+                style={{
+                  padding: '4px 8px',
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  border: '1px solid var(--accent)',
+                  borderRadius: '4px',
+                  background: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                  outline: 'none',
+                  minWidth: '200px',
+                }}
+                placeholder="Enter name..."
+              />
+              <button className="btn btn-primary btn-small" onClick={handleSaveRename}>
+                Save
+              </button>
+              <button className="btn btn-secondary btn-small" onClick={handleCancelRename}>
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <h1 style={{ cursor: 'pointer' }} onClick={handleStartRename} title="Click to rename">
+                {proof.theorem.name || 'Untitled Proof'}
+              </h1>
+              <button
+                className="btn-icon"
+                onClick={handleStartRename}
+                title="Rename proof"
+                style={{ fontSize: '0.875rem' }}
+              >
+                ✏️
+              </button>
+            </>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="btn btn-secondary" onClick={handleGetHint}>
             Hint

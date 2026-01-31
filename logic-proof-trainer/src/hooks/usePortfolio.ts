@@ -13,6 +13,7 @@ interface PortfolioState {
   saveToPortfolio: (proof: Proof, timeSpentSecs?: number, hintsUsed?: number) => Promise<PortfolioEntry | null>;
   deleteEntry: (id: string) => Promise<void>;
   updateNotes: (id: string, notes: string) => Promise<void>;
+  renameEntry: (id: string, name: string) => Promise<void>;
   selectEntry: (entry: PortfolioEntry | null) => void;
   clearError: () => void;
 }
@@ -77,6 +78,31 @@ export const usePortfolio = create<PortfolioState>((set) => ({
         selectedEntry:
           state.selectedEntry?.id === id
             ? { ...state.selectedEntry, notes }
+            : state.selectedEntry,
+      }));
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  renameEntry: async (id: string, name: string) => {
+    try {
+      await invoke('rename_portfolio_entry', { id, name });
+      set((state) => ({
+        entries: state.entries.map((e) =>
+          e.id === id
+            ? { ...e, proof: { ...e.proof, theorem: { ...e.proof.theorem, name } } }
+            : e
+        ),
+        selectedEntry:
+          state.selectedEntry?.id === id
+            ? {
+                ...state.selectedEntry,
+                proof: {
+                  ...state.selectedEntry.proof,
+                  theorem: { ...state.selectedEntry.proof.theorem, name },
+                },
+              }
             : state.selectedEntry,
       }));
     } catch (e) {
