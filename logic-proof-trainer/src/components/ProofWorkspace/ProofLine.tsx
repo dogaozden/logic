@@ -2,7 +2,8 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { ProofLine as ProofLineType, ProofScope } from '../../types';
-import { formulaToString, justificationToString } from '../../types';
+import { justificationToString } from '../../types';
+import { FormulaDisplay } from '../FormulaDisplay';
 
 interface ProofLineProps {
   line: ProofLineType;
@@ -103,8 +104,8 @@ export const ProofLine: React.FC<ProofLineProps> = ({
         <span className="scope-goal">{goal}</span>
       )}
       <span className="line-number">{line.line_number}.</span>
-      <span className="formula" style={{ color: line.is_valid ? 'inherit' : 'var(--error)' }}>
-        {formulaToString(line.formula)}
+      <span className="formula">
+        <FormulaDisplay formula={line.formula} style={{ color: line.is_valid ? 'inherit' : 'var(--error)' }} />
       </span>
       <span className="justification">{justificationToString(line.justification)}</span>
       <ScopeBrackets
@@ -191,8 +192,8 @@ export const SortableProofLine: React.FC<ProofLineProps> = (props) => {
         <span className="scope-goal">{goal}</span>
       )}
       <span className="line-number">{line.line_number}.</span>
-      <span className="formula" style={{ color: line.is_valid ? 'inherit' : 'var(--error)' }}>
-        {formulaToString(line.formula)}
+      <span className="formula">
+        <FormulaDisplay formula={line.formula} style={{ color: line.is_valid ? 'inherit' : 'var(--error)' }} />
       </span>
       <span className="justification">{justificationToString(line.justification)}</span>
       <ScopeBrackets

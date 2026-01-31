@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useTheorems } from '../../hooks/useTheorems';
 import { useProof } from '../../hooks/useProof';
 import type { Theorem, Difficulty } from '../../types';
-import { formulaToString, difficultyColor } from '../../types';
+import { difficultyColor } from '../../types';
+import { FormulaDisplay } from '../FormulaDisplay';
 
 type FilterType = 'all' | 'classic' | 'custom' | Difficulty;
 
@@ -72,13 +73,19 @@ export const TheoremList: React.FC = () => {
     }
   };
 
-  const theoremDisplayString = (theorem: Theorem): string => {
-    const premises = theorem.premises.map((p) => formulaToString(p)).join(', ');
-    const conclusion = formulaToString(theorem.conclusion);
-    if (premises) {
-      return `${premises} ∴ ${conclusion}`;
-    }
-    return `∴ ${conclusion}`;
+  const theoremDisplayElement = (theorem: Theorem): JSX.Element => {
+    const premises = theorem.premises.map((p, i) => (
+      <React.Fragment key={i}>
+        <FormulaDisplay formula={p} />
+        {i < theorem.premises.length - 1 ? ', ' : ''}
+      </React.Fragment>
+    ));
+    return (
+      <>
+        {premises.length > 0 && <>{premises} ∴ </>}
+        <FormulaDisplay formula={theorem.conclusion} />
+      </>
+    );
   };
 
   return (
@@ -136,7 +143,7 @@ export const TheoremList: React.FC = () => {
                 {theorem.difficulty}
               </span>
             </div>
-            <span className="formula-preview">{theoremDisplayString(theorem)}</span>
+            <span className="formula-preview">{theoremDisplayElement(theorem)}</span>
           </div>
         ))}
       </div>

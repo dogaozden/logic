@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { usePortfolio } from '../../hooks/usePortfolio';
 import { useProof } from '../../hooks/useProof';
-import { formulaToString } from '../../types';
 import type { PortfolioEntry } from '../../types';
 import { FitchBox } from '../ProofWorkspace/FitchBox';
+import { FormulaDisplay } from '../FormulaDisplay';
 
 interface PortfolioProps {
   onRetry?: () => void;
@@ -124,14 +124,14 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
                     <>
                       {entry.proof.theorem.premises.map((p, i) => (
                         <span key={i}>
-                          {formulaToString(p)}
+                          <FormulaDisplay formula={p} />
                           {i < entry.proof.theorem.premises.length - 1 ? ', ' : ''}
                         </span>
                       ))}
                       {' ∴ '}
                     </>
                   )}
-                  {formulaToString(entry.proof.theorem.conclusion)}
+                  <FormulaDisplay formula={entry.proof.theorem.conclusion} />
                 </div>
                 <div className="entry-stats">
                   <span>{entry.steps_count} steps</span>
@@ -171,14 +171,14 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
                   <>
                     {selectedEntry.proof.theorem.premises.map((p, i) => (
                       <span key={i}>
-                        {formulaToString(p)}
+                        <FormulaDisplay formula={p} />
                         {i < selectedEntry.proof.theorem.premises.length - 1 ? ', ' : ''}
                       </span>
                     ))}
                     {' ∴ '}
                   </>
                 )}
-                {formulaToString(selectedEntry.proof.theorem.conclusion)}
+                <FormulaDisplay formula={selectedEntry.proof.theorem.conclusion} />
               </div>
             </div>
 

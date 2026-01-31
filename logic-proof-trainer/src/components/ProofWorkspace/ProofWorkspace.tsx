@@ -5,7 +5,8 @@ import { FitchBox } from './FitchBox';
 import { FormulaInput } from './FormulaInput';
 import { RulePalette } from './RulePalette';
 import type { InferenceRule, EquivalenceRule, ProofTechnique } from '../../types';
-import { formulaToString, inferenceRuleInfo, equivalenceRuleInfo, proofTechniqueInfo } from '../../types';
+import { inferenceRuleInfo, equivalenceRuleInfo, proofTechniqueInfo } from '../../types';
+import { FormulaDisplay } from '../FormulaDisplay';
 
 // Create reverse lookup maps from abbreviations to rule keys
 // Includes official abbreviations plus common shorthands
@@ -546,14 +547,14 @@ export const ProofWorkspace: React.FC = () => {
                 <>
                   {proof.theorem.premises.map((p, i) => (
                     <span key={i}>
-                      {formulaToString(p)}
+                      <FormulaDisplay formula={p} />
                       {i < proof.theorem.premises.length - 1 ? ', ' : ''}
                     </span>
                   ))}
                   {' ∴ '}
                 </>
               )}
-              {formulaToString(proof.theorem.conclusion)}
+              <FormulaDisplay formula={proof.theorem.conclusion} />
             </div>
           </div>
 

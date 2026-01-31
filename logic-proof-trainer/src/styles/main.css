@@ -15,6 +15,13 @@
 
   --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Bracket depth colors - colorblind-friendly palette */
+  --bracket-1: #0066cc;  /* blue */
+  --bracket-2: #cc6600;  /* orange */
+  --bracket-3: #009966;  /* teal */
+  --bracket-4: #9933cc;  /* purple */
+  --bracket-5: #cc3366;  /* magenta */
 }
 
 /* High Contrast Theme */
@@ -31,6 +38,13 @@
   --error: #ff0000;
   --border: #ffffff;
   --shadow: rgba(255, 255, 255, 0.1);
+
+  /* Bracket depth colors - high contrast */
+  --bracket-1: #00ccff;  /* cyan */
+  --bracket-2: #ffcc00;  /* yellow */
+  --bracket-3: #00ff99;  /* bright green */
+  --bracket-4: #ff66ff;  /* magenta */
+  --bracket-5: #ff6600;  /* orange */
 }
 
 /* Reset */
