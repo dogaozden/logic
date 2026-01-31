@@ -182,6 +182,21 @@ export interface PortfolioEntry {
   notes?: string;
 }
 
+// Scratchpad types
+export interface TransformationResult {
+  rule: EquivalenceRule;
+  rule_name: string;
+  rule_abbrev: string;
+  result: string;
+}
+
+export interface ScratchpadLine {
+  id: string;
+  formula: string;
+  sourceRule?: string;
+  isValid: boolean;
+}
+
 // Helper functions for displaying formulas
 // Uses bracket hierarchy: innermost () → [] → {} outermost
 export function formulaToString(formula: Formula): string {

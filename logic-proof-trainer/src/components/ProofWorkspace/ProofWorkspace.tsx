@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useProof } from '../../hooks/useProof';
 import { usePortfolio } from '../../hooks/usePortfolio';
+import { useScratchpad } from '../../hooks/useScratchpad';
 import { FitchBox } from './FitchBox';
 import { FormulaInput } from './FormulaInput';
 import { RulePalette } from './RulePalette';
@@ -190,6 +191,7 @@ export const ProofWorkspace: React.FC = () => {
   } = useProof();
 
   const { saveToPortfolio } = usePortfolio();
+  const { copiedFormula, clearCopiedFormula } = useScratchpad();
 
   const [formulaInput, setFormulaInput] = useState('');
   const [selectedInferenceRule, setSelectedInferenceRule] = useState<InferenceRule | null>(null);
@@ -311,6 +313,14 @@ export const ProofWorkspace: React.FC = () => {
     hintsUsedRef.current += 1;
     await getHint();
   };
+
+  // Populate formula input when a formula is copied from scratchpad
+  useEffect(() => {
+    if (copiedFormula) {
+      setFormulaInput(copiedFormula);
+      clearCopiedFormula();
+    }
+  }, [copiedFormula, clearCopiedFormula]);
 
   if (!proof) {
     return (

@@ -309,6 +309,35 @@ pub fn parse_formula(input: String) -> Result<Formula, String> {
     Formula::parse(&input).map_err(|e| e.to_string())
 }
 
+// ============ Scratchpad Commands ============
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TransformationResult {
+    pub rule: EquivalenceRule,
+    pub rule_name: String,
+    pub rule_abbrev: String,
+    pub result: String,
+}
+
+#[tauri::command]
+pub fn get_all_transformations(formula_str: String) -> Result<Vec<TransformationResult>, String> {
+    let formula = Formula::parse(&formula_str)
+        .map_err(|e| format!("Invalid formula: {}", e))?;
+
+    let mut results = Vec::new();
+    for rule in EquivalenceRule::all() {
+        for equiv_form in rule.equivalent_forms(&formula) {
+            results.push(TransformationResult {
+                rule,
+                rule_name: rule.name().to_string(),
+                rule_abbrev: rule.abbreviation().to_string(),
+                result: equiv_form.display_string(),
+            });
+        }
+    }
+    Ok(results)
+}
+
 /// Get auto-close information for the current subproof
 #[derive(Debug, Clone, Serialize)]
 pub struct AutoCloseInfo {

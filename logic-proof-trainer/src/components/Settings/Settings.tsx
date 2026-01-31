@@ -2,7 +2,7 @@ import React from 'react';
 import { useTheme } from '../../hooks/useTheme';
 
 export const Settings: React.FC = () => {
-  const { theme, toggleHighContrast, coloredBrackets, toggleColoredBrackets, showBracketLines, toggleShowBracketLines } = useTheme();
+  const { theme, toggleHighContrast, coloredBrackets, toggleColoredBrackets, showBracketLines, toggleShowBracketLines, collapsibleBrackets, toggleCollapsibleBrackets } = useTheme();
 
   // Bracket colors based on theme
   // [] = always color 1
@@ -85,6 +85,20 @@ export const Settings: React.FC = () => {
                 <span className="toggle-slider" />
               </button>
             </div>
+
+            <div className="settings-toggle-row">
+              <span>Collapsible Brackets</span>
+              <button
+                className={`toggle-button ${collapsibleBrackets ? 'active' : ''}`}
+                onClick={toggleCollapsibleBrackets}
+                aria-pressed={collapsibleBrackets}
+              >
+                <span className="toggle-slider" />
+              </button>
+            </div>
+            <p className="settings-description" style={{ marginTop: '-8px', marginBottom: '12px' }}>
+              Click any opening bracket to collapse its contents.
+            </p>
 
             <div className="bracket-legend">
               {/* Square brackets - always same color */}

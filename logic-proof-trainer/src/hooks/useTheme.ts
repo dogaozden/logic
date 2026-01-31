@@ -7,10 +7,12 @@ interface ThemeState {
   theme: Theme;
   coloredBrackets: boolean;
   showBracketLines: boolean;
+  collapsibleBrackets: boolean;
   setTheme: (theme: Theme) => void;
   toggleHighContrast: () => void;
   toggleColoredBrackets: () => void;
   toggleShowBracketLines: () => void;
+  toggleCollapsibleBrackets: () => void;
 }
 
 export const useTheme = create<ThemeState>()(
@@ -19,6 +21,7 @@ export const useTheme = create<ThemeState>()(
       theme: 'dark',
       coloredBrackets: true,
       showBracketLines: false,
+      collapsibleBrackets: true,
       setTheme: (theme) => {
         document.documentElement.setAttribute('data-theme', theme === 'dark' ? '' : theme);
         set({ theme });
@@ -33,6 +36,9 @@ export const useTheme = create<ThemeState>()(
       },
       toggleShowBracketLines: () => {
         set({ showBracketLines: !get().showBracketLines });
+      },
+      toggleCollapsibleBrackets: () => {
+        set({ collapsibleBrackets: !get().collapsibleBrackets });
       },
     }),
     {

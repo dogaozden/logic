@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { Formula, formulaToString } from '../types';
 import { useTheme } from '../hooks/useTheme';
 
@@ -15,12 +15,29 @@ interface BracketPair {
   visualDepth: number; // Visual depth for coloring (counts all brackets)
 }
 
+// Extended bracket pair for collapse functionality - tracks ALL bracket types
+interface AllBracketPair {
+  openIndex: number;
+  closeIndex: number;
+  depth: number;          // For {} SVG lines (only counts {})
+  visualDepth: number;    // For coloring (counts all brackets)
+  bracketType: '(' | '[' | '{';
+}
+
 export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, className, style }) => {
-  const { coloredBrackets, showBracketLines } = useTheme();
+  const { coloredBrackets, showBracketLines, collapsibleBrackets } = useTheme();
   const text = typeof formula === 'string' ? formula : formulaToString(formula);
   const containerRef = useRef<HTMLSpanElement>(null);
   const bracketRefs = useRef<Map<number, HTMLSpanElement>>(new Map());
   const [bracketPositions, setBracketPositions] = useState<{ pairs: BracketPair[], positions: Map<number, DOMRect> } | null>(null);
+
+  // Track collapsed brackets by their opening index
+  const [collapsedSet, setCollapsedSet] = useState<Set<number>>(new Set());
+
+  // Reset collapse state when formula changes
+  useEffect(() => {
+    setCollapsedSet(new Set());
+  }, [text]);
 
   // Parse bracket pairs using stack algorithm
   // Only track { } for line rendering - skip ( ) and [ ] entirely
@@ -58,6 +75,81 @@ export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, classNa
     }
     return pairs;
   }, [text]);
+
+  // Parse ALL bracket pairs for collapse functionality
+  const parseAllBracketPairs = useCallback((): AllBracketPair[] => {
+    const pairs: AllBracketPair[] = [];
+    const stack: { index: number; lineDepth: number; visualDepth: number; bracketType: '(' | '[' | '{' }[] = [];
+    let lineDepth = 0;
+    let visualDepth = 0;
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      if (char === '(' || char === '[' || char === '{') {
+        stack.push({ index: i, lineDepth, visualDepth, bracketType: char });
+        if (char === '{') lineDepth++;
+        visualDepth++;
+      } else if (char === ')' || char === ']' || char === '}') {
+        if (char === '}') lineDepth--;
+        visualDepth--;
+        const opening = stack.pop();
+        if (opening !== undefined) {
+          // Match bracket types
+          const matchingClose = opening.bracketType === '(' ? ')' : opening.bracketType === '[' ? ']' : '}';
+          if (char === matchingClose) {
+            pairs.push({
+              openIndex: opening.index,
+              closeIndex: i,
+              depth: opening.lineDepth,
+              visualDepth: opening.visualDepth,
+              bracketType: opening.bracketType,
+            });
+          }
+        }
+      }
+    }
+    return pairs;
+  }, [text]);
+
+  // Memoize all bracket pairs
+  const allPairs = useMemo(() => parseAllBracketPairs(), [parseAllBracketPairs]);
+
+  // Create a map of opening index to pair for quick lookup
+  const pairsByOpenIndex = useMemo(() => {
+    const map = new Map<number, AllBracketPair>();
+    for (const pair of allPairs) {
+      map.set(pair.openIndex, pair);
+    }
+    return map;
+  }, [allPairs]);
+
+  // Compute hidden character indices based on collapsed brackets
+  const hiddenIndices = useMemo(() => {
+    const hidden = new Set<number>();
+    if (!collapsibleBrackets) return hidden; // No hidden indices if feature is disabled
+    for (const pair of allPairs) {
+      if (collapsedSet.has(pair.openIndex)) {
+        // Hide everything between open and close bracket (exclusive)
+        for (let i = pair.openIndex + 1; i < pair.closeIndex; i++) {
+          hidden.add(i);
+        }
+      }
+    }
+    return hidden;
+  }, [allPairs, collapsedSet, collapsibleBrackets]);
+
+  // Toggle collapse state for a bracket
+  const toggleCollapse = useCallback((openIndex: number) => {
+    setCollapsedSet(prev => {
+      const next = new Set(prev);
+      if (next.has(openIndex)) {
+        next.delete(openIndex);
+      } else {
+        next.add(openIndex);
+      }
+      return next;
+    });
+  }, []);
 
   // Measure bracket positions
   const measurePositions = useCallback(() => {
@@ -132,25 +224,105 @@ export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, classNa
   // Clear refs at start of render to ensure no stale entries from previous formulas
   bracketRefs.current.clear();
 
+  // Helper to get color for bracket based on type and depth
+  const getBracketColor = (bracketType: '(' | '[' | '{' | ')' | ']' | '}', curlyDepthAtBracket: number): string | undefined => {
+    if (!coloredBrackets) return undefined;
+    if (bracketType === '(' || bracketType === ')') return undefined;
+    if (bracketType === '[' || bracketType === ']') return 'var(--bracket-1)';
+    // Curly brackets
+    return getColorForCurly(curlyDepthAtBracket);
+  };
+
   // Build elements with refs for brackets
   const elements: JSX.Element[] = [];
   // Track depth for ONLY {} brackets
   let curlyDepth = 0;
+  // Track if we just rendered a collapse indicator (to avoid duplicate)
+  let justRenderedIndicator = false;
 
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
 
+    // Check if this character is hidden (inside a collapsed bracket)
+    if (hiddenIndices.has(i)) {
+      // Check if we need to render the collapse indicator right after the opening bracket
+      const pair = pairsByOpenIndex.get(i - 1);
+      if (pair && collapsedSet.has(pair.openIndex) && !justRenderedIndicator) {
+        // Render collapse indicator with same color as the bracket
+        const indicatorColor = getBracketColor(pair.bracketType, pair.bracketType === '{' ? pair.depth : 0);
+        elements.push(
+          <span
+            key={`indicator-${pair.openIndex}`}
+            className="collapse-indicator"
+            style={{ color: indicatorColor, cursor: 'pointer' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleCollapse(pair.openIndex);
+            }}
+            title="Click to expand"
+          >
+            ▸
+          </span>
+        );
+        justRenderedIndicator = true;
+      }
+      // Track curly depth even for hidden characters
+      if (char === '{') curlyDepth++;
+      if (char === '}') curlyDepth--;
+      continue;
+    }
+
+    justRenderedIndicator = false;
+
+    // Check if this is an opening bracket that can be collapsed
+    const pair = pairsByOpenIndex.get(i);
+    const isCollapsible = collapsibleBrackets && pair !== undefined;
+    const isCollapsed = isCollapsible && collapsedSet.has(i);
+
     if (char === '(' || char === ')') {
-      // Parentheses are NEVER colored
-      elements.push(<span key={i}>{char}</span>);
+      // Parentheses are NEVER colored but can be clickable if opening
+      if (char === '(' && isCollapsible) {
+        elements.push(
+          <span
+            key={i}
+            className="bracket-collapsible"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleCollapse(i);
+            }}
+            title={isCollapsed ? "Click to expand" : "Click to collapse"}
+          >
+            {char}
+          </span>
+        );
+      } else {
+        elements.push(<span key={i}>{char}</span>);
+      }
     } else if (char === '[' || char === ']') {
-      // Square brackets are ALWAYS color 1 (no ref needed - no lines for [])
+      // Square brackets are ALWAYS color 1
       const colorVar = coloredBrackets ? 'var(--bracket-1)' : undefined;
-      elements.push(
-        <span key={i} style={{ color: colorVar }}>
-          {char}
-        </span>
-      );
+      if (char === '[' && isCollapsible) {
+        elements.push(
+          <span
+            key={i}
+            className="bracket-collapsible"
+            style={{ color: colorVar }}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleCollapse(i);
+            }}
+            title={isCollapsed ? "Click to expand" : "Click to collapse"}
+          >
+            {char}
+          </span>
+        );
+      } else {
+        elements.push(
+          <span key={i} style={{ color: colorVar }}>
+            {char}
+          </span>
+        );
+      }
     } else if (char === '{') {
       // Opening curly: color based on current depth, then increment
       const colorVar = coloredBrackets ? getColorForCurly(curlyDepth) : undefined;
@@ -161,7 +333,13 @@ export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, classNa
             if (el) bracketRefs.current.set(i, el);
             else bracketRefs.current.delete(i);
           }}
+          className={isCollapsible ? "bracket-collapsible" : undefined}
           style={{ color: colorVar }}
+          onClick={isCollapsible ? (e) => {
+            e.stopPropagation();
+            toggleCollapse(i);
+          } : undefined}
+          title={isCollapsible ? (isCollapsed ? "Click to expand" : "Click to collapse") : undefined}
         >
           {char}
         </span>
@@ -188,15 +366,33 @@ export const FormulaDisplay: React.FC<FormulaDisplayProps> = ({ formula, classNa
     }
   }
 
+  // Filter out collapsed bracket pairs from SVG rendering
+  const visibleCurlyPairs = useMemo(() => {
+    if (!bracketPositions) return [];
+    return bracketPositions.pairs.filter(pair => {
+      // Hide if this pair is collapsed
+      if (collapsedSet.has(pair.openIndex)) return false;
+      // Hide if any ancestor is collapsed (this pair is inside a collapsed bracket)
+      for (const ancestor of allPairs) {
+        if (collapsedSet.has(ancestor.openIndex) &&
+            ancestor.openIndex < pair.openIndex &&
+            ancestor.closeIndex > pair.closeIndex) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [bracketPositions, collapsedSet, allPairs]);
+
   // Separate pairs by placement: alternate top/bottom based on depth
   // depth 0 (outermost line-eligible bracket) -> below
   // depth 1 -> above
   // depth 2 -> below, etc.
-  const abovePairs = bracketPositions?.pairs.filter(p => p.depth % 2 === 1) ?? [];
-  const belowPairs = bracketPositions?.pairs.filter(p => p.depth % 2 === 0) ?? [];
+  const abovePairs = visibleCurlyPairs.filter(p => p.depth % 2 === 1);
+  const belowPairs = visibleCurlyPairs.filter(p => p.depth % 2 === 0);
 
-  // Calculate max depth overall for visual styling
-  const maxDepth = bracketPositions?.pairs.reduce((max, p) => Math.max(max, p.depth), 0) ?? 0;
+  // Calculate max depth overall for visual styling (use visible pairs only)
+  const maxDepth = visibleCurlyPairs.reduce((max, p) => Math.max(max, p.depth), 0);
 
   // Helper to get color index for SVG lines (matches inline coloring)
   // {} = depth-based using colors 2-8

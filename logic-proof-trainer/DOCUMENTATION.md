@@ -146,7 +146,8 @@ logic-proof-trainer/
 │   │   ├── useProof.ts              # Proof state (Zustand)
 │   │   ├── useTheorems.ts           # Theorem state
 │   │   ├── usePortfolio.ts          # Portfolio state
-│   │   └── useTheme.ts              # Theme state (dark/high-contrast)
+│   │   ├── useTheme.ts              # Theme state (dark/high-contrast)
+│   │   └── useScratchpad.ts         # Scratchpad state
 │   ├── components/
 │   │   ├── FormulaDisplay.tsx       # Color-coded bracket rendering
 │   │   ├── TheoremList/
@@ -157,6 +158,9 @@ logic-proof-trainer/
 │   │   │   ├── ProofLine.tsx        # Individual proof line
 │   │   │   ├── RulePalette.tsx      # Rule selection panel
 │   │   │   └── FormulaInput.tsx     # Formula input + symbol toolbar
+│   │   ├── Scratchpad/
+│   │   │   ├── Scratchpad.tsx       # Formula transformation sandbox
+│   │   │   └── index.ts             # Export
 │   │   ├── Portfolio/
 │   │   │   └── Portfolio.tsx        # Completed proofs gallery
 │   │   └── Settings/
@@ -284,9 +288,18 @@ pub enum Justification {
 - Actions: `setTheme`, `toggleHighContrast`
 - Persisted to localStorage
 
+**useScratchpad**:
+- `lines`, `selectedLineId`, `availableTransformations`, `copiedFormula`
+- Actions: `addFormula`, `applyTransformation`, `selectLine`, `removeLine`, `clearAll`, `copyToProof`
+
 ### Components
 
 **FormulaDisplay**: Renders formulas with color-coded brackets. `[]` uses a fixed color, `{}` uses depth-based colors (2-5). Optional bracket lines feature draws connecting lines for `{}` curly brackets only (not `()` or `[]`), alternating above/below the formula for visual clarity. The component clears stale refs on each render to prevent incorrect line connections.
+
+Features:
+- **Collapsible brackets**: Click any opening bracket (`(`, `[`, `{`) to collapse its contents to `▸`. Click `▸` or the opening bracket again to expand. Useful for navigating complex nested formulas.
+- Collapse state resets when the formula changes
+- SVG connector lines are hidden for collapsed brackets and any brackets nested inside collapsed sections
 
 **FitchBox**: Fitch-style proof display with drag-and-drop reordering (@dnd-kit)
 
@@ -301,9 +314,11 @@ pub enum Justification {
 
 **TheoremList**: Theorem browser with difficulty filter and custom generation (1-100)
 
+**Scratchpad**: Formula transformation sandbox for experimenting with equivalence rules without affecting the main proof. Users can enter formulas, see all available transformations, apply them to build chains, and copy results to the proof input.
+
 **Portfolio**: Two-pane view with proof details, notes, retry/delete
 
-**Settings**: Theme toggle (dark/high-contrast), bracket color legend
+**Settings**: Theme toggle (dark/high-contrast), bracket color legend, collapsible brackets toggle
 
 ---
 
@@ -328,6 +343,7 @@ pub enum Justification {
 | `check_proof_complete` | `proof` | `Proof` |
 | `get_hint` | `proof` | `String` |
 | `parse_formula` | `input` | `Result<Formula>` |
+| `get_all_transformations` | `formula_str` | `Result<Vec<TransformationResult>>` |
 
 ### Storage Commands
 | Command | Parameters | Returns |

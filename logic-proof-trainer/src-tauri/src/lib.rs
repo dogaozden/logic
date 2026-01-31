@@ -35,6 +35,8 @@ pub fn run() {
             rename_portfolio_entry,
             // Utility commands
             get_subproof_auto_close,
+            // Scratchpad commands
+            get_all_transformations,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
