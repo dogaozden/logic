@@ -5,14 +5,20 @@ type Theme = 'dark' | 'high-contrast';
 
 interface ThemeState {
   theme: Theme;
+  coloredBrackets: boolean;
+  showBracketLines: boolean;
   setTheme: (theme: Theme) => void;
   toggleHighContrast: () => void;
+  toggleColoredBrackets: () => void;
+  toggleShowBracketLines: () => void;
 }
 
 export const useTheme = create<ThemeState>()(
   persist(
     (set, get) => ({
       theme: 'dark',
+      coloredBrackets: true,
+      showBracketLines: false,
       setTheme: (theme) => {
         document.documentElement.setAttribute('data-theme', theme === 'dark' ? '' : theme);
         set({ theme });
@@ -21,6 +27,12 @@ export const useTheme = create<ThemeState>()(
         const newTheme = get().theme === 'dark' ? 'high-contrast' : 'dark';
         document.documentElement.setAttribute('data-theme', newTheme === 'dark' ? '' : newTheme);
         set({ theme: newTheme });
+      },
+      toggleColoredBrackets: () => {
+        set({ coloredBrackets: !get().coloredBrackets });
+      },
+      toggleShowBracketLines: () => {
+        set({ showBracketLines: !get().showBracketLines });
       },
     }),
     {

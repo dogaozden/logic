@@ -16,5 +16,6 @@ Future scope: predicate logic (v2).
 
 After implementing any new feature or fix, always build and install the release version.
 
-## Verification
-THIS IS KEY! You can interact with the app while npm run tauri dev is running on "http://localhost:1420/". For any UI changes, you should autonomously bugfix by using the chrome skill.
+## Update Documentation
+
+After implementing any new feature or fix, always update documentation.md in /logic-proof-trainer

@@ -262,7 +262,7 @@ function formulaToStringWithDepth(formula: Formula, currentDepth: number, maxDep
 // Get bracket pair based on level from inside out: () innermost, [] middle, {} outermost
 function bracketsForLevel(currentDepth: number, maxDepth: number): [string, string] {
   const levelFromInside = maxDepth - currentDepth - 1;
-  switch (levelFromInside % 3) {
+  switch (Math.min(levelFromInside, 2)) {
     case 0: return ['(', ')'];
     case 1: return ['[', ']'];
     default: return ['{', '}'];

@@ -23,29 +23,31 @@ function App() {
   return (
     <div className="app-container">
       <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
-        <div className="sidebar-nav">
-          <button
-            className={`nav-tab ${view === 'theorems' ? 'active' : ''}`}
-            onClick={() => setView('theorems')}
-            title="Theorems"
-          >
-            {sidebarCollapsed ? '📐' : 'Theorems'}
-          </button>
-          <button
-            className={`nav-tab ${view === 'portfolio' ? 'active' : ''}`}
-            onClick={() => setView('portfolio')}
-            title="Portfolio"
-          >
-            {sidebarCollapsed ? '📁' : 'Portfolio'}
-          </button>
-          <button
-            className={`nav-tab ${view === 'settings' ? 'active' : ''}`}
-            onClick={() => setView('settings')}
-            title="Settings"
-          >
-            {sidebarCollapsed ? '⚙️' : 'Settings'}
-          </button>
-        </div>
+        {!sidebarCollapsed && (
+          <div className="sidebar-nav">
+            <button
+              className={`nav-tab ${view === 'theorems' ? 'active' : ''}`}
+              onClick={() => setView('theorems')}
+              title="Theorems"
+            >
+              Theorems
+            </button>
+            <button
+              className={`nav-tab ${view === 'portfolio' ? 'active' : ''}`}
+              onClick={() => setView('portfolio')}
+              title="Portfolio"
+            >
+              Portfolio
+            </button>
+            <button
+              className={`nav-tab ${view === 'settings' ? 'active' : ''}`}
+              onClick={() => setView('settings')}
+              title="Settings"
+            >
+              Settings
+            </button>
+          </div>
+        )}
         <div className={`sidebar-content ${sidebarCollapsed ? 'hidden' : ''}`}>
           {view === 'theorems' && <TheoremList />}
           {view === 'settings' && <Settings />}

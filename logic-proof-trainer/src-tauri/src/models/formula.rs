@@ -92,7 +92,7 @@ impl Formula {
     /// Get bracket pair based on level from inside out: () innermost, [] middle, {} outermost
     fn brackets_for_level(current_depth: usize, max_depth: usize) -> (&'static str, &'static str) {
         let level_from_inside = max_depth - current_depth - 1;
-        match level_from_inside % 3 {
+        match level_from_inside.min(2) {
             0 => ("(", ")"),
             1 => ("[", "]"),
             _ => ("{", "}"),
