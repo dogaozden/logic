@@ -22,6 +22,8 @@ const SYMBOL_REPLACEMENTS: Record<string, string> = {
   '!': '~',
 };
 
+type InputMode = 'formula' | 'note';
+
 export const Scratchpad: React.FC = () => {
   const {
     lines,
@@ -30,6 +32,7 @@ export const Scratchpad: React.FC = () => {
     isLoading,
     error,
     addFormula,
+    addNote,
     applyTransformation,
     selectLine,
     removeLine,
@@ -39,7 +42,9 @@ export const Scratchpad: React.FC = () => {
   } = useScratchpad();
 
   const [formulaInput, setFormulaInput] = useState('');
+  const [inputMode, setInputMode] = useState<InputMode>('formula');
   const inputRef = useRef<HTMLInputElement>(null);
+  const noteInputRef = useRef<HTMLTextAreaElement>(null);
 
   const handleChange = (newValue: string) => {
     let result = newValue;
@@ -74,15 +79,26 @@ export const Scratchpad: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!formulaInput.trim()) return;
-    const success = await addFormula(formulaInput);
-    if (success) {
+    if (inputMode === 'formula') {
+      const success = await addFormula(formulaInput);
+      if (success) {
+        setFormulaInput('');
+      }
+    } else {
+      addNote(formulaInput);
       setFormulaInput('');
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && formulaInput.trim()) {
-      handleSubmit();
+      if (inputMode === 'note' && !e.shiftKey) {
+        // For notes, Enter without Shift submits
+        e.preventDefault();
+        handleSubmit();
+      } else if (inputMode === 'formula') {
+        handleSubmit();
+      }
     }
   };
 
@@ -93,48 +109,87 @@ export const Scratchpad: React.FC = () => {
   };
 
   const selectedLine = lines.find(l => l.id === selectedLineId);
+  const canCopyToProof = selectedLine && selectedLine.lineType === 'formula';
 
   return (
     <div className="scratchpad">
-      {/* Formula Input */}
-      <div className="scratchpad-input">
-        <input
-          ref={inputRef}
-          type="text"
-          className="formula-input"
-          value={formulaInput}
-          onChange={(e) => handleChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Enter formula..."
-          spellCheck={false}
-          autoComplete="off"
-        />
-        <div className="symbol-toolbar" style={{ marginTop: '6px' }}>
-          {ATOMS.map((atom) => (
-            <button
-              key={atom}
-              className="symbol-button"
-              onClick={() => insertSymbol(atom)}
-              title={`Atom ${atom}`}
-              style={{ padding: '4px 8px', fontSize: '0.875rem' }}
-            >
-              {atom}
-            </button>
-          ))}
-          <span style={{ width: '4px' }} />
-          {SYMBOLS.map((s) => (
-            <button
-              key={s.symbol}
-              className="symbol-button"
-              onClick={() => insertSymbol(s.symbol)}
-              title={s.description}
-              style={{ padding: '4px 8px', fontSize: '0.875rem' }}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
+      {/* Input Mode Tabs */}
+      <div className="scratchpad-mode-tabs">
+        <button
+          className={`mode-tab ${inputMode === 'formula' ? 'active' : ''}`}
+          onClick={() => setInputMode('formula')}
+        >
+          Formula
+        </button>
+        <button
+          className={`mode-tab ${inputMode === 'note' ? 'active' : ''}`}
+          onClick={() => setInputMode('note')}
+        >
+          Note
+        </button>
       </div>
+
+      {/* Formula Input */}
+      {inputMode === 'formula' ? (
+        <div className="scratchpad-input">
+          <input
+            ref={inputRef}
+            type="text"
+            className="formula-input"
+            value={formulaInput}
+            onChange={(e) => handleChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Enter formula..."
+            spellCheck={false}
+            autoComplete="off"
+          />
+          <div className="symbol-toolbar" style={{ marginTop: '6px' }}>
+            {ATOMS.map((atom) => (
+              <button
+                key={atom}
+                className="symbol-button"
+                onClick={() => insertSymbol(atom)}
+                title={`Atom ${atom}`}
+                style={{ padding: '4px 8px', fontSize: '0.875rem' }}
+              >
+                {atom}
+              </button>
+            ))}
+            <span style={{ width: '4px' }} />
+            {SYMBOLS.map((s) => (
+              <button
+                key={s.symbol}
+                className="symbol-button"
+                onClick={() => insertSymbol(s.symbol)}
+                title={s.description}
+                style={{ padding: '4px 8px', fontSize: '0.875rem' }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="scratchpad-input">
+          <textarea
+            ref={noteInputRef}
+            className="note-input"
+            value={formulaInput}
+            onChange={(e) => setFormulaInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Add a note..."
+            rows={2}
+          />
+          <button
+            className="btn btn-primary btn-small"
+            onClick={handleSubmit}
+            disabled={!formulaInput.trim()}
+            style={{ marginTop: '6px', alignSelf: 'flex-end' }}
+          >
+            Add Note
+          </button>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
@@ -165,13 +220,20 @@ export const Scratchpad: React.FC = () => {
           lines.map((line, index) => (
             <div
               key={line.id}
-              className={`scratchpad-line ${selectedLineId === line.id ? 'selected' : ''}`}
+              className={`scratchpad-line ${line.lineType} ${selectedLineId === line.id ? 'selected' : ''}`}
               onClick={() => selectLine(line.id)}
             >
               <span className="line-number">{index + 1}.</span>
-              <span className="formula">{line.formula}</span>
+              {line.lineType === 'note' ? (
+                <span className="note-text">{line.formula}</span>
+              ) : (
+                <span className="formula">{line.formula}</span>
+              )}
               {line.sourceRule && (
                 <span className="rule-badge">{line.sourceRule}</span>
+              )}
+              {line.lineType === 'note' && (
+                <span className="note-badge">note</span>
               )}
               <button
                 className="remove-btn"
@@ -188,8 +250,8 @@ export const Scratchpad: React.FC = () => {
         )}
       </div>
 
-      {/* Transformations Section */}
-      {selectedLine && (
+      {/* Transformations Section - only for formula lines */}
+      {selectedLine && selectedLine.lineType === 'formula' && (
         <div className="scratchpad-transformations">
           <div className="transformations-header">
             Transformations for line {lines.findIndex(l => l.id === selectedLineId) + 1}:
@@ -228,7 +290,8 @@ export const Scratchpad: React.FC = () => {
         <button
           className="btn btn-primary"
           onClick={handleCopyToProof}
-          disabled={!selectedLineId}
+          disabled={!canCopyToProof}
+          title={selectedLine?.lineType === 'note' ? 'Cannot copy notes to proof' : 'Copy formula to proof input'}
         >
           Copy to Proof
         </button>

@@ -23,7 +23,10 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
     clearError,
   } = usePortfolio();
 
-  const { createProof } = useProof();
+  const { createProof, loadProof } = useProof();
+
+  // Tab state for completed vs incomplete
+  const [activeTab, setActiveTab] = useState<'completed' | 'incomplete'>('completed');
 
   const [notesInput, setNotesInput] = useState('');
   const [editingNotes, setEditingNotes] = useState(false);
@@ -88,8 +91,11 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
   };
 
   const handleDelete = async (entry: PortfolioEntry) => {
-    if (confirm('Are you sure you want to delete this proof from your portfolio?')) {
+    // Direct delete without confirm dialog for debugging
+    try {
       await deleteEntry(entry.id);
+    } catch (e) {
+      console.error('deleteEntry failed:', e);
     }
   };
 
@@ -97,6 +103,16 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
     await createProof(entry.proof.theorem);
     onRetry?.();
   };
+
+  const handleResume = (entry: PortfolioEntry) => {
+    loadProof(entry.proof);
+    onRetry?.();  // Navigate to workspace
+  };
+
+  // Filter entries by completion status
+  const completedEntries = entries.filter(e => e.proof.is_complete);
+  const incompleteEntries = entries.filter(e => !e.proof.is_complete);
+  const displayedEntries = activeTab === 'completed' ? completedEntries : incompleteEntries;
 
   if (isLoading && entries.length === 0) {
     return (
@@ -110,7 +126,20 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
     <div className="portfolio-container">
       <div className="portfolio-header">
         <h2>My Portfolio</h2>
-        <span className="portfolio-count">{entries.length} proofs completed</span>
+        <div className="portfolio-tabs">
+          <button
+            className={`portfolio-tab ${activeTab === 'completed' ? 'active' : ''}`}
+            onClick={() => setActiveTab('completed')}
+          >
+            Completed ({completedEntries.length})
+          </button>
+          <button
+            className={`portfolio-tab ${activeTab === 'incomplete' ? 'active' : ''}`}
+            onClick={() => setActiveTab('incomplete')}
+          >
+            Incomplete ({incompleteEntries.length})
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -123,23 +152,27 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
       <div className="portfolio-layout">
         {/* Entry List */}
         <div className="portfolio-list">
-          {entries.length === 0 ? (
+          {displayedEntries.length === 0 ? (
             <div className="empty-state">
-              <h3>No proofs yet</h3>
-              <p>Complete a proof to add it to your portfolio!</p>
+              <h3>No {activeTab} proofs yet</h3>
+              <p>
+                {activeTab === 'completed'
+                  ? 'Complete a proof to add it to your portfolio!'
+                  : 'Save your progress on a proof to see it here.'}
+              </p>
             </div>
           ) : (
-            entries.map((entry) => (
+            displayedEntries.map((entry) => (
               <div
                 key={entry.id}
-                className={`portfolio-entry ${selectedEntry?.id === entry.id ? 'selected' : ''}`}
+                className={`portfolio-entry ${selectedEntry?.id === entry.id ? 'selected' : ''} ${!entry.proof.is_complete ? 'incomplete' : ''}`}
                 onClick={() => selectEntry(entry)}
               >
                 <div className="entry-header">
                   <span className="entry-name">
                     {entry.proof.theorem.name || 'Custom Proof'}
                   </span>
-                  <span className="entry-date">{formatDate(entry.completed_at)}</span>
+                  <span className="entry-date">{formatDate(entry.saved_at)}</span>
                 </div>
                 <div className="entry-formula">
                   {entry.proof.theorem.premises.length > 0 && (
@@ -218,12 +251,29 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
                 )}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => handleRetry(selectedEntry)}
-                >
-                  Retry
-                </button>
+                {selectedEntry.proof.is_complete ? (
+                  <>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handleResume(selectedEntry)}
+                    >
+                      Review
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => handleRetry(selectedEntry)}
+                    >
+                      Retry from scratch
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => handleResume(selectedEntry)}
+                  >
+                    Resume
+                  </button>
+                )}
                 <button
                   className="btn btn-secondary"
                   onClick={() => handleDelete(selectedEntry)}
@@ -253,8 +303,8 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
 
             <div className="detail-stats">
               <div className="stat">
-                <span className="stat-label">Completed</span>
-                <span className="stat-value">{formatDate(selectedEntry.completed_at)}</span>
+                <span className="stat-label">{selectedEntry.proof.is_complete ? 'Completed' : 'Last Saved'}</span>
+                <span className="stat-value">{formatDate(selectedEntry.saved_at)}</span>
               </div>
               <div className="stat">
                 <span className="stat-label">Steps</span>

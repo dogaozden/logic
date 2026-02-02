@@ -171,11 +171,11 @@ export interface UserStatistics {
   recent_attempts: ProofAttempt[];
 }
 
-// Portfolio entry for completed proofs
+// Portfolio entry for saved proofs (completed or in-progress)
 export interface PortfolioEntry {
   id: string;
   proof: Proof;
-  completed_at: string;
+  saved_at: string;  // Renamed from completed_at; backend uses serde alias for backward compat
   time_spent_secs?: number;
   steps_count: number;
   hints_used: number;
@@ -195,6 +195,7 @@ export interface ScratchpadLine {
   formula: string;
   sourceRule?: string;
   isValid: boolean;
+  lineType: 'formula' | 'note';
 }
 
 // Helper functions for displaying formulas
@@ -257,19 +258,19 @@ function formulaToStringWithDepth(formula: Formula, currentDepth: number, maxDep
     }
     case 'And': {
       const [left, right] = formula.value;
-      return `${wrapIfCompound(left, currentDepth, maxDepth)} . ${wrapIfCompound(right, currentDepth, maxDepth)}`;
+      return `${wrapIfNeeded(left)} . ${wrapIfNeeded(right)}`;
     }
     case 'Or': {
       const [left, right] = formula.value;
-      return `${wrapIfCompound(left, currentDepth, maxDepth)} ∨ ${wrapIfCompound(right, currentDepth, maxDepth)}`;
+      return `${wrapIfNeeded(left)} ∨ ${wrapIfNeeded(right)}`;
     }
     case 'Implies': {
       const [left, right] = formula.value;
-      return `${wrapIfCompound(left, currentDepth, maxDepth)} ⊃ ${wrapIfCompound(right, currentDepth, maxDepth)}`;
+      return `${wrapIfNeeded(left)} ⊃ ${wrapIfNeeded(right)}`;
     }
     case 'Biconditional': {
       const [left, right] = formula.value;
-      return `${wrapIfCompound(left, currentDepth, maxDepth)} ≡ ${wrapIfCompound(right, currentDepth, maxDepth)}`;
+      return `${wrapIfNeeded(left)} ≡ ${wrapIfNeeded(right)}`;
     }
   }
 }
@@ -284,20 +285,25 @@ function bracketsForLevel(currentDepth: number, maxDepth: number): [string, stri
   }
 }
 
-// Wrap in brackets if compound
-// Uses LOCAL bracket depth of the subformula to determine bracket type
-function wrapIfCompound(formula: Formula, _currentDepth: number, _maxDepth: number): string {
+// Wrap in brackets when needed
+// Rule: Binary compound formulas get wrapped; negations never do (they handle their own)
+function wrapIfNeeded(formula: Formula): string {
+  const formatted = formulaToString(formula);
+
+  // Atoms and contradictions never need wrapping
   if (formula.type === 'Atom' || formula.type === 'Contradiction') {
-    return formulaToString(formula);
+    return formatted;
   }
-  if (formula.type === 'Not' && formula.value.type === 'Atom') {
-    return formulaToString(formula);
+
+  // Negations handle their own internal brackets; never wrap from outside
+  if (formula.type === 'Not') {
+    return formatted;
   }
-  // Use the subformula's LOCAL bracket depth for bracket selection
-  const localDepth = bracketDepth(formula);
-  const [open, close] = bracketsForLevel(0, localDepth + 1);
-  const inner = formulaToString(formula);
-  return `${open}${inner}${close}`;
+
+  // Binary operators (And, Or, Implies, Biconditional): always wrap
+  const depth = bracketDepth(formula);
+  const [open, close] = bracketsForLevel(0, depth + 1);
+  return `${open}${formatted}${close}`;
 }
 
 // Rule display info - names and abbreviations match rules.md exactly

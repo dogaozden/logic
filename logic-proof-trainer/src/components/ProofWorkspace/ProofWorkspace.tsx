@@ -6,8 +6,8 @@ import { useScratchpad } from '../../hooks/useScratchpad';
 import { FitchBox } from './FitchBox';
 import { FormulaInput } from './FormulaInput';
 import { RulePalette } from './RulePalette';
-import type { InferenceRule, EquivalenceRule, ProofTechnique } from '../../types';
-import { inferenceRuleInfo, equivalenceRuleInfo, proofTechniqueInfo } from '../../types';
+import type { InferenceRule, EquivalenceRule, ProofTechnique, TransformationResult } from '../../types';
+import { inferenceRuleInfo, equivalenceRuleInfo, proofTechniqueInfo, formulaToString } from '../../types';
 import { FormulaDisplay } from '../FormulaDisplay';
 
 // Type for auto-close info from backend
@@ -98,8 +98,55 @@ const techniqueAliases: Record<string, ProofTechnique> = {
   'negintro': 'negationIntroduction',
   'negi': 'negationIntroduction',
   '~i': 'negationIntroduction',
+  'ni': 'negationIntroduction',
 };
 Object.assign(abbrevToTechnique, techniqueAliases);
+
+// Unified parser for subproof close formats
+// Returns { formula: string | null, technique: ProofTechnique } or null
+function parseSubproofClose(input: string): { formula: string | null; technique: ProofTechnique } | null {
+  const trimmed = input.trim();
+
+  // Pattern 1: Just "CP" or "IP" (technique only - auto-close)
+  const techOnlyMatch = trimmed.match(/^(cp|ip|~i|ni)$/i);
+  if (techOnlyMatch) {
+    const tech = abbrevToTechnique[techOnlyMatch[1].toLowerCase()];
+    if (tech) return { formula: null, technique: tech };
+  }
+
+  // Pattern 2: "N-M TECH" or "N-M, TECH" or "//N-M, TECH" (range + technique, no formula)
+  const rangeOnlyPattern = /^(?:\/\/\s*)?(\d+)\s*[-–]\s*(\d+)\s*,?\s*(cp|ip|~i|ni)$/i;
+  const rangeOnlyMatch = trimmed.match(rangeOnlyPattern);
+  if (rangeOnlyMatch) {
+    const tech = abbrevToTechnique[rangeOnlyMatch[3].toLowerCase()];
+    if (tech) return { formula: null, technique: tech };
+  }
+
+  // Pattern 3: "FORMULA N-M TECH" or "FORMULA //N-M TECH" etc. (formula + range + technique)
+  // Use a greedy approach: find the technique at the end, then work backwards
+  const withFormulaPattern = /^(.+?)\s+(?:\/\/\s*)?(\d+)\s*[-–]\s*(\d+)\s*,?\s*(cp|ip|~i|ni)$/i;
+  const withFormulaMatch = trimmed.match(withFormulaPattern);
+  if (withFormulaMatch) {
+    const formula = withFormulaMatch[1].trim();
+    const tech = abbrevToTechnique[withFormulaMatch[4].toLowerCase()];
+    if (tech && formula) return { formula, technique: tech };
+  }
+
+  // Pattern 4: "FORMULA //TECH" or "FORMULA TECH" but NOT if formula contains a range
+  // This catches "P > Q CP" style
+  const simplePattern = /^(.+?)\s+(?:\/\/\s*)?(cp|ip|~i|ni)$/i;
+  const simpleMatch = trimmed.match(simplePattern);
+  if (simpleMatch) {
+    const formula = simpleMatch[1].trim();
+    const tech = abbrevToTechnique[simpleMatch[2].toLowerCase()];
+    // Only use this if formula doesn't look like it contains line numbers
+    if (tech && formula && !/\d+\s*[-–]\s*\d+/.test(formula)) {
+      return { formula, technique: tech };
+    }
+  }
+
+  return null;
+}
 
 // Helper to parse the "lines, rule" part
 function parseRest(rest: string): { lines: number[]; rule: string } | null {
@@ -213,12 +260,18 @@ export const ProofWorkspace: React.FC = () => {
   const hintsUsedRef = useRef(0);
   const savedToPortfolioRef = useRef<string | null>(null); // Track which proof was saved
 
+  // Ref to track selectedLines for use in async handlers (avoids stale closure issues)
+  const selectedLinesRef = useRef<number[]>(selectedLines);
+  useEffect(() => {
+    selectedLinesRef.current = selectedLines;
+  }, [selectedLines]);
+
   // Auto-apply inference rule when we have the right number of lines selected
   const tryAutoApplyInference = useCallback(async (rule: InferenceRule, lines: number[]) => {
     const info = inferenceRuleInfo[rule];
     if (lines.length === info.premises) {
       // For rules that don't need additional input, auto-apply without formula
-      if (!['disjunctionIntro'].includes(rule)) {
+      if (!['addition'].includes(rule)) {
         const success = await applyInferenceRule(rule, lines, '');
         if (success) {
           setSelectedInferenceRule(null);
@@ -232,11 +285,45 @@ export const ProofWorkspace: React.FC = () => {
   }, [applyInferenceRule, clearLineSelection]);
 
   // Auto-apply equivalence rule when we have 1 line selected
-  const tryAutoApplyEquivalence = useCallback(async (_rule: EquivalenceRule, _line: number) => {
-    // Equivalence rules need the user to specify the result formula
-    // But we can still make it easier by auto-filling possible results
-    return false;
-  }, []);
+  const tryAutoApplyEquivalence = useCallback(async (rule: EquivalenceRule, line: number) => {
+    if (!proof) return false;
+
+    const proofLine = proof.lines.find(l => l.line_number === line);
+    if (!proofLine) return false;
+
+    try {
+      // Get all possible transformations for this formula
+      const allTransformations = await invoke<TransformationResult[]>('get_all_transformations', {
+        formulaStr: formulaToString(proofLine.formula),
+      });
+
+      // Filter to only transformations matching the selected rule
+      const matchingTransformations = allTransformations.filter(
+        t => t.rule.toLowerCase() === rule.toLowerCase() ||
+             t.rule_abbrev.toLowerCase() === equivalenceRuleInfo[rule].abbrev.toLowerCase()
+      );
+
+      // Auto-apply only if there's exactly one matching transformation
+      if (matchingTransformations.length === 1) {
+        const success = await applyEquivalenceRule(rule, line, matchingTransformations[0].result);
+        if (success) {
+          setSelectedEquivalenceRule(null);
+          clearLineSelection();
+        }
+        return success;
+      }
+
+      // If multiple options, put first one in input field as suggestion
+      if (matchingTransformations.length > 1) {
+        setFormulaInput(matchingTransformations[0].result);
+      }
+
+      return false;
+    } catch (err) {
+      console.error('Error getting transformations:', err);
+      return false;
+    }
+  }, [proof, applyEquivalenceRule, clearLineSelection]);
 
   // Effect to auto-apply when lines + rule are ready
   useEffect(() => {
@@ -314,6 +401,20 @@ export const ProofWorkspace: React.FC = () => {
     await getHint();
   };
 
+  // Save incomplete proof progress to portfolio
+  const handleSaveProgress = async () => {
+    if (!proof || proof.is_complete) return;
+    const timeSpent = startTimeRef.current
+      ? Math.floor((Date.now() - startTimeRef.current) / 1000)
+      : undefined;
+    const entry = await saveToPortfolio(proof, timeSpent, hintsUsedRef.current);
+    if (entry) {
+      // Show brief success feedback (error state doubles as message)
+      setError(null);
+      // Could optionally add a success toast here
+    }
+  };
+
   // Populate formula input when a formula is copied from scratchpad
   useEffect(() => {
     if (copiedFormula) {
@@ -340,13 +441,46 @@ export const ProofWorkspace: React.FC = () => {
   const handleApply = async () => {
     if (!formulaInput.trim()) return;
 
-    // Check for simple "Formula //technique" format for opening subproofs (e.g., "P //CP")
-    const techMatch = formulaInput.match(/^(.+?)\s*\/\/\s*(\w+)$/);
+    // FIRST: Check if this is a subproof close command
+    const subproofClose = parseSubproofClose(formulaInput);
+    if (subproofClose) {
+      const { formula, technique } = subproofClose;
+      if (formula) {
+        // User provided a formula - use it directly
+        const success = await closeSubproof(technique, formula);
+        if (success) {
+          setFormulaInput('');
+        }
+      } else {
+        // No formula - try auto-close
+        try {
+          const autoClose = await invoke<AutoCloseInfo | null>('get_subproof_auto_close', { proof });
+          if (autoClose) {
+            const success = await closeSubproof(technique, autoClose.conclusion);
+            if (success) {
+              setFormulaInput('');
+            }
+          } else {
+            if (technique === 'indirectProof' || technique === 'negationIntroduction') {
+              setError('Cannot close: derive a contradiction (⊥) first');
+            } else {
+              setError('Cannot auto-close subproof - provide the conclusion formula');
+            }
+          }
+        } catch (err) {
+          setError(`Error closing subproof: ${err}`);
+        }
+      }
+      return;
+    }
+
+    // Check for simple "Formula //technique" or "Formula technique" format for opening subproofs (e.g., "P //CP" or "P CP")
+    const techMatch = formulaInput.match(/^(.+?)\s+(?:\/\/\s*)?(\w+)$/);
     if (techMatch) {
       const formula = techMatch[1].trim();
       const techAbbrev = techMatch[2].toLowerCase();
       // Only treat as subproof opening if it's a technique AND doesn't look like "Formula //lines, rule"
-      if (abbrevToTechnique[techAbbrev] && !formulaInput.includes(',')) {
+      if (abbrevToTechnique[techAbbrev] && !formulaInput.includes(',') && !formulaInput.includes('-')) {
         const success = await openSubproof(abbrevToTechnique[techAbbrev], formula);
         if (success) {
           setFormulaInput('');
@@ -439,8 +573,8 @@ export const ProofWorkspace: React.FC = () => {
       return;
     }
 
-    // Check for format: "P //CP" or "~Q //IP"
-    const match = formulaInput.match(/^(.+?)\s*\/\/\s*(\w+)$/);
+    // Check for format: "P //CP" or "~Q //IP" or "P CP" or "~Q IP"
+    const match = formulaInput.match(/^(.+?)\s+(?:\/\/\s*)?(\w+)$/);
     if (match) {
       const formula = match[1].trim();
       const techAbbrev = match[2].toLowerCase();
@@ -473,30 +607,74 @@ export const ProofWorkspace: React.FC = () => {
 
   const handleCloseSubproof = async () => {
     if (!formulaInput.trim()) {
-      setError('Enter the conclusion formula');
+      // No input - try auto-close with current technique
+      const currentScope = proof?.scope_manager.scopes.find(s => s.end_line === undefined);
+      const technique = selectedTechnique || (currentScope?.technique as ProofTechnique | undefined);
+
+      if (!technique) {
+        setError('No open subproof to close');
+        return;
+      }
+
+      try {
+        const autoClose = await invoke<AutoCloseInfo | null>('get_subproof_auto_close', { proof });
+        if (autoClose) {
+          const success = await closeSubproof(technique, autoClose.conclusion);
+          if (success) {
+            setFormulaInput('');
+            setSelectedTechnique(null);
+            setMode('apply');
+          }
+        } else {
+          if (technique === 'indirectProof' || technique === 'negationIntroduction') {
+            setError('Cannot close: derive a contradiction (⊥) first');
+          } else {
+            setError('Cannot auto-close subproof - provide the conclusion formula');
+          }
+        }
+      } catch (err) {
+        setError(`Error closing subproof: ${err}`);
+      }
       return;
     }
 
-    // Check for format: "P -> Q //1-3, CP"
-    const match = formulaInput.match(/^(.+?)\s*\/\/\s*(\d+)\s*-\s*(\d+)\s*,\s*(\w+)$/);
-    if (match) {
-      const formula = match[1].trim();
-      const techAbbrev = match[4].toLowerCase();
-      if (abbrevToTechnique[techAbbrev]) {
-        const success = await closeSubproof(abbrevToTechnique[techAbbrev], formula);
+    // Try parsing as subproof close
+    const subproofClose = parseSubproofClose(formulaInput);
+    if (subproofClose) {
+      const { formula, technique } = subproofClose;
+      if (formula) {
+        const success = await closeSubproof(technique, formula);
         if (success) {
           setFormulaInput('');
           setSelectedTechnique(null);
           setMode('apply');
         }
-        return;
       } else {
-        setError(`Unknown technique: "${match[4]}"`);
-        return;
+        // Auto-close
+        try {
+          const autoClose = await invoke<AutoCloseInfo | null>('get_subproof_auto_close', { proof });
+          if (autoClose) {
+            const success = await closeSubproof(technique, autoClose.conclusion);
+            if (success) {
+              setFormulaInput('');
+              setSelectedTechnique(null);
+              setMode('apply');
+            }
+          } else {
+            if (technique === 'indirectProof' || technique === 'negationIntroduction') {
+              setError('Cannot close: derive a contradiction (⊥) first');
+            } else {
+              setError('Cannot auto-close subproof');
+            }
+          }
+        } catch (err) {
+          setError(`Error closing subproof: ${err}`);
+        }
       }
+      return;
     }
 
-    // Get the current scope's technique for the simple format
+    // Fall back: treat entire input as conclusion formula, use current scope's technique
     const currentScope = proof?.scope_manager.scopes.find(s => s.end_line === undefined);
     const currentTechnique = selectedTechnique || (currentScope?.technique as ProofTechnique | undefined);
 
@@ -530,18 +708,26 @@ export const ProofWorkspace: React.FC = () => {
     setSelectedTechnique(null);
     if (rule) {
       setMode('apply');
-      // Try to auto-apply immediately if we have the right lines
-      if (selectedLines.length > 0) {
-        await tryAutoApplyInference(rule, selectedLines);
+      // Use ref to get latest selectedLines value (avoids stale closure)
+      const lines = selectedLinesRef.current;
+      if (lines.length > 0) {
+        await tryAutoApplyInference(rule, lines);
       }
     }
   };
 
-  const handleSelectEquivalenceRule = (rule: EquivalenceRule | null) => {
+  const handleSelectEquivalenceRule = async (rule: EquivalenceRule | null) => {
     setSelectedEquivalenceRule(rule);
     setSelectedInferenceRule(null);
     setSelectedTechnique(null);
-    if (rule) setMode('apply');
+    if (rule) {
+      setMode('apply');
+      // Use ref to get latest selectedLines value (avoids stale closure)
+      const lines = selectedLinesRef.current;
+      if (lines.length === 1) {
+        await tryAutoApplyEquivalence(rule, lines[0]);
+      }
+    }
   };
 
   const handleSelectTechnique = async (technique: ProofTechnique | null) => {
@@ -550,12 +736,12 @@ export const ProofWorkspace: React.FC = () => {
       return;
     }
 
-    // Check if we're in an open subproof of this technique type
-    const currentScope = proof?.scope_manager.scopes.find(
-      s => s.end_line === undefined && s.technique === technique
-    );
+    // Get the innermost (current) open scope - this is what the backend uses
+    const openScopes = proof?.scope_manager.scopes.filter(s => s.end_line === undefined) || [];
+    const innermostScope = openScopes.length > 0 ? openScopes[openScopes.length - 1] : null;
 
-    if (currentScope) {
+    // Only try to auto-close if the innermost scope matches the clicked technique
+    if (innermostScope && innermostScope.technique === technique) {
       // We're in an open subproof of the same type - try to auto-close
       try {
         const autoClose = await invoke<AutoCloseInfo | null>('get_subproof_auto_close', { proof });
@@ -664,6 +850,11 @@ export const ProofWorkspace: React.FC = () => {
           )}
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
+          {!proof.is_complete && (
+            <button className="btn btn-secondary" onClick={handleSaveProgress}>
+              Save Progress
+            </button>
+          )}
           <button className="btn btn-secondary" onClick={handleGetHint}>
             Hint
           </button>

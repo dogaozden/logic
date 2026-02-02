@@ -4,6 +4,7 @@ import { useProof } from '../../hooks/useProof';
 import type { Theorem, Difficulty } from '../../types';
 import { difficultyColor } from '../../types';
 import { FormulaDisplay } from '../FormulaDisplay';
+import { CustomTheoremModal } from './CustomTheoremModal';
 
 type FilterType = 'all' | 'classic' | 'custom' | Difficulty;
 
@@ -27,6 +28,7 @@ export const TheoremList: React.FC = () => {
   const { createProof } = useProof();
   const [filter, setFilter] = useState<FilterType>('all');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showCustomModal, setShowCustomModal] = useState(false);
 
   // Unified state: either preset difficulty or custom value (mutually exclusive)
   const [difficultyMode, setDifficultyMode] = useState<DifficultyMode | null>(null);
@@ -227,15 +229,24 @@ export const TheoremList: React.FC = () => {
           1-25 easy · 26-45 medium · 46-70 hard · 71-100 expert
         </p>
 
-        {/* Generate New button - always visible, enabled when difficulty selected */}
-        <button
-          className="btn btn-primary"
-          onClick={handleGenerateNew}
-          disabled={!difficultyMode || isGenerating}
-          style={{ width: '100%', marginBottom: '8px' }}
-        >
-          {isGenerating ? 'Generating...' : 'Generate New'}
-        </button>
+        {/* Generate New and Custom buttons */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+          <button
+            className="btn btn-primary"
+            onClick={handleGenerateNew}
+            disabled={!difficultyMode || isGenerating}
+            style={{ flex: 1 }}
+          >
+            {isGenerating ? 'Generating...' : 'Generate New'}
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowCustomModal(true)}
+            style={{ flexShrink: 0 }}
+          >
+            Custom
+          </button>
+        </div>
       </div>
 
       {/* Start Proof button - visible whenever a theorem is selected */}
@@ -246,6 +257,17 @@ export const TheoremList: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* Custom Theorem Modal */}
+      <CustomTheoremModal
+        isOpen={showCustomModal}
+        onClose={() => setShowCustomModal(false)}
+        onCreated={() => {
+          // Theorem is already selected and saved by the modal
+          // Just close the modal
+          setShowCustomModal(false);
+        }}
+      />
     </>
   );
 };

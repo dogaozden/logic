@@ -12,6 +12,7 @@ interface ScratchpadState {
 
   // Actions
   addFormula: (formulaStr: string) => Promise<boolean>;
+  addNote: (text: string) => void;
   applyTransformation: (lineId: string, transformation: TransformationResult) => void;
   selectLine: (id: string | null) => Promise<void>;
   removeLine: (id: string) => void;
@@ -46,6 +47,7 @@ export const useScratchpad = create<ScratchpadState>((set, get) => ({
         id: `scratch-${++lineIdCounter}`,
         formula: trimmed,
         isValid: true,
+        lineType: 'formula',
       };
 
       set(state => ({
@@ -66,12 +68,31 @@ export const useScratchpad = create<ScratchpadState>((set, get) => ({
     }
   },
 
+  addNote: (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    const newLine: ScratchpadLine = {
+      id: `scratch-${++lineIdCounter}`,
+      formula: trimmed,
+      isValid: true,
+      lineType: 'note',
+    };
+
+    set(state => ({
+      lines: [...state.lines, newLine],
+      selectedLineId: null,
+      availableTransformations: [],
+    }));
+  },
+
   applyTransformation: (_lineId: string, transformation: TransformationResult) => {
     const newLine: ScratchpadLine = {
       id: `scratch-${++lineIdCounter}`,
       formula: transformation.result,
       sourceRule: transformation.rule_abbrev,
       isValid: true,
+      lineType: 'formula',
     };
 
     set(state => ({
@@ -91,6 +112,12 @@ export const useScratchpad = create<ScratchpadState>((set, get) => ({
     const line = get().lines.find(l => l.id === id);
     if (!line) {
       set({ selectedLineId: null, availableTransformations: [] });
+      return;
+    }
+
+    // Notes don't have transformations
+    if (line.lineType === 'note') {
+      set({ selectedLineId: id, availableTransformations: [] });
       return;
     }
 
@@ -145,7 +172,7 @@ export const useScratchpad = create<ScratchpadState>((set, get) => ({
 
   copyToProof: (id: string) => {
     const line = get().lines.find(l => l.id === id);
-    if (line) {
+    if (line && line.lineType === 'formula') {
       set({ copiedFormula: line.formula });
     }
   },

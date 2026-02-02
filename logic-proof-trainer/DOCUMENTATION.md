@@ -151,7 +151,8 @@ logic-proof-trainer/
 │   ├── components/
 │   │   ├── FormulaDisplay.tsx       # Color-coded bracket rendering
 │   │   ├── TheoremList/
-│   │   │   └── TheoremList.tsx      # Theorem browser + generator
+│   │   │   ├── TheoremList.tsx      # Theorem browser + generator
+│   │   │   └── CustomTheoremModal.tsx # Custom theorem creator UI
 │   │   ├── ProofWorkspace/
 │   │   │   ├── ProofWorkspace.tsx   # Main proof editor
 │   │   │   ├── FitchBox.tsx         # Fitch-style display + drag-drop
@@ -269,6 +270,23 @@ pub enum Justification {
 
 ## Frontend (React/TypeScript)
 
+### Formula Display (`types/index.ts`)
+
+The `formulaToString` function renders formulas with appropriate bracketing for clarity.
+
+**Bracket Rules**:
+- **Atoms and contradictions**: Never wrapped
+- **Negations**: Chain without parentheses (`~~P`, `~~~Q`), only wrap binary operators inside (`~(P · Q)`)
+- **Binary operators** (And, Or, Implies, Biconditional): Always wrapped when they appear as operands of other binary operators
+
+**Examples**:
+- `~~P` — Double negation displays without parentheses
+- `~~~Q` — Triple negation displays without parentheses
+- `~~F . ~~E` — DeMorgan result from `~(~F ∨ ~E)` displays cleanly
+- `E ⊃ [~(D ∨ C) ∨ ~C]` — Or consequent is wrapped, but negations inside are not
+- `~(A · B)` — Negation handles its own parentheses for the conjunction inside
+- `A ⊃ (B ⊃ C)` — Nested implications are wrapped for clarity
+
 ### State Management (Zustand)
 
 **useProof**:
@@ -277,7 +295,7 @@ pub enum Justification {
 
 **useTheorems**:
 - `classicTheorems`, `customTheorems`, `selectedTheorem`
-- Actions: `loadClassicTheorems`, `generateTheorem`, `generateTheoremWithValue`
+- Actions: `loadClassicTheorems`, `loadCustomTheorems`, `generateTheorem`, `generateTheoremWithValue`, `selectTheorem`, `saveCustomTheorem`
 
 **usePortfolio**:
 - `entries`, `selectedEntry`
@@ -290,7 +308,7 @@ pub enum Justification {
 
 **useScratchpad**:
 - `lines`, `selectedLineId`, `availableTransformations`, `copiedFormula`
-- Actions: `addFormula`, `applyTransformation`, `selectLine`, `removeLine`, `clearAll`, `copyToProof`
+- Actions: `addFormula`, `addNote`, `applyTransformation`, `selectLine`, `removeLine`, `clearAll`, `copyToProof`
 
 ### Components
 
@@ -308,15 +326,32 @@ Features:
 **ProofWorkspace**: Main proof editor with input parsing:
 - New format: `Q 1,2 MP`
 - Legacy format: `Q //MP 1, 2`
-- Subproof: `P //CP`
+- Subproof opening: `P CP` or `P IP` (simplified) or `P //CP` (legacy)
+- Subproof closing (unified parser, extremely forgiving):
+  - Technique only (auto-close): `CP`, `IP`, `~I`, `NI`
+  - Range + technique (auto-close): `1-15 CP`, `1-15, CP`, `//1-15 CP`, `//1-15, CP`
+  - Formula + range + technique: `P > Q 1-15 CP`, `P > Q 1-15, CP`, `P //1-15 CP`
+  - Formula + technique: `P > Q CP`, `P > Q //CP`
+  - Accepts both `-` and `–` (en-dash) in line ranges
 
-**RulePalette**: Three sections - Inference (9), Equivalence (10), Techniques (3)
+**RulePalette**: Three sections - Inference (9), Equivalence (10), Techniques (3). Supports **auto-apply** behavior:
+- **Inference rules**: When lines are selected and you click a rule, the rule auto-applies if the correct number of premises is selected
+- **Equivalence rules**: When exactly one line is selected and you click a rule, auto-applies if there's only one possible transformation; if multiple options exist, the first is suggested in the input field
 
-**TheoremList**: Theorem browser with difficulty filter and custom generation (1-100)
+**TheoremList**: Theorem browser with difficulty filter and custom generation (1-100). Includes a "Custom" button that opens a modal for creating custom theorems.
 
-**Scratchpad**: Formula transformation sandbox for experimenting with equivalence rules without affecting the main proof. Users can enter formulas, see all available transformations, apply them to build chains, and copy results to the proof input.
+**CustomTheoremModal**: Modal UI for creating custom theorems (arguments) with:
+- Optional theorem name
+- Dynamic premise list (add/remove premises)
+- Conclusion input (required)
+- Difficulty selection (easy/medium/hard/expert)
+- Symbol palette for entering logical operators
+- Real-time formula validation using `parse_formula` backend command
+- Custom theorems are saved to `~/.local/share/LogicProofTrainer/theorems/` and persist across sessions
 
-**Portfolio**: Two-pane view with proof details, notes, retry/delete
+**Scratchpad**: Formula transformation sandbox for experimenting with equivalence rules without affecting the main proof. Users can enter formulas, see all available transformations, apply them to build chains, and copy results to the proof input. Also supports text notes for annotations and reminders.
+
+**Portfolio**: Two-pane view with proof details, notes, retry/delete. Includes **Completed** and **Incomplete** tabs to filter proofs by status. Incomplete proofs can be **resumed** (loads the proof state back into the workspace), while completed proofs can be **retried** (starts fresh from the theorem).
 
 **Settings**: Theme toggle (dark/high-contrast), bracket color legend, collapsible brackets toggle
 
@@ -355,13 +390,13 @@ Features:
 | `load_custom_theorems` | - | `Result<Vec<Theorem>>` |
 
 ### Portfolio Commands
-| Command | Parameters | Returns |
-|---------|-----------|---------|
-| `save_to_portfolio` | `proof, time_spent_secs?, hints_used` | `Result<PortfolioEntry>` |
-| `load_portfolio` | - | `Result<Vec<PortfolioEntry>>` |
-| `get_portfolio_entry` | `id` | `Result<PortfolioEntry>` |
-| `delete_portfolio_entry` | `id` | `Result<()>` |
-| `update_portfolio_notes` | `id, notes` | `Result<()>` |
+| Command | Parameters | Returns | Notes |
+|---------|-----------|---------|-------|
+| `save_to_portfolio` | `proof, time_spent_secs?, hints_used` | `Result<PortfolioEntry>` | Accepts complete or incomplete proofs |
+| `load_portfolio` | - | `Result<Vec<PortfolioEntry>>` | Sorted by `saved_at` descending |
+| `get_portfolio_entry` | `id` | `Result<PortfolioEntry>` | |
+| `delete_portfolio_entry` | `id` | `Result<()>` | |
+| `update_portfolio_notes` | `id, notes` | `Result<()>` | |
 
 ---
 
@@ -370,16 +405,25 @@ Features:
 ### Applying an Inference Rule
 ```
 1. User selects lines [1, 3] in ProofWorkspace
-2. User types "Q 1,3 MP" or clicks MP in RulePalette
+2. User types "Q 1,3 MP" OR clicks MP in RulePalette (auto-applies if correct # of lines selected)
 3. Frontend calls: invoke('apply_rule', { proof, rule_application, formula_str })
 4. Backend validates rule application
 5. If valid: new ProofLine added, check completion
 6. Frontend receives updated Proof
 ```
 
+### Applying an Equivalence Rule (Auto-Apply)
+```
+1. User selects line [2] containing "~~P"
+2. User clicks DN in RulePalette
+3. Frontend fetches all transformations, finds exactly one DN option: "P"
+4. Auto-applies: invoke('apply_rule', { proof, equivalence: {rule: DN, line: 2}, formula_str: "P" })
+5. If multiple options existed, first is shown in input field for user confirmation
+```
+
 ### Opening a Subproof (CP)
 ```
-1. User types "P //CP" or clicks CP in RulePalette
+1. User types "P CP" (or legacy "P //CP") or clicks CP in RulePalette
 2. Frontend calls: invoke('open_subproof', { proof, technique, assumption_str })
 3. Backend creates ProofScope, adds assumption line at depth+1
 4. UI shows indented subproof with assumption
@@ -449,12 +493,24 @@ Theme persisted in localStorage via `useTheme` hook.
 
 ## Portfolio System
 
-Completed proofs saved with:
+Both completed and incomplete proofs can be saved to the portfolio:
+- **Completed proofs**: Auto-saved when the conclusion is derived at depth 0
+- **Incomplete proofs**: Manually saved via the "Save Progress" button in the workspace header
+
+Each entry includes:
 - Theorem details
-- Complete proof lines
-- Completion timestamp
+- Complete proof lines (current state)
+- Save timestamp (`saved_at` - renamed from `completed_at` for backward compatibility via serde alias)
 - Step count, time spent, hints used
 - User notes (editable)
+
+The Portfolio view has two tabs:
+- **Completed**: Shows finished proofs with:
+  - **Review**: Load the proof as-is to view or tweak it
+  - **Retry from scratch**: Start a fresh proof from the theorem
+- **Incomplete**: Shows in-progress proofs with a "Resume" button to continue where you left off
+
+Incomplete entries are visually distinguished with an orange left border indicator.
 
 Storage locations:
 - macOS: `~/Library/Application Support/logic-proof-trainer/`

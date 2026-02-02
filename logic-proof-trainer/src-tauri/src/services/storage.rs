@@ -4,12 +4,13 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use crate::models::{Proof, Theorem, UserStatistics};
 
-/// A completed proof saved to the portfolio
+/// A proof saved to the portfolio (completed or in-progress)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PortfolioEntry {
     pub id: String,
     pub proof: Proof,
-    pub completed_at: DateTime<Utc>,
+    #[serde(alias = "completed_at")]  // Backward compatibility with existing entries
+    pub saved_at: DateTime<Utc>,
     pub time_spent_secs: Option<u64>,
     pub steps_count: usize,
     pub hints_used: u32,
@@ -22,7 +23,7 @@ impl PortfolioEntry {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             proof,
-            completed_at: Utc::now(),
+            saved_at: Utc::now(),
             time_spent_secs,
             steps_count,
             hints_used,
@@ -238,8 +239,8 @@ impl StorageService {
             }
         }
 
-        // Sort by completion date, newest first
-        entries.sort_by(|a, b| b.completed_at.cmp(&a.completed_at));
+        // Sort by saved date, newest first
+        entries.sort_by(|a, b| b.saved_at.cmp(&a.saved_at));
         Ok(entries)
     }
 

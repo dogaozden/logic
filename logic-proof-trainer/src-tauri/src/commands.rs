@@ -262,10 +262,7 @@ pub fn save_to_portfolio(
     time_spent_secs: Option<u64>,
     hints_used: u32,
 ) -> Result<PortfolioEntry, String> {
-    if !proof.is_complete {
-        return Err("Cannot save incomplete proof to portfolio".to_string());
-    }
-
+    // Allow saving both complete and incomplete proofs
     let entry = PortfolioEntry::new(proof, time_spent_secs, hints_used);
     let storage = StorageService::new().map_err(|e| e.to_string())?;
     storage.save_to_portfolio(&entry).map_err(|e| e.to_string())?;

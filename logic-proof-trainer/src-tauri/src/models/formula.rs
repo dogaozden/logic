@@ -154,9 +154,9 @@ impl Formula {
     }
 
     fn needs_parens_for_not(&self) -> bool {
-        // Always show brackets after negation except for atoms and contradiction
-        // This preserves user's bracket structure like ~{~[X]} instead of collapsing to ~~[X]
-        !matches!(self, Formula::Atom(_) | Formula::Contradiction)
+        // Show brackets after negation only for binary operators (And, Or, Implies, Biconditional)
+        // Atoms, contradictions, and negations don't need brackets: ~~P, ~~~Q, ~_|_
+        !matches!(self, Formula::Atom(_) | Formula::Not(_) | Formula::Contradiction)
     }
 
     fn precedence(&self) -> u8 {

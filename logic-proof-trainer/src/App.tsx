@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { TheoremList } from './components/TheoremList/TheoremList';
 import { ProofWorkspace } from './components/ProofWorkspace/ProofWorkspace';
 import { Portfolio } from './components/Portfolio/Portfolio';
 import { Settings } from './components/Settings/Settings';
 import { Scratchpad } from './components/Scratchpad';
 import { useTheme } from './hooks/useTheme';
+import { useProof } from './hooks/useProof';
 import './styles/main.css';
 
 type View = 'theorems' | 'scratchpad' | 'portfolio';
@@ -14,6 +15,8 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const { theme } = useTheme();
+  const { proof } = useProof();
+  const prevProofRef = useRef(proof);
 
   // Initialize theme on mount
   useEffect(() => {
@@ -21,6 +24,15 @@ function App() {
       document.documentElement.setAttribute('data-theme', theme);
     }
   }, []);
+
+  // Switch to scratchpad when a new proof is started
+  useEffect(() => {
+    // Detect when proof changes from null to non-null (new proof started)
+    if (proof && !prevProofRef.current) {
+      setView('scratchpad');
+    }
+    prevProofRef.current = proof;
+  }, [proof]);
 
   return (
     <div className="app-container">

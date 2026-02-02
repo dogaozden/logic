@@ -1149,6 +1149,32 @@ body {
   color: var(--text-secondary);
 }
 
+/* Portfolio tabs */
+.portfolio-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.portfolio-tab {
+  padding: 6px 12px;
+  font-size: 0.875rem;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.portfolio-tab:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.portfolio-tab.active {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
 .portfolio-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1180,6 +1206,11 @@ body {
 .portfolio-entry.selected {
   border-color: var(--accent);
   background-color: var(--bg-tertiary);
+}
+
+/* Incomplete entry indicator */
+.portfolio-entry.incomplete {
+  border-left: 3px solid var(--warning);
 }
 
 .entry-header {
@@ -1639,6 +1670,87 @@ body {
   font-size: 0.8rem;
 }
 
+/* Scratchpad Mode Tabs */
+.scratchpad-mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.mode-tab {
+  flex: 1;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mode-tab:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.mode-tab.active {
+  background: var(--bg-tertiary);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Note Input */
+.note-input {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  outline: none;
+  resize: vertical;
+  min-height: 50px;
+  transition: border-color 0.15s;
+}
+
+.note-input:focus {
+  border-color: var(--accent);
+}
+
+.note-input::placeholder {
+  color: var(--text-secondary);
+}
+
+/* Note Line Styling */
+.scratchpad-line.note {
+  background: var(--bg-tertiary);
+  border-style: dashed;
+}
+
+.scratchpad-line.note .note-text {
+  flex: 1;
+  font-family: var(--font-sans);
+  font-style: italic;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scratchpad-line .note-badge {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .workspace-layout {
@@ -1660,7 +1772,7 @@ body {
 /* Settings Gear Icon */
 .settings-gear {
   position: fixed;
-  top: 12px;
+  bottom: 12px;
   right: 12px;
   width: 32px;
   height: 32px;
@@ -1731,4 +1843,143 @@ body {
 .settings-close:hover {
   background: var(--error);
   color: white;
+}
+
+/* Custom Theorem Modal */
+.custom-theorem-modal {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px var(--shadow);
+  max-width: 500px;
+  width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
+  position: relative;
+  padding: 24px;
+}
+
+.custom-theorem-field {
+  margin-bottom: 16px;
+}
+
+.custom-theorem-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.custom-theorem-label .optional-hint {
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  margin-left: 8px;
+}
+
+.custom-theorem-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.custom-theorem-input:focus {
+  border-color: var(--accent);
+}
+
+.custom-theorem-input.formula-style {
+  font-family: var(--font-mono);
+}
+
+.custom-theorem-input.has-error {
+  border-color: var(--error);
+}
+
+.premise-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.premise-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  position: relative;
+}
+
+.premise-number {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  min-width: 20px;
+  padding-top: 10px;
+  text-align: right;
+}
+
+.premise-row .custom-theorem-input {
+  flex: 1;
+}
+
+.remove-premise-btn {
+  padding: 8px 10px;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.remove-premise-btn:hover {
+  background: var(--error);
+  color: white;
+}
+
+.add-premise-btn {
+  font-size: 0.8rem;
+  padding: 6px 12px;
+}
+
+.field-error {
+  color: var(--error);
+  font-size: 0.75rem;
+  margin-top: 4px;
+  padding-left: 28px;
+  position: absolute;
+  bottom: -18px;
+  left: 0;
+}
+
+.premise-row {
+  margin-bottom: 16px;
+}
+
+.difficulty-selector {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.custom-theorem-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.custom-theorem-actions .btn {
+  min-width: 100px;
 }
