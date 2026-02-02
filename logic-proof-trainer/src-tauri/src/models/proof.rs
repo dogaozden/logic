@@ -355,4 +355,53 @@ mod tests {
         );
         assert_eq!(proof.lines[3].depth, 1);
     }
+
+    #[test]
+    fn test_ip_subproof_with_p_and_not_p() {
+        // Simulate user's scenario: Open IP subproof, derive P · ~P, close with negation of assumption
+        let theorem = make_simple_theorem();
+        let mut proof = Proof::new(theorem);
+
+        // Open IP subproof with assumption ~(R ∨ S) · (R ∨ S)
+        let assumption = Formula::parse("~(R | S) & (R | S)").unwrap();
+        proof.open_subproof(assumption.clone(), ProofTechnique::IndirectProof);
+        assert_eq!(proof.current_depth(), 1);
+        assert!(proof.scope_manager.has_open_scopes(), "Scope should be open after open_subproof");
+
+        // Add some lines (simulating user's derivation)
+        proof.add_line(
+            Formula::parse("R | S").unwrap(),
+            Justification::Inference {
+                rule: InferenceRule::Simplification,
+                lines: vec![3],
+            },
+        );
+        proof.add_line(
+            Formula::parse("~(R | S)").unwrap(),
+            Justification::Inference {
+                rule: InferenceRule::Simplification,
+                lines: vec![3],
+            },
+        );
+        // Last line is the contradiction P · ~P
+        proof.add_line(
+            Formula::parse("~(R | S) & (R | S)").unwrap(),
+            Justification::Inference {
+                rule: InferenceRule::Conjunction,
+                lines: vec![5, 4],
+            },
+        );
+
+        // Verify scope is still open
+        assert!(proof.scope_manager.has_open_scopes(), "Scope should still be open before close");
+        assert!(proof.scope_manager.current_scope().is_some(), "current_scope() should return Some");
+
+        // Close the subproof with negation of assumption
+        let conclusion = Formula::parse("~[~(R | S) & (R | S)]").unwrap();
+        let result = proof.close_subproof(conclusion, ProofTechnique::IndirectProof);
+        assert!(result.is_some(), "close_subproof should return Some");
+
+        // Verify scope is now closed
+        assert!(!proof.scope_manager.has_open_scopes(), "Scope should be closed after close_subproof");
+    }
 }

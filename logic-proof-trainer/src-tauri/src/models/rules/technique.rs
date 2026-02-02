@@ -8,11 +8,34 @@ pub enum ProofTechnique {
     /// Conditional Proof: Assume P, derive Q, conclude P → Q
     ConditionalProof,
 
-    /// Indirect Proof (Reductio ad Absurdum): Assume ~P, derive contradiction, conclude P
+    /// Indirect Proof (Reductio ad Absurdum):
+    /// - Assume ~P, derive contradiction, conclude P
+    /// - Assume P, derive contradiction, conclude ~P
     IndirectProof,
+}
 
-    /// Negation Introduction: Assume P, derive contradiction, conclude ~P
-    NegationIntroduction,
+/// Check if a formula represents a contradiction (⊥ or P · ~P)
+pub fn is_contradiction(formula: &Formula) -> bool {
+    // Check for ⊥
+    if matches!(formula, Formula::Contradiction) {
+        return true;
+    }
+    // Check for P · ~P (conjunction where one conjunct is negation of other)
+    if let Formula::And(left, right) = formula {
+        // left = ~right
+        if let Formula::Not(inner) = left.as_ref() {
+            if inner.as_ref() == right.as_ref() {
+                return true;
+            }
+        }
+        // right = ~left
+        if let Formula::Not(inner) = right.as_ref() {
+            if inner.as_ref() == left.as_ref() {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 impl ProofTechnique {
@@ -20,7 +43,6 @@ impl ProofTechnique {
         match self {
             ProofTechnique::ConditionalProof => "Conditional Proof",
             ProofTechnique::IndirectProof => "Indirect Proof",
-            ProofTechnique::NegationIntroduction => "Negation Introduction",
         }
     }
 
@@ -28,7 +50,6 @@ impl ProofTechnique {
         match self {
             ProofTechnique::ConditionalProof => "CP",
             ProofTechnique::IndirectProof => "IP",
-            ProofTechnique::NegationIntroduction => "~I",
         }
     }
 
@@ -39,12 +60,8 @@ impl ProofTechnique {
                  then conclude P → Q outside the subproof."
             }
             ProofTechnique::IndirectProof => {
-                "Assume the negation ~P, derive a contradiction ⊥ within the subproof, \
-                 then conclude P outside the subproof."
-            }
-            ProofTechnique::NegationIntroduction => {
-                "Assume P, derive a contradiction ⊥ within the subproof, \
-                 then conclude ~P outside the subproof."
+                "Assume P or ~P, derive a contradiction (⊥ or Q · ~Q), \
+                 then conclude the opposite of your assumption."
             }
         }
     }
@@ -60,25 +77,18 @@ impl ProofTechnique {
                 ))
             }
             ProofTechnique::IndirectProof => {
-                // Must derive contradiction
-                if !matches!(derived, Formula::Contradiction) {
+                // Must derive a contradiction (⊥ or P · ~P)
+                if !is_contradiction(derived) {
                     return None;
                 }
                 // IP handles both directions:
-                // - Assume ~P, derive ⊥ → conclude P (removes negation)
-                // - Assume P, derive ⊥ → conclude ~P (adds negation)
+                // - Assume ~P, derive contradiction → conclude P (removes negation)
+                // - Assume P, derive contradiction → conclude ~P (adds negation)
                 if let Formula::Not(inner) = assumption {
                     Some(inner.as_ref().clone())
                 } else {
                     Some(Formula::Not(Box::new(assumption.clone())))
                 }
-            }
-            ProofTechnique::NegationIntroduction => {
-                // Assume P, derive ⊥ → conclude ~P
-                if !matches!(derived, Formula::Contradiction) {
-                    return None;
-                }
-                Some(Formula::Not(Box::new(assumption.clone())))
             }
         }
     }
@@ -102,24 +112,20 @@ impl ProofTechnique {
         vec![
             ProofTechnique::ConditionalProof,
             ProofTechnique::IndirectProof,
-            ProofTechnique::NegationIntroduction,
         ]
     }
 
     /// Check if this technique requires a contradiction to be derived
     pub fn requires_contradiction(&self) -> bool {
-        matches!(
-            self,
-            ProofTechnique::IndirectProof | ProofTechnique::NegationIntroduction
-        )
+        matches!(self, ProofTechnique::IndirectProof)
     }
 
     /// Get the type of assumption expected for this technique
     pub fn expected_assumption_type(&self) -> AssumptionType {
         match self {
             ProofTechnique::ConditionalProof => AssumptionType::Any,
-            ProofTechnique::IndirectProof => AssumptionType::NegationOfTarget,
-            ProofTechnique::NegationIntroduction => AssumptionType::TargetItself,
+            // IP accepts any assumption - it will negate whatever you assumed
+            ProofTechnique::IndirectProof => AssumptionType::Any,
         }
     }
 }
@@ -128,10 +134,6 @@ impl ProofTechnique {
 pub enum AssumptionType {
     /// Any formula can be assumed
     Any,
-    /// The negation of the target conclusion should be assumed
-    NegationOfTarget,
-    /// The formula itself (to prove its negation) should be assumed
-    TargetItself,
 }
 
 #[cfg(test)]
@@ -151,7 +153,8 @@ mod tests {
     }
 
     #[test]
-    fn test_indirect_proof() {
+    fn test_indirect_proof_with_contradiction_symbol() {
+        // Assume ~P, derive ⊥ → conclude P
         let assumption = Formula::parse("~P").unwrap();
         let derived = Formula::Contradiction;
         let expected = Formula::parse("P").unwrap();
@@ -163,12 +166,26 @@ mod tests {
     }
 
     #[test]
-    fn test_negation_introduction() {
-        let assumption = Formula::parse("P").unwrap();
-        let derived = Formula::Contradiction;
-        let expected = Formula::parse("~P").unwrap();
+    fn test_indirect_proof_with_p_and_not_p() {
+        // Assume ~P, derive A · ~A → conclude P
+        let assumption = Formula::parse("~P").unwrap();
+        let derived = Formula::parse("A & ~A").unwrap();
+        let expected = Formula::parse("P").unwrap();
 
-        let conclusion = ProofTechnique::NegationIntroduction
+        let conclusion = ProofTechnique::IndirectProof
+            .get_conclusion(&assumption, &derived)
+            .unwrap();
+        assert_eq!(conclusion, expected);
+    }
+
+    #[test]
+    fn test_indirect_proof_with_not_p_and_p() {
+        // Assume ~P, derive ~A · A → conclude P (order reversed)
+        let assumption = Formula::parse("~P").unwrap();
+        let derived = Formula::parse("~A & A").unwrap();
+        let expected = Formula::parse("P").unwrap();
+
+        let conclusion = ProofTechnique::IndirectProof
             .get_conclusion(&assumption, &derived)
             .unwrap();
         assert_eq!(conclusion, expected);
@@ -212,5 +229,39 @@ mod tests {
         } else {
             panic!("Expected negation");
         }
+    }
+
+    #[test]
+    fn test_is_contradiction() {
+        // ⊥ is a contradiction
+        assert!(is_contradiction(&Formula::Contradiction));
+
+        // P · ~P is a contradiction
+        let p_and_not_p = Formula::parse("P & ~P").unwrap();
+        assert!(is_contradiction(&p_and_not_p));
+
+        // ~P · P is a contradiction
+        let not_p_and_p = Formula::parse("~P & P").unwrap();
+        assert!(is_contradiction(&not_p_and_p));
+
+        // Complex: (A ⊃ B) · ~(A ⊃ B)
+        let complex = Formula::parse("(A > B) & ~(A > B)").unwrap();
+        assert!(is_contradiction(&complex));
+
+        // User's exact case: ~(R ∨ S) · (R ∨ S)
+        let user_case = Formula::parse("~(R | S) & (R | S)").unwrap();
+        assert!(is_contradiction(&user_case), "~(R | S) & (R | S) should be a contradiction");
+
+        // P · Q is NOT a contradiction
+        let p_and_q = Formula::parse("P & Q").unwrap();
+        assert!(!is_contradiction(&p_and_q));
+
+        // P · ~Q is NOT a contradiction (different formulas)
+        let p_and_not_q = Formula::parse("P & ~Q").unwrap();
+        assert!(!is_contradiction(&p_and_not_q));
+
+        // Just P is NOT a contradiction
+        let just_p = Formula::parse("P").unwrap();
+        assert!(!is_contradiction(&just_p));
     }
 }

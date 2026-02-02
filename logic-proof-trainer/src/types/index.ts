@@ -68,8 +68,7 @@ export type EquivalenceRule =
 // Proof techniques
 export type ProofTechnique =
   | 'conditionalProof'
-  | 'indirectProof'
-  | 'negationIntroduction';
+  | 'indirectProof';
 
 // Justification for proof lines
 export type Justification =
@@ -335,7 +334,6 @@ export const equivalenceRuleInfo: Record<EquivalenceRule, { name: string; abbrev
 export const proofTechniqueInfo: Record<ProofTechnique, { name: string; abbrev: string }> = {
   conditionalProof: { name: 'Conditional Proof', abbrev: 'CP' },
   indirectProof: { name: 'Indirect Proof', abbrev: 'IP' },
-  negationIntroduction: { name: 'Negation Introduction', abbrev: '~I' },
 };
 
 export function justificationToString(j: Justification): string {

@@ -100,8 +100,13 @@ The app implements a natural deduction proof system for propositional logic.
 | Name | Abbrev | Description |
 |------|--------|-------------|
 | Conditional Proof | CP | Assume p, derive q, conclude p ⊃ q |
-| Indirect Proof | IP | Assume ~p, derive ⊥, conclude p |
-| Negation Introduction | ~I | Assume p, derive ⊥, conclude ~p |
+| Indirect Proof | IP | Assume p, derive contradiction (⊥ or q · ~q), conclude ~p (or vice versa) |
+
+**Note**: IP handles both directions:
+- Assume `p`, derive contradiction → conclude `~p`
+- Assume `~p`, derive contradiction → conclude `p`
+
+A contradiction can be either `⊥` or a conjunction like `A · ~A`.
 
 ---
 
@@ -125,7 +130,7 @@ logic-proof-trainer/
 │       │   └── rules/
 │       │       ├── inference.rs     # 9 inference rules
 │       │       ├── equivalence.rs   # 10 equivalence rules
-│       │       └── technique.rs     # CP, IP, ~I techniques
+│       │       └── technique.rs     # CP, IP techniques
 │       └── services/
 │           ├── verifier.rs          # Proof step validation
 │           ├── generator.rs         # High-level theorem generation
@@ -251,7 +256,7 @@ pub enum Justification {
 **Fragments** (`services/fragments.rs`):
 - 12 composable proof rules
 - Basic: MP, MT, HS, DS, Simp, Conj, Add, CD
-- Nesting: CP, IP, NegIntro, CaseSplit
+- Nesting: CP, IP, CaseSplit (NegIntro is handled internally as IP)
 
 **TruthTable** (`services/truth_table.rs`):
 - 32-bit truth table computation
@@ -328,7 +333,7 @@ Features:
 - Legacy format: `Q //MP 1, 2`
 - Subproof opening: `P CP` or `P IP` (simplified) or `P //CP` (legacy)
 - Subproof closing (unified parser, extremely forgiving):
-  - Technique only (auto-close): `CP`, `IP`, `~I`, `NI`
+  - Technique only (auto-close): `CP`, `IP` (legacy `~I`/`NI` aliases also work)
   - Range + technique (auto-close): `1-15 CP`, `1-15, CP`, `//1-15 CP`, `//1-15, CP`
   - Formula + range + technique: `P > Q 1-15 CP`, `P > Q 1-15, CP`, `P //1-15 CP`
   - Formula + technique: `P > Q CP`, `P > Q //CP`

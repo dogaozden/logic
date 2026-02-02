@@ -95,10 +95,11 @@ const techniqueAliases: Record<string, ProofTechnique> = {
   'ind': 'indirectProof',
   'indproof': 'indirectProof',
   'raa': 'indirectProof',  // Reductio ad absurdum
-  'negintro': 'negationIntroduction',
-  'negi': 'negationIntroduction',
-  '~i': 'negationIntroduction',
-  'ni': 'negationIntroduction',
+  // Legacy ~I aliases now map to IP (IP handles both directions)
+  'negintro': 'indirectProof',
+  'negi': 'indirectProof',
+  '~i': 'indirectProof',
+  'ni': 'indirectProof',
 };
 Object.assign(abbrevToTechnique, techniqueAliases);
 
@@ -319,8 +320,7 @@ export const ProofWorkspace: React.FC = () => {
       }
 
       return false;
-    } catch (err) {
-      console.error('Error getting transformations:', err);
+    } catch {
       return false;
     }
   }, [proof, applyEquivalenceRule, clearLineSelection]);
@@ -461,7 +461,7 @@ export const ProofWorkspace: React.FC = () => {
               setFormulaInput('');
             }
           } else {
-            if (technique === 'indirectProof' || technique === 'negationIntroduction') {
+            if (technique === 'indirectProof') {
               setError('Cannot close: derive a contradiction (⊥) first');
             } else {
               setError('Cannot auto-close subproof - provide the conclusion formula');
@@ -594,7 +594,7 @@ export const ProofWorkspace: React.FC = () => {
 
     // Fall back to selected technique
     if (!selectedTechnique) {
-      setError('Select a proof technique (CP, IP, ~I) first');
+      setError('Select a proof technique (CP or IP) first');
       return;
     }
     const success = await openSubproof(selectedTechnique, formulaInput);
@@ -626,7 +626,7 @@ export const ProofWorkspace: React.FC = () => {
             setMode('apply');
           }
         } else {
-          if (technique === 'indirectProof' || technique === 'negationIntroduction') {
+          if (technique === 'indirectProof') {
             setError('Cannot close: derive a contradiction (⊥) first');
           } else {
             setError('Cannot auto-close subproof - provide the conclusion formula');
@@ -661,7 +661,7 @@ export const ProofWorkspace: React.FC = () => {
               setMode('apply');
             }
           } else {
-            if (technique === 'indirectProof' || technique === 'negationIntroduction') {
+            if (technique === 'indirectProof') {
               setError('Cannot close: derive a contradiction (⊥) first');
             } else {
               setError('Cannot auto-close subproof');
@@ -755,7 +755,7 @@ export const ProofWorkspace: React.FC = () => {
           }
         } else {
           // Can't auto-close (e.g., IP without contradiction)
-          if (technique === 'indirectProof' || technique === 'negationIntroduction') {
+          if (technique === 'indirectProof') {
             setError('Cannot close: derive a contradiction (⊥) first');
           } else {
             setError('Cannot auto-close subproof');

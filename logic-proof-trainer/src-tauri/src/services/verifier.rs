@@ -372,7 +372,10 @@ impl ProofVerifier {
 
         // Check the subproof is accessible (must have just been closed)
         if !proof.scope_manager.is_subproof_accessible(line.line_number, subproof_start, subproof_end) {
-            // This is a simplified check - in practice we might be more lenient
+            return VerificationResult::invalid(format!(
+                "Subproof lines {}-{} are not accessible from line {}",
+                subproof_start, subproof_end, line.line_number
+            ));
         }
 
         // Verify the conclusion follows from the technique

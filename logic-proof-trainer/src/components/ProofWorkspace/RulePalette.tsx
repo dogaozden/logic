@@ -40,7 +40,7 @@ const EQUIVALENCE_RULES: EquivalenceRule[] = [
 ];
 
 // Proof techniques - CP and IP from rules.md
-const TECHNIQUES: ProofTechnique[] = ['conditionalProof', 'indirectProof', 'negationIntroduction'];
+const TECHNIQUES: ProofTechnique[] = ['conditionalProof', 'indirectProof'];
 
 export const RulePalette: React.FC<RulePaletteProps> = ({
   selectedInferenceRule,
@@ -145,8 +145,7 @@ export const RulePalette: React.FC<RulePaletteProps> = ({
             const info = proofTechniqueInfo[technique];
             const symbolMap: Record<ProofTechnique, string> = {
               conditionalProof: 'Assume p... derive q ∴ p ⊃ q',
-              indirectProof: 'Assume ~p... derive q · ~q ∴ p',
-              negationIntroduction: 'Assume p... derive ⊥ ∴ ~p',
+              indirectProof: 'Assume p... derive q · ~q ∴ ~p (or vice versa)',
             };
             const isOpen = openSubproofTechnique === technique;
             const buttonClass = `rule-button ${selectedTechnique === technique ? 'selected' : ''} ${isOpen ? 'subproof-open' : ''}`;

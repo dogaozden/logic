@@ -140,7 +140,19 @@ pub fn close_subproof(
             proof.check_complete();
             Ok(proof)
         }
-        None => Err("No open subproof to close".to_string()),
+        None => {
+            let all_scopes = proof.scope_manager.all_scopes();
+            let scope_count = all_scopes.len();
+            let open_scopes = all_scopes.iter().filter(|s| s.is_open()).count();
+            let scope_details: Vec<String> = all_scopes.iter().map(|s| {
+                format!("{{id:{}, start:{}, end:{:?}, open:{}}}",
+                    s.id, s.start_line, s.end_line, s.is_open())
+            }).collect();
+            Err(format!(
+                "No open subproof to close. Scopes({}/{}): [{}]",
+                open_scopes, scope_count, scope_details.join(", ")
+            ))
+        }
     }
 }
 

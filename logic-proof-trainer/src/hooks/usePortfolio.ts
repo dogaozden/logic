@@ -69,44 +69,58 @@ export const usePortfolio = create<PortfolioState>((set) => ({
   },
 
   updateNotes: async (id: string, notes: string) => {
+    // Store previous state for rollback
+    const previousEntries = usePortfolio.getState().entries;
+    const previousSelectedEntry = usePortfolio.getState().selectedEntry;
+
+    // Optimistic update
+    set((state) => ({
+      entries: state.entries.map((e) =>
+        e.id === id ? { ...e, notes } : e
+      ),
+      selectedEntry:
+        state.selectedEntry?.id === id
+          ? { ...state.selectedEntry, notes }
+          : state.selectedEntry,
+    }));
+
     try {
       await invoke('update_portfolio_notes', { id, notes });
-      set((state) => ({
-        entries: state.entries.map((e) =>
-          e.id === id ? { ...e, notes } : e
-        ),
-        selectedEntry:
-          state.selectedEntry?.id === id
-            ? { ...state.selectedEntry, notes }
-            : state.selectedEntry,
-      }));
     } catch (e) {
-      set({ error: String(e) });
+      // Rollback on failure
+      set({ entries: previousEntries, selectedEntry: previousSelectedEntry, error: String(e) });
     }
   },
 
   renameEntry: async (id: string, name: string) => {
+    // Store previous state for rollback
+    const previousEntries = usePortfolio.getState().entries;
+    const previousSelectedEntry = usePortfolio.getState().selectedEntry;
+
+    // Optimistic update
+    set((state) => ({
+      entries: state.entries.map((e) =>
+        e.id === id
+          ? { ...e, proof: { ...e.proof, theorem: { ...e.proof.theorem, name } } }
+          : e
+      ),
+      selectedEntry:
+        state.selectedEntry?.id === id
+          ? {
+              ...state.selectedEntry,
+              proof: {
+                ...state.selectedEntry.proof,
+                theorem: { ...state.selectedEntry.proof.theorem, name },
+              },
+            }
+          : state.selectedEntry,
+    }));
+
     try {
       await invoke('rename_portfolio_entry', { id, name });
-      set((state) => ({
-        entries: state.entries.map((e) =>
-          e.id === id
-            ? { ...e, proof: { ...e.proof, theorem: { ...e.proof.theorem, name } } }
-            : e
-        ),
-        selectedEntry:
-          state.selectedEntry?.id === id
-            ? {
-                ...state.selectedEntry,
-                proof: {
-                  ...state.selectedEntry.proof,
-                  theorem: { ...state.selectedEntry.proof.theorem, name },
-                },
-              }
-            : state.selectedEntry,
-      }));
     } catch (e) {
-      set({ error: String(e) });
+      // Rollback on failure
+      set({ entries: previousEntries, selectedEntry: previousSelectedEntry, error: String(e) });
     }
   },
 
