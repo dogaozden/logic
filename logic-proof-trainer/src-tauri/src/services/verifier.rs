@@ -491,4 +491,77 @@ mod tests {
         let result = ProofVerifier::verify_line(&proof.lines[1], &proof);
         assert!(result.is_valid);
     }
+
+    #[test]
+    fn test_verify_ip_close_with_contradiction_symbol() {
+        // Simulates user's scenario:
+        // 1. P ⊃ Q           Premise
+        // 2. P               Premise
+        //    3. ~(R ∨ S) · (R ∨ S)  Assumption (IP)
+        //       4. Q               MP 1, 2
+        //       5. R ∨ S           Simp 3
+        //       6. ~(R ∨ S)        Simp 3
+        //       7. ⊥               NegE 5, 6
+        // 8. ~[~(R ∨ S) · (R ∨ S)] IP 3-7
+        use crate::models::rules::technique::ProofTechnique;
+
+        let theorem = make_mp_theorem();
+        let mut proof = Proof::new(theorem);
+
+        // Open IP subproof with assumption ~(R | S) & (R | S)
+        let assumption = Formula::parse("~(R | S) & (R | S)").unwrap();
+        proof.open_subproof(assumption.clone(), ProofTechnique::IndirectProof);
+
+        // Line 4: Q via MP 1, 2
+        proof.add_line(
+            Formula::parse("Q").unwrap(),
+            Justification::Inference {
+                rule: InferenceRule::ModusPonens,
+                lines: vec![1, 2],
+            },
+        );
+
+        // Line 5: R | S via Simp 3
+        proof.add_line(
+            Formula::parse("R | S").unwrap(),
+            Justification::Inference {
+                rule: InferenceRule::Simplification,
+                lines: vec![3],
+            },
+        );
+
+        // Line 6: ~(R | S) via Simp 3
+        proof.add_line(
+            Formula::parse("~(R | S)").unwrap(),
+            Justification::Inference {
+                rule: InferenceRule::Simplification,
+                lines: vec![3],
+            },
+        );
+
+        // Line 7: ⊥ via NegE 5, 6
+        proof.add_line(
+            Formula::Contradiction,
+            Justification::Inference {
+                rule: InferenceRule::Contradiction,
+                lines: vec![5, 6],
+            },
+        );
+
+        // Close subproof with conclusion ~[~(R | S) & (R | S)]
+        let conclusion = Formula::parse("~[~(R | S) & (R | S)]").unwrap();
+        proof.close_subproof(conclusion.clone(), ProofTechnique::IndirectProof);
+
+        // Verify the conclusion line (last line)
+        let last_idx = proof.lines.len() - 1;
+        let result = ProofVerifier::verify_line(&proof.lines[last_idx], &proof);
+        
+        if !result.is_valid {
+            eprintln!("Verification failed: {:?}", result.message);
+            eprintln!("Last line: {:?}", proof.lines[last_idx]);
+            eprintln!("Scope manager: {:?}", proof.scope_manager);
+        }
+        
+        assert!(result.is_valid, "IP close verification should succeed. Error: {:?}", result.message);
+    }
 }

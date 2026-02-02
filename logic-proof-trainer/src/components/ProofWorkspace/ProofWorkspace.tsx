@@ -103,114 +103,240 @@ const techniqueAliases: Record<string, ProofTechnique> = {
 };
 Object.assign(abbrevToTechnique, techniqueAliases);
 
-// Unified parser for subproof close formats
-// Returns { formula: string | null, technique: ProofTechnique } or null
-function parseSubproofClose(input: string): { formula: string | null; technique: ProofTechnique } | null {
-  const trimmed = input.trim();
+// =============================================================================
+// UNIFIED INPUT PARSER
+// =============================================================================
+// Handles all input formats for proof commands in a clean, prioritized way.
+//
+// SUPPORTED FORMATS:
+//
+// 1. SUBPROOF CLOSE (with line range):
+//    - "P > Q 2-5 CP"       → Close CP subproof with formula "P > Q", lines 2-5
+//    - "P v Q 2-5 IP"       → Close IP subproof with formula "P v Q", lines 2-5
+//    - "2-5 CP"             → Auto-close CP subproof, lines 2-5
+//    - "CP" or "IP"         → Auto-close with auto-detected lines
+//
+// 2. SUBPROOF OPEN (assumption + technique, no line numbers):
+//    - "P CP"               → Open CP subproof assuming P
+//    - "~Q IP"              → Open IP subproof assuming ~Q
+//
+// 3. INFERENCE/EQUIVALENCE RULES (comma-separated or space-separated lines):
+//    - "Q 1,2 MP"           → Apply MP to lines 1,2, derive Q
+//    - "Q 1 2 MP"           → Apply MP to lines 1,2, derive Q
+//    - "~~P 3 DN"           → Apply DN to line 3, derive ~~P
+//    - "MP 1,2"             → Apply MP to lines 1,2 (auto-derive formula)
+//
+// 4. LEGACY FORMAT (with //):
+//    - "Q //1, 2, MP"       → Apply MP to lines 1,2, derive Q
+//    - "P > Q //2-5, CP"    → Close CP subproof
+// =============================================================================
 
-  // Pattern 1: Just "CP" or "IP" (technique only - auto-close)
-  const techOnlyMatch = trimmed.match(/^(cp|ip|~i|ni)$/i);
-  if (techOnlyMatch) {
-    const tech = abbrevToTechnique[techOnlyMatch[1].toLowerCase()];
-    if (tech) return { formula: null, technique: tech };
-  }
+// Regex for matching technique abbreviations (CP, IP, ~I, NI)
+const TECHNIQUE_PATTERN = /^(cp|ip|~i|ni)$/i;
 
-  // Pattern 2: "N-M TECH" or "N-M, TECH" or "//N-M, TECH" (range + technique, no formula)
-  const rangeOnlyPattern = /^(?:\/\/\s*)?(\d+)\s*[-–]\s*(\d+)\s*,?\s*(cp|ip|~i|ni)$/i;
-  const rangeOnlyMatch = trimmed.match(rangeOnlyPattern);
-  if (rangeOnlyMatch) {
-    const tech = abbrevToTechnique[rangeOnlyMatch[3].toLowerCase()];
-    if (tech) return { formula: null, technique: tech };
-  }
+// Regex for matching line ranges like "2-5" or "2–5" (en-dash)
+const LINE_RANGE_PATTERN = /(\d+)\s*[-–]\s*(\d+)/;
 
-  // Pattern 3: "FORMULA N-M TECH" or "FORMULA //N-M TECH" etc. (formula + range + technique)
-  // Use a greedy approach: find the technique at the end, then work backwards
-  const withFormulaPattern = /^(.+?)\s+(?:\/\/\s*)?(\d+)\s*[-–]\s*(\d+)\s*,?\s*(cp|ip|~i|ni)$/i;
-  const withFormulaMatch = trimmed.match(withFormulaPattern);
-  if (withFormulaMatch) {
-    const formula = withFormulaMatch[1].trim();
-    const tech = abbrevToTechnique[withFormulaMatch[4].toLowerCase()];
-    if (tech && formula) return { formula, technique: tech };
-  }
-
-  // Pattern 4: "FORMULA //TECH" or "FORMULA TECH" but NOT if formula contains a range
-  // This catches "P > Q CP" style
-  const simplePattern = /^(.+?)\s+(?:\/\/\s*)?(cp|ip|~i|ni)$/i;
-  const simpleMatch = trimmed.match(simplePattern);
-  if (simpleMatch) {
-    const formula = simpleMatch[1].trim();
-    const tech = abbrevToTechnique[simpleMatch[2].toLowerCase()];
-    // Only use this if formula doesn't look like it contains line numbers
-    if (tech && formula && !/\d+\s*[-–]\s*\d+/.test(formula)) {
-      return { formula, technique: tech };
-    }
-  }
-
+// Check if a string is a known rule abbreviation
+function isKnownRule(abbrev: string): 'inference' | 'equivalence' | 'technique' | null {
+  const lower = abbrev.toLowerCase();
+  if (abbrevToTechnique[lower]) return 'technique';
+  if (abbrevToInference[lower]) return 'inference';
+  if (abbrevToEquivalence[lower]) return 'equivalence';
   return null;
 }
 
-// Helper to parse the "lines, rule" part
-function parseRest(rest: string): { lines: number[]; rule: string } | null {
-  const parts = rest.split(',').map(p => p.trim());
-  if (parts.length < 2) return null;
-
-  const rule = parts[parts.length - 1];
-  const lineStrs = parts.slice(0, -1);
-  const lines = lineStrs.map(s => parseInt(s, 10)).filter(n => !isNaN(n));
-
-  if (lines.length === 0) return null;
-  return { lines, rule };
+// Parse result types
+interface SubproofCloseResult {
+  type: 'subproofClose';
+  formula: string | null;
+  technique: ProofTechnique;
+  lineRange?: { start: number; end: number };
 }
 
-// Parse input like "P //1, 2, MP" or "~Q //3, MT" or "Q 1,2 MP" or "Q 1, 2 MP"
-function parseInput(input: string): {
+interface SubproofOpenResult {
+  type: 'subproofOpen';
+  formula: string;
+  technique: ProofTechnique;
+}
+
+interface RuleApplicationResult {
+  type: 'ruleApplication';
   formula: string;
   lines: number[];
   rule: string;
-} | null {
-  // Try existing format first: "Q //1, 2, MP"
-  const existingMatch = input.match(/^(.+?)\s*\/\/\s*(.+)$/);
-  if (existingMatch) {
-    const formula = existingMatch[1].trim();
-    const parsed = parseRest(existingMatch[2].trim());
-    if (parsed) {
-      return { formula, ...parsed };
+  ruleType: 'inference' | 'equivalence';
+}
+
+type ParseResult = SubproofCloseResult | SubproofOpenResult | RuleApplicationResult | null;
+
+/**
+ * Unified parser for all proof input commands.
+ * Returns a typed result indicating what kind of command was parsed.
+ */
+function parseCommand(input: string): ParseResult {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  // Extract the last word (potential rule/technique)
+  const lastWordMatch = trimmed.match(/\s+([A-Za-z~]+)$/i);
+  const lastWord = lastWordMatch ? lastWordMatch[1] : trimmed;
+  const lastWordLower = lastWord.toLowerCase();
+
+  // Check if it's a known rule/technique
+  const ruleType = isKnownRule(lastWord);
+
+  // CASE 1: Just a technique name alone (e.g., "CP", "IP")
+  if (TECHNIQUE_PATTERN.test(trimmed)) {
+    const tech = abbrevToTechnique[trimmed.toLowerCase()];
+    if (tech) {
+      return { type: 'subproofClose', formula: null, technique: tech };
     }
   }
 
-  // Try new format: "Q 1,2 MP" or "Q 1, 2 MP" or "Q 1,2, MP" or "Q 3 4 MP"
-  // Pattern: formula + space + digits/commas/spaces (greedy, ending with digit) + space + rule
-  const newMatch = input.match(/^(.+?)\s+(\d(?:[\d\s,]*\d)?)\s+([A-Za-z~]+)$/);
-  if (newMatch) {
-    const formula = newMatch[1].trim();
-    const linesPart = newMatch[2];
-    const rule = newMatch[3];
+  // CASE 2: Check for line range pattern (indicates subproof close)
+  const rangeMatch = trimmed.match(LINE_RANGE_PATTERN);
+  if (rangeMatch && ruleType === 'technique') {
+    const technique = abbrevToTechnique[lastWordLower]!;
+    const lineStart = parseInt(rangeMatch[1], 10);
+    const lineEnd = parseInt(rangeMatch[2], 10);
 
-    // Parse line numbers: handle "1, 2" or "1,2" or "1 2"
-    const lines = linesPart
-      .split(/[\s,]+/)
-      .map(s => parseInt(s, 10))
-      .filter(n => !isNaN(n));
+    // Validate parsed line numbers (including lineStart > lineEnd check)
+    if (isNaN(lineStart) || isNaN(lineEnd) || lineStart < 1 || lineEnd < 1 || lineStart > lineEnd) {
+      return null;  // Invalid line range
+    }
 
-    if (lines.length > 0) {
-      return { formula, lines, rule };
+    // Check if there's a formula before the range
+    const beforeRange = trimmed.substring(0, rangeMatch.index).trim();
+    // Remove any trailing // or whitespace
+    const formula = beforeRange.replace(/\s*\/\/\s*$/, '').trim() || null;
+
+    return {
+      type: 'subproofClose',
+      formula,
+      technique,
+      lineRange: { start: lineStart, end: lineEnd },
+    };
+  }
+
+  // CASE 3: Ends with technique, no line range or line numbers → subproof open
+  // e.g., "P CP", "~Q IP", "A > B CP"
+  if (ruleType === 'technique' && lastWordMatch) {
+    const beforeTechnique = trimmed.substring(0, lastWordMatch.index).trim();
+    // Remove optional // prefix
+    const formula = beforeTechnique.replace(/\s*\/\/\s*$/, '').trim();
+
+    // Make sure there are no digits that look like line numbers
+    // Allow digits that are part of atom names (e.g., "P1") but not standalone line refs
+    const hasStandaloneDigits = /(?:^|\s)\d+(?:\s|$)/.test(formula);
+
+    if (formula && !hasStandaloneDigits) {
+      return {
+        type: 'subproofOpen',
+        formula,
+        technique: abbrevToTechnique[lastWordLower]!,
+      };
     }
   }
 
-  // Format C: "MP 3,4" or "MP 3 4" (rule first, then lines, optional formula)
-  const ruleFirstMatch = input.match(/^([A-Za-z~]+)\s+(\d(?:[\d\s,]*\d)?)\s*(?:,\s*)?(.*)$/);
-  if (ruleFirstMatch) {
-    const rule = ruleFirstMatch[1].trim();
-    const linesPart = ruleFirstMatch[2];
-    const formula = ruleFirstMatch[3]?.trim() || '';
+  // CASE 4: Parse as inference/equivalence rule application
+  // Try to extract: FORMULA LINES RULE or RULE LINES FORMULA
 
-    const lines = linesPart
-      .split(/[\s,]+/)
-      .map(s => parseInt(s, 10))
-      .filter(n => !isNaN(n));
+  // Format A: "FORMULA LINES RULE" (e.g., "Q 1,2 MP" or "Q 1 2 MP")
+  // The lines can be comma-separated or space-separated
+  const formatAMatch = trimmed.match(/^(.+?)\s+(\d[\d\s,]*\d|\d)\s+([A-Za-z~]+)$/);
+  if (formatAMatch) {
+    const formula = formatAMatch[1].trim();
+    const linesPart = formatAMatch[2];
+    const rule = formatAMatch[3];
+    const rType = isKnownRule(rule);
 
-    if (lines.length > 0) {
-      return { formula, lines, rule };
+    if (rType === 'inference' || rType === 'equivalence') {
+      const lines = linesPart
+        .split(/[\s,]+/)
+        .map(s => parseInt(s, 10))
+        .filter(n => !isNaN(n));
+
+      if (lines.length > 0) {
+        return {
+          type: 'ruleApplication',
+          formula,
+          lines,
+          rule,
+          ruleType: rType,
+        };
+      }
+    }
+  }
+
+  // Format B: "RULE LINES [FORMULA]" (e.g., "MP 1,2" or "MP 1,2 Q")
+  const formatBMatch = trimmed.match(/^([A-Za-z~]+)\s+(\d[\d\s,]*\d|\d)(?:\s*,?\s*(.*))?$/);
+  if (formatBMatch) {
+    const rule = formatBMatch[1];
+    const linesPart = formatBMatch[2];
+    const formula = formatBMatch[3]?.trim() || '';
+    const rType = isKnownRule(rule);
+
+    if (rType === 'inference' || rType === 'equivalence') {
+      const lines = linesPart
+        .split(/[\s,]+/)
+        .map(s => parseInt(s, 10))
+        .filter(n => !isNaN(n));
+
+      if (lines.length > 0) {
+        return {
+          type: 'ruleApplication',
+          formula,
+          lines,
+          rule,
+          ruleType: rType,
+        };
+      }
+    }
+  }
+
+  // Format C: Legacy "FORMULA //LINES, RULE" (e.g., "Q //1, 2, MP")
+  const legacyMatch = trimmed.match(/^(.+?)\s*\/\/\s*(.+)$/);
+  if (legacyMatch) {
+    const formula = legacyMatch[1].trim();
+    const rest = legacyMatch[2].trim();
+
+    // Parse the rest as "lines, rule" or "range, technique"
+    const parts = rest.split(',').map(p => p.trim());
+    if (parts.length >= 2) {
+      const rule = parts[parts.length - 1];
+      const lineStrs = parts.slice(0, -1);
+      const rType = isKnownRule(rule);
+
+      // Check for range format in lines
+      const rangeInLegacy = lineStrs.join(',').match(LINE_RANGE_PATTERN);
+      if (rangeInLegacy && rType === 'technique') {
+        return {
+          type: 'subproofClose',
+          formula,
+          technique: abbrevToTechnique[rule.toLowerCase()]!,
+          lineRange: {
+            start: parseInt(rangeInLegacy[1], 10),
+            end: parseInt(rangeInLegacy[2], 10),
+          },
+        };
+      }
+
+      if (rType === 'inference' || rType === 'equivalence') {
+        const lines = lineStrs
+          .map(s => parseInt(s, 10))
+          .filter(n => !isNaN(n));
+
+        if (lines.length > 0) {
+          return {
+            type: 'ruleApplication',
+            formula,
+            lines,
+            rule,
+            ruleType: rType,
+          };
+        }
+      }
     }
   }
 
@@ -301,7 +427,7 @@ export const ProofWorkspace: React.FC = () => {
       // Filter to only transformations matching the selected rule
       const matchingTransformations = allTransformations.filter(
         t => t.rule.toLowerCase() === rule.toLowerCase() ||
-             t.rule_abbrev.toLowerCase() === equivalenceRuleInfo[rule].abbrev.toLowerCase()
+          t.rule_abbrev.toLowerCase() === equivalenceRuleInfo[rule].abbrev.toLowerCase()
       );
 
       // Auto-apply only if there's exactly one matching transformation
@@ -441,106 +567,68 @@ export const ProofWorkspace: React.FC = () => {
   const handleApply = async () => {
     if (!formulaInput.trim()) return;
 
-    // FIRST: Check if this is a subproof close command
-    const subproofClose = parseSubproofClose(formulaInput);
-    if (subproofClose) {
-      const { formula, technique } = subproofClose;
-      if (formula) {
-        // User provided a formula - use it directly
-        const success = await closeSubproof(technique, formula);
-        if (success) {
-          setFormulaInput('');
-        }
-      } else {
-        // No formula - try auto-close
-        try {
-          const autoClose = await invoke<AutoCloseInfo | null>('get_subproof_auto_close', { proof });
-          if (autoClose) {
-            const success = await closeSubproof(technique, autoClose.conclusion);
-            if (success) {
-              setFormulaInput('');
-            }
-          } else {
-            if (technique === 'indirectProof') {
-              setError('Cannot close: derive a contradiction (⊥) first');
-            } else {
-              setError('Cannot auto-close subproof - provide the conclusion formula');
-            }
-          }
-        } catch (err) {
-          setError(`Error closing subproof: ${err}`);
-        }
-      }
-      return;
-    }
+    // Use the unified parser
+    const parsed = parseCommand(formulaInput);
 
-    // Check for simple "Formula //technique" or "Formula technique" format for opening subproofs (e.g., "P //CP" or "P CP")
-    const techMatch = formulaInput.match(/^(.+?)\s+(?:\/\/\s*)?(\w+)$/);
-    if (techMatch) {
-      const formula = techMatch[1].trim();
-      const techAbbrev = techMatch[2].toLowerCase();
-      // Only treat as subproof opening if it's a technique AND doesn't look like "Formula //lines, rule"
-      if (abbrevToTechnique[techAbbrev] && !formulaInput.includes(',') && !formulaInput.includes('-')) {
-        const success = await openSubproof(abbrevToTechnique[techAbbrev], formula);
-        if (success) {
-          setFormulaInput('');
-        }
-        return;
-      }
-    }
-
-    // Try to parse the text format first: "P //1, 2, MP"
-    const parsed = parseInput(formulaInput);
     if (parsed) {
-      const ruleLower = parsed.rule.toLowerCase();
-
-      // Check if it's an inference rule
-      if (abbrevToInference[ruleLower]) {
-        const rule = abbrevToInference[ruleLower];
-        const success = await applyInferenceRule(rule, parsed.lines, parsed.formula);
-        if (success) {
-          setFormulaInput('');
-        }
-        return;
-      }
-
-      // Check if it's an equivalence rule
-      if (abbrevToEquivalence[ruleLower]) {
-        const rule = abbrevToEquivalence[ruleLower];
-        if (parsed.lines.length === 1) {
-          const success = await applyEquivalenceRule(rule, parsed.lines[0], parsed.formula);
-          if (success) {
-            setFormulaInput('');
+      switch (parsed.type) {
+        case 'subproofClose': {
+          const { formula, technique } = parsed;
+          if (formula) {
+            // User provided a formula - use it directly
+            const success = await closeSubproof(technique, formula);
+            if (success) setFormulaInput('');
+          } else {
+            // No formula - try auto-close
+            try {
+              const autoClose = await invoke<AutoCloseInfo | null>('get_subproof_auto_close', { proof });
+              if (autoClose) {
+                const success = await closeSubproof(technique, autoClose.conclusion);
+                if (success) setFormulaInput('');
+              } else {
+                if (technique === 'indirectProof') {
+                  setError('Cannot close: derive a contradiction (⊥) first');
+                } else {
+                  setError('Cannot auto-close subproof - provide the conclusion formula');
+                }
+              }
+            } catch (err) {
+              setError(`Error closing subproof: ${err}`);
+            }
           }
           return;
-        } else {
-          setError('Equivalence rules require exactly 1 line');
+        }
+
+        case 'subproofOpen': {
+          const success = await openSubproof(parsed.technique, parsed.formula);
+          if (success) setFormulaInput('');
+          return;
+        }
+
+        case 'ruleApplication': {
+          const { formula, lines, rule, ruleType } = parsed;
+          const ruleLower = rule.toLowerCase();
+
+          if (ruleType === 'inference') {
+            const inferenceRule = abbrevToInference[ruleLower];
+            const success = await applyInferenceRule(inferenceRule, lines, formula);
+            if (success) setFormulaInput('');
+          } else {
+            // Equivalence rule
+            if (lines.length !== 1) {
+              setError('Equivalence rules require exactly 1 line');
+              return;
+            }
+            const equivalenceRule = abbrevToEquivalence[ruleLower];
+            const success = await applyEquivalenceRule(equivalenceRule, lines[0], formula);
+            if (success) setFormulaInput('');
+          }
           return;
         }
       }
-
-      // Check if it's a technique (for closing subproofs)
-      if (abbrevToTechnique[ruleLower]) {
-        const technique = abbrevToTechnique[ruleLower];
-        const success = await closeSubproof(technique, parsed.formula);
-        if (success) {
-          setFormulaInput('');
-        }
-        return;
-      }
-
-      // Parsed but unknown rule
-      setError(`Unknown rule: "${parsed.rule}"`);
-      return;
     }
 
-    // Check if input looks like it should have been parsed (has //)
-    if (formulaInput.includes('//')) {
-      setError('Invalid format. Use: Q 1,2 MP  or  Q //1, 2, MP');
-      return;
-    }
-
-    // Fall back to the old behavior using selected rule and lines
+    // Fall back to the old behavior using selected rule and lines from UI
     if (selectedInferenceRule) {
       const info = inferenceRuleInfo[selectedInferenceRule];
       if (selectedLines.length !== info.premises) {
@@ -563,7 +651,7 @@ export const ProofWorkspace: React.FC = () => {
     } else if (selectedEquivalenceRule) {
       setError('Equivalence rules require exactly 1 line selected');
     } else {
-      setError('Select a rule from the palette or use format: Formula //lines, RULE');
+      setError('Use format: Q 1,2 MP  or  P > Q 2-5 CP  or select a rule from the palette');
     }
   };
 
@@ -573,28 +661,56 @@ export const ProofWorkspace: React.FC = () => {
       return;
     }
 
-    // Check for format: "P //CP" or "~Q //IP" or "P CP" or "~Q IP"
-    const match = formulaInput.match(/^(.+?)\s+(?:\/\/\s*)?(\w+)$/);
-    if (match) {
-      const formula = match[1].trim();
-      const techAbbrev = match[2].toLowerCase();
-      if (abbrevToTechnique[techAbbrev]) {
-        const success = await openSubproof(abbrevToTechnique[techAbbrev], formula);
+    // Try the unified parser first
+    const parsed = parseCommand(formulaInput);
+    if (parsed?.type === 'subproofOpen') {
+      const success = await openSubproof(parsed.technique, parsed.formula);
+      if (success) {
+        setFormulaInput('');
+        setSelectedTechnique(null);
+        setMode('apply');
+      }
+      return;
+    }
+
+    // If user typed a close command while in open mode, route to close logic
+    if (parsed?.type === 'subproofClose') {
+      const { formula, technique } = parsed;
+      if (formula) {
+        const success = await closeSubproof(technique, formula);
         if (success) {
           setFormulaInput('');
           setSelectedTechnique(null);
           setMode('apply');
         }
-        return;
       } else {
-        setError(`Unknown technique: "${match[2]}"`);
-        return;
+        // Auto-close
+        try {
+          const autoClose = await invoke<AutoCloseInfo | null>('get_subproof_auto_close', { proof });
+          if (autoClose) {
+            const success = await closeSubproof(technique, autoClose.conclusion);
+            if (success) {
+              setFormulaInput('');
+              setSelectedTechnique(null);
+              setMode('apply');
+            }
+          } else {
+            if (technique === 'indirectProof') {
+              setError('Cannot close: derive a contradiction (⊥) first');
+            } else {
+              setError('Cannot auto-close subproof - provide the conclusion formula');
+            }
+          }
+        } catch (err) {
+          setError(`Error closing subproof: ${err}`);
+        }
       }
+      return;
     }
 
-    // Fall back to selected technique
+    // Fall back to selected technique (user just typed a formula without technique)
     if (!selectedTechnique) {
-      setError('Select a proof technique (CP or IP) first');
+      setError('Select a proof technique (CP or IP) first, or use format: P CP');
       return;
     }
     const success = await openSubproof(selectedTechnique, formulaInput);
@@ -638,10 +754,10 @@ export const ProofWorkspace: React.FC = () => {
       return;
     }
 
-    // Try parsing as subproof close
-    const subproofClose = parseSubproofClose(formulaInput);
-    if (subproofClose) {
-      const { formula, technique } = subproofClose;
+    // Try parsing as subproof close using unified parser
+    const parsed = parseCommand(formulaInput);
+    if (parsed?.type === 'subproofClose') {
+      const { formula, technique } = parsed;
       if (formula) {
         const success = await closeSubproof(technique, formula);
         if (success) {
@@ -776,9 +892,10 @@ export const ProofWorkspace: React.FC = () => {
   const currentDepth = proof.scope_manager.scopes.filter(s => s.end_line === undefined).length;
   const hasOpenSubproof = currentDepth > 0;
 
-  // Get the current scope's technique if there's an open subproof
+  // Get the current (innermost) scope's technique if there's an open subproof
+  const openScopes = proof.scope_manager.scopes.filter(s => s.end_line === undefined);
   const currentScopeTechnique = hasOpenSubproof
-    ? proof.scope_manager.scopes.find(s => s.end_line === undefined)?.technique
+    ? openScopes[openScopes.length - 1]?.technique
     : null;
 
   const handleStartRename = () => {

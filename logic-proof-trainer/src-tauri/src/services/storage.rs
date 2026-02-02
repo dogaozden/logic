@@ -70,6 +70,22 @@ impl From<serde_json::Error> for StorageError {
 }
 
 impl StorageService {
+    /// Validate an ID to prevent path traversal attacks.
+    /// Only allows alphanumeric characters and hyphens (UUID-like format).
+    fn validate_id(id: &str) -> Result<(), StorageError> {
+        if id.is_empty() {
+            return Err(StorageError("ID cannot be empty".to_string()));
+        }
+        if id.contains("..") || id.contains('/') || id.contains('\\') {
+            return Err(StorageError("Invalid ID format: contains path traversal characters".to_string()));
+        }
+        // Only allow alphanumeric and hyphens (standard UUID format)
+        if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+            return Err(StorageError("Invalid ID format: must be alphanumeric with hyphens only".to_string()));
+        }
+        Ok(())
+    }
+
     pub fn new() -> Result<Self, StorageError> {
         let data_dir = dirs::data_dir()
             .ok_or_else(|| StorageError("Could not find data directory".to_string()))?
@@ -103,6 +119,7 @@ impl StorageService {
     // Proof operations
 
     pub fn save_proof(&self, proof: &Proof) -> Result<(), StorageError> {
+        Self::validate_id(&proof.id)?;
         let path = self.proofs_dir().join(format!("{}.json", proof.id));
         let json = serde_json::to_string_pretty(proof)?;
         fs::write(path, json)?;
@@ -110,6 +127,7 @@ impl StorageService {
     }
 
     pub fn load_proof(&self, id: &str) -> Result<Proof, StorageError> {
+        Self::validate_id(id)?;
         let path = self.proofs_dir().join(format!("{}.json", id));
         let json = fs::read_to_string(path)?;
         let proof: Proof = serde_json::from_str(&json)?;
@@ -136,9 +154,16 @@ impl StorageService {
     }
 
     pub fn delete_proof(&self, id: &str) -> Result<(), StorageError> {
+        Self::validate_id(id)?;
         let path = self.proofs_dir().join(format!("{}.json", id));
         if path.exists() {
-            fs::remove_file(path)?;
+            fs::remove_file(&path)?;
+            // Verify deletion succeeded
+            if path.exists() {
+                return Err(StorageError("Failed to delete proof".to_string()));
+            }
+        } else {
+            return Err(StorageError("Proof not found".to_string()));
         }
         Ok(())
     }
@@ -146,6 +171,7 @@ impl StorageService {
     // Custom theorem operations
 
     pub fn save_custom_theorem(&self, theorem: &Theorem) -> Result<(), StorageError> {
+        Self::validate_id(&theorem.id)?;
         let path = self.theorems_dir().join(format!("{}.json", theorem.id));
         let json = serde_json::to_string_pretty(theorem)?;
         fs::write(path, json)?;
@@ -153,6 +179,7 @@ impl StorageService {
     }
 
     pub fn load_custom_theorem(&self, id: &str) -> Result<Theorem, StorageError> {
+        Self::validate_id(id)?;
         let path = self.theorems_dir().join(format!("{}.json", id));
         let json = fs::read_to_string(path)?;
         let theorem: Theorem = serde_json::from_str(&json)?;
@@ -179,9 +206,16 @@ impl StorageService {
     }
 
     pub fn delete_custom_theorem(&self, id: &str) -> Result<(), StorageError> {
+        Self::validate_id(id)?;
         let path = self.theorems_dir().join(format!("{}.json", id));
         if path.exists() {
-            fs::remove_file(path)?;
+            fs::remove_file(&path)?;
+            // Verify deletion succeeded
+            if path.exists() {
+                return Err(StorageError("Failed to delete theorem".to_string()));
+            }
+        } else {
+            return Err(StorageError("Theorem not found".to_string()));
         }
         Ok(())
     }
@@ -208,6 +242,7 @@ impl StorageService {
     // Portfolio operations
 
     pub fn save_to_portfolio(&self, entry: &PortfolioEntry) -> Result<(), StorageError> {
+        Self::validate_id(&entry.id)?;
         let path = self.portfolio_dir().join(format!("{}.json", entry.id));
         let json = serde_json::to_string_pretty(entry)?;
         fs::write(path, json)?;
@@ -215,6 +250,7 @@ impl StorageService {
     }
 
     pub fn load_portfolio_entry(&self, id: &str) -> Result<PortfolioEntry, StorageError> {
+        Self::validate_id(id)?;
         let path = self.portfolio_dir().join(format!("{}.json", id));
         let json = fs::read_to_string(path)?;
         let entry: PortfolioEntry = serde_json::from_str(&json)?;
@@ -245,14 +281,22 @@ impl StorageService {
     }
 
     pub fn delete_portfolio_entry(&self, id: &str) -> Result<(), StorageError> {
+        Self::validate_id(id)?;
         let path = self.portfolio_dir().join(format!("{}.json", id));
         if path.exists() {
-            fs::remove_file(path)?;
+            fs::remove_file(&path)?;
+            // Verify deletion succeeded
+            if path.exists() {
+                return Err(StorageError("Failed to delete portfolio entry".to_string()));
+            }
+        } else {
+            return Err(StorageError("Portfolio entry not found".to_string()));
         }
         Ok(())
     }
 
     pub fn update_portfolio_notes(&self, id: &str, notes: String) -> Result<(), StorageError> {
+        Self::validate_id(id)?;
         let mut entry = self.load_portfolio_entry(id)?;
         entry.notes = Some(notes);
         self.save_to_portfolio(&entry)?;
@@ -260,6 +304,7 @@ impl StorageService {
     }
 
     pub fn rename_portfolio_entry(&self, id: &str, name: String) -> Result<(), StorageError> {
+        Self::validate_id(id)?;
         let mut entry = self.load_portfolio_entry(id)?;
         entry.proof.theorem.name = Some(name);
         self.save_to_portfolio(&entry)?;

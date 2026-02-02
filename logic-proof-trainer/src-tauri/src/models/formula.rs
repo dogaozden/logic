@@ -321,10 +321,14 @@ impl Formula {
     }
 }
 
+/// Maximum nesting depth allowed for formulas
+const MAX_PARSE_DEPTH: usize = 100;
+
 /// Parser for propositional logic formulas
 pub struct FormulaParser<'a> {
     input: &'a str,
     pos: usize,
+    depth: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -341,7 +345,24 @@ impl std::fmt::Display for ParseError {
 
 impl<'a> FormulaParser<'a> {
     pub fn new(input: &'a str) -> Self {
-        Self { input, pos: 0 }
+        Self { input, pos: 0, depth: 0 }
+    }
+
+    /// Check and increment depth, returning error if too deep
+    fn enter_depth(&mut self) -> Result<(), ParseError> {
+        self.depth += 1;
+        if self.depth > MAX_PARSE_DEPTH {
+            return Err(ParseError {
+                message: format!("Formula too deeply nested (max {} levels)", MAX_PARSE_DEPTH),
+                position: self.pos,
+            });
+        }
+        Ok(())
+    }
+
+    /// Decrement depth when leaving a nested construct
+    fn exit_depth(&mut self) {
+        self.depth = self.depth.saturating_sub(1);
     }
 
     pub fn parse(&mut self) -> Result<Formula, ParseError> {
@@ -361,8 +382,10 @@ impl<'a> FormulaParser<'a> {
         let mut left = self.parse_implication()?;
         self.skip_whitespace();
         while self.matches("<->") || self.matches("≡") || self.matches("<=>") {
+            self.enter_depth()?;
             let right = self.parse_implication()?;
             left = Formula::Biconditional(Box::new(left), Box::new(right));
+            self.exit_depth();
             self.skip_whitespace();
         }
         Ok(left)
@@ -373,8 +396,10 @@ impl<'a> FormulaParser<'a> {
         self.skip_whitespace();
         // Note: ">" must come after "->" to avoid matching "-" then ">"
         while self.matches("->") || self.matches("⊃") || self.matches("=>") || self.matches(">") {
+            self.enter_depth()?;
             let right = self.parse_implication()?; // Right associative
             left = Formula::Implies(Box::new(left), Box::new(right));
+            self.exit_depth();
             self.skip_whitespace();
         }
         Ok(left)
@@ -384,8 +409,10 @@ impl<'a> FormulaParser<'a> {
         let mut left = self.parse_conjunction()?;
         self.skip_whitespace();
         while self.matches("|") || self.matches("∨") || self.matches("v") || self.matches("V") {
+            self.enter_depth()?;
             let right = self.parse_conjunction()?;
             left = Formula::Or(Box::new(left), Box::new(right));
+            self.exit_depth();
             self.skip_whitespace();
         }
         Ok(left)
@@ -395,8 +422,10 @@ impl<'a> FormulaParser<'a> {
         let mut left = self.parse_negation()?;
         self.skip_whitespace();
         while self.matches("&") || self.matches("·") || self.matches("^") || self.matches(".") || self.matches("*") {
+            self.enter_depth()?;
             let right = self.parse_negation()?;
             left = Formula::And(Box::new(left), Box::new(right));
+            self.exit_depth();
             self.skip_whitespace();
         }
         Ok(left)
@@ -405,7 +434,9 @@ impl<'a> FormulaParser<'a> {
     fn parse_negation(&mut self) -> Result<Formula, ParseError> {
         self.skip_whitespace();
         if self.matches("~") || self.matches("!") || self.matches("¬") || self.matches("-") {
+            self.enter_depth()?;
             let inner = self.parse_negation()?;
+            self.exit_depth();
             Ok(Formula::Not(Box::new(inner)))
         } else {
             self.parse_atom()
@@ -421,7 +452,9 @@ impl<'a> FormulaParser<'a> {
         }
 
         // Check for parenthesized expression (supports (), [], {})
+        // Each opens a new depth level to prevent stack overflow from deep nesting
         if self.matches("(") {
+            self.enter_depth()?;
             let inner = self.parse_biconditional()?;
             self.skip_whitespace();
             if !self.matches(")") {
@@ -430,9 +463,11 @@ impl<'a> FormulaParser<'a> {
                     position: self.pos,
                 });
             }
+            self.exit_depth();
             return Ok(inner);
         }
         if self.matches("[") {
+            self.enter_depth()?;
             let inner = self.parse_biconditional()?;
             self.skip_whitespace();
             if !self.matches("]") {
@@ -441,9 +476,11 @@ impl<'a> FormulaParser<'a> {
                     position: self.pos,
                 });
             }
+            self.exit_depth();
             return Ok(inner);
         }
         if self.matches("{") {
+            self.enter_depth()?;
             let inner = self.parse_biconditional()?;
             self.skip_whitespace();
             if !self.matches("}") {
@@ -452,14 +489,15 @@ impl<'a> FormulaParser<'a> {
                     position: self.pos,
                 });
             }
+            self.exit_depth();
             return Ok(inner);
         }
 
-        // Parse atom name
+        // Parse atom name (ASCII alphanumeric only for security)
         let start = self.pos;
         while let Some(c) = self.current_char() {
-            if c.is_alphanumeric() || c == '_' || c == '\'' {
-                self.pos += 1;
+            if c.is_ascii_alphanumeric() || c == '_' || c == '\'' {
+                self.pos += c.len_utf8();
             } else {
                 break;
             }
@@ -503,6 +541,13 @@ impl<'a> FormulaParser<'a> {
 impl Formula {
     /// Parse a formula from a string
     pub fn parse(input: &str) -> Result<Formula, ParseError> {
+        // Use char count instead of byte length for proper Unicode handling
+        if input.chars().count() > 10000 {
+            return Err(ParseError {
+                message: "Formula too long (max 10000 chars)".to_string(),
+                position: 0,
+            });
+        }
         let mut parser = FormulaParser::new(input);
         parser.parse()
     }

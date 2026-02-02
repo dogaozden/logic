@@ -25,9 +25,12 @@ pub fn generate_theorem(difficulty: Difficulty) -> Theorem {
 
 /// Generate a theorem with a specific difficulty value (1-100)
 #[tauri::command]
-pub fn generate_theorem_with_value(difficulty_value: u8) -> Theorem {
+pub fn generate_theorem_with_value(difficulty_value: u8) -> Result<Theorem, String> {
+    if difficulty_value < 1 || difficulty_value > 100 {
+        return Err("Difficulty must be between 1 and 100".to_string());
+    }
     let generator = TheoremGenerator::with_difficulty_value(difficulty_value);
-    generator.generate_with_value(difficulty_value)
+    Ok(generator.generate_with_value(difficulty_value))
 }
 
 /// Generate a theorem with its proof tree (solution)
@@ -83,6 +86,9 @@ pub fn apply_rule(
     proof.add_line(formula, justification);
 
     // Verify the new line
+    if proof.lines.is_empty() {
+        return Err("No lines in proof".to_string());
+    }
     let last_idx = proof.lines.len() - 1;
     let line = &proof.lines[last_idx];
     let result = ProofVerifier::verify_line(line, &proof);
@@ -126,6 +132,9 @@ pub fn close_subproof(
     match proof.close_subproof(conclusion, technique) {
         Some(_line) => {
             // Verify the conclusion line
+            if proof.lines.is_empty() {
+                return Err("No lines in proof".to_string());
+            }
             let last_idx = proof.lines.len() - 1;
             let line = &proof.lines[last_idx];
             let result = ProofVerifier::verify_line(line, &proof);

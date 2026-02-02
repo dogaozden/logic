@@ -125,7 +125,7 @@ impl Theorem {
 
     pub fn display_string(&self) -> String {
         if self.premises.is_empty() {
-            format!("∴ {}", self.conclusion.display_string())
+            format!("⊢ {}", self.conclusion.display_string())
         } else {
             let premises_str = self
                 .premises
@@ -133,7 +133,7 @@ impl Theorem {
                 .map(|p| p.display_string())
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("{} ∴ {}", premises_str, self.conclusion.display_string())
+            format!("{} ⊢ {}", premises_str, self.conclusion.display_string())
         }
     }
 }

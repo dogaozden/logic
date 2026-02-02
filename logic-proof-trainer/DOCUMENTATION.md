@@ -197,6 +197,13 @@ pub enum Formula {
 }
 ```
 
+**Parser Safety Limits**:
+- Maximum input length: 10,000 characters (counted by Unicode characters, not bytes)
+- Maximum nesting depth: 100 levels (applies to all constructs: negations, binary operators, and parentheses)
+- Atom names: ASCII alphanumeric characters, underscores, and apostrophes only
+
+These limits prevent stack overflow and excessive resource usage from malformed input.
+
 **Theorem** (`models/theorem.rs`):
 ```rust
 pub struct Theorem {
@@ -328,16 +335,26 @@ Features:
 
 **ProofLine / SortableProofLine**: Individual proof line with scope brackets and drag handles
 
-**ProofWorkspace**: Main proof editor with input parsing:
-- New format: `Q 1,2 MP`
-- Legacy format: `Q //MP 1, 2`
-- Subproof opening: `P CP` or `P IP` (simplified) or `P //CP` (legacy)
-- Subproof closing (unified parser, extremely forgiving):
-  - Technique only (auto-close): `CP`, `IP` (legacy `~I`/`NI` aliases also work)
-  - Range + technique (auto-close): `1-15 CP`, `1-15, CP`, `//1-15 CP`, `//1-15, CP`
-  - Formula + range + technique: `P > Q 1-15 CP`, `P > Q 1-15, CP`, `P //1-15 CP`
-  - Formula + technique: `P > Q CP`, `P > Q //CP`
-  - Accepts both `-` and `–` (en-dash) in line ranges
+**ProofWorkspace**: Main proof editor with unified input parsing:
+
+**Inference/Equivalence Rules:**
+- `Q 1,2 MP` — Apply MP to lines 1,2, derive Q
+- `Q 1 2 MP` — Same, with spaces instead of commas
+- `~~P 3 DN` — Apply DN to line 3, derive ~~P
+- `MP 1,2` — Apply MP to lines 1,2 (auto-derive formula)
+- `Q //1, 2, MP` — Legacy format with //
+
+**Subproof Opening:**
+- `P CP` — Open CP subproof assuming P
+- `~Q IP` — Open IP subproof assuming ~Q
+
+**Subproof Closing:**
+- `P > Q 2-5 CP` — Close CP with formula, line range 2-5
+- `P v Q 2-5 IP` — Close IP with formula containing disjunction
+- `2-5 CP` — Auto-close CP with line range
+- `CP` or `IP` — Auto-close with auto-detected lines and formula
+- Accepts both `-` and `–` (en-dash) in line ranges
+- Legacy aliases: `~I`, `NI` map to IP
 
 **RulePalette**: Three sections - Inference (9), Equivalence (10), Techniques (3). Supports **auto-apply** behavior:
 - **Inference rules**: When lines are selected and you click a rule, the rule auto-applies if the correct number of premises is selected
@@ -369,7 +386,9 @@ Features:
 |---------|-----------|---------|
 | `get_classic_theorems` | - | `Vec<Theorem>` |
 | `generate_theorem` | `difficulty` | `Theorem` |
-| `generate_theorem_with_value` | `difficulty_value: u8` | `Theorem` |
+| `generate_theorem_with_value` | `difficulty_value: u8 (1-100)` | `Result<Theorem>` |
+
+Note: `generate_theorem_with_value` validates that `difficulty_value` is between 1 and 100 inclusive, returning an error otherwise.
 
 ### Proof Commands
 | Command | Parameters | Returns |
@@ -400,8 +419,11 @@ Features:
 | `save_to_portfolio` | `proof, time_spent_secs?, hints_used` | `Result<PortfolioEntry>` | Accepts complete or incomplete proofs |
 | `load_portfolio` | - | `Result<Vec<PortfolioEntry>>` | Sorted by `saved_at` descending |
 | `get_portfolio_entry` | `id` | `Result<PortfolioEntry>` | |
-| `delete_portfolio_entry` | `id` | `Result<()>` | |
+| `delete_portfolio_entry` | `id` | `Result<()>` | Returns error if entry not found |
 | `update_portfolio_notes` | `id, notes` | `Result<()>` | |
+| `rename_portfolio_entry` | `id, name` | `Result<()>` | |
+
+Note: All portfolio commands validate that `id` is a valid UUID format (alphanumeric with hyphens only) to prevent path traversal attacks.
 
 ---
 
@@ -521,3 +543,34 @@ Storage locations:
 - macOS: `~/Library/Application Support/logic-proof-trainer/`
 - Windows: `%APPDATA%/logic-proof-trainer/`
 - Linux: `~/.local/share/logic-proof-trainer/`
+
+---
+
+## Security
+
+The application implements several security measures:
+
+### Path Traversal Prevention
+
+All storage operations validate IDs to prevent path traversal attacks:
+- IDs must be non-empty
+- IDs cannot contain `..`, `/`, or `\` characters
+- IDs must consist only of ASCII alphanumeric characters and hyphens (UUID format)
+- Invalid IDs result in an error with the message "Invalid ID format"
+
+### Formula Parser Protections
+
+- **Input length limit**: Maximum 10,000 characters (counted by Unicode code points)
+- **Global nesting depth limit**: Maximum 100 levels of nesting across all constructs
+- **ASCII-only atoms**: Atom names restricted to ASCII alphanumeric, underscore, and apostrophe characters
+
+### Input Validation
+
+- **Difficulty values**: `generate_theorem_with_value` validates that the difficulty is between 1-100
+- **Line range validation**: The proof workspace validates that `lineStart <= lineEnd` in subproof close commands
+- **Delete verification**: Storage delete operations verify that the file was actually removed, returning an error if the file still exists after deletion
+
+### Error Handling
+
+- Delete operations now return an error if the target entry doesn't exist, preventing silent failures
+- All storage operations provide meaningful error messages for debugging

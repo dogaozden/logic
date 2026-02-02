@@ -174,7 +174,7 @@ impl Proof {
 
         let line = ProofLine::new(line_number, formula, justification, depth, scope_id);
         self.lines.push(line);
-        self.lines.last().unwrap()
+        self.lines.last().expect("line was just pushed")
     }
 
     pub fn open_subproof(&mut self, assumption: Formula, technique: ProofTechnique) -> &ProofLine {
@@ -190,7 +190,7 @@ impl Proof {
             Some(scope_id),
         );
         self.lines.push(line);
-        self.lines.last().unwrap()
+        self.lines.last().expect("line was just pushed")
     }
 
     pub fn close_subproof(&mut self, conclusion: Formula, technique: ProofTechnique) -> Option<&ProofLine> {
@@ -219,7 +219,7 @@ impl Proof {
             scope_id,
         );
         self.lines.push(line);
-        Some(self.lines.last().unwrap())
+        Some(self.lines.last().expect("line was just pushed"))
     }
 
     pub fn remove_last_line(&mut self) -> Option<ProofLine> {
