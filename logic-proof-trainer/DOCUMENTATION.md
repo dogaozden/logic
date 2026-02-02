@@ -569,6 +569,7 @@ All storage operations validate IDs to prevent path traversal attacks:
 - **Difficulty values**: `generate_theorem_with_value` validates that the difficulty is between 1-100
 - **Line range validation**: The proof workspace validates that `lineStart <= lineEnd` in subproof close commands
 - **Delete verification**: Storage delete operations verify that the file was actually removed, returning an error if the file still exists after deletion
+- **String length limits**: Portfolio notes are limited to 10,000 characters, theorem/entry names are limited to 200 characters to prevent memory exhaustion
 
 ### Error Handling
 

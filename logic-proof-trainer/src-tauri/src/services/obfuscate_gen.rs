@@ -228,6 +228,13 @@ impl ObfuscateGenerator {
     /// Generate a simple valid argument form
     fn generate_base_theorem(&self, rng: &mut impl Rng) -> (Vec<Formula>, Formula) {
         let atoms = &self.config.atom_pool;
+
+        // Ensure we have at least one atom, fallback to "P" if empty
+        if atoms.is_empty() {
+            let p = Formula::Atom("P".to_string());
+            return (vec![], Formula::Implies(Box::new(p.clone()), Box::new(p)));
+        }
+
         let available_forms = BaseForm::for_atom_count_and_difficulty(atoms.len(), self.config.difficulty_value);
 
         if available_forms.is_empty() {

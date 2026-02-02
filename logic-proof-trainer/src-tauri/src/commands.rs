@@ -167,7 +167,9 @@ pub fn close_subproof(
 
 #[tauri::command]
 pub fn delete_line(mut proof: Proof, line_number: usize) -> Result<Proof, String> {
-    // Can only delete from the end
+    // line_number is 1-indexed (matches UI display), proof.lines.len() is count.
+    // For line N to be the last line, N must equal the total count.
+    // Example: 5 lines means lines 1-5, so only line 5 (== len) can be deleted.
     if line_number != proof.lines.len() {
         return Err("Can only delete the last line".to_string());
     }

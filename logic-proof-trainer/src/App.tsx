@@ -18,12 +18,10 @@ function App() {
   const { proof } = useProof();
   const prevProofRef = useRef(proof);
 
-  // Initialize theme on mount
+  // Apply theme whenever it changes
   useEffect(() => {
-    if (theme !== 'dark') {
-      document.documentElement.setAttribute('data-theme', theme);
-    }
-  }, []);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   // Switch to scratchpad when a new proof is started
   useEffect(() => {

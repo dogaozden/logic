@@ -4,6 +4,11 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use crate::models::{Proof, Theorem, UserStatistics};
 
+/// Maximum length for portfolio notes (characters)
+const MAX_NOTES_LENGTH: usize = 10_000;
+/// Maximum length for theorem/entry names (characters)
+const MAX_NAME_LENGTH: usize = 200;
+
 /// A proof saved to the portfolio (completed or in-progress)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PortfolioEntry {
@@ -297,6 +302,12 @@ impl StorageService {
 
     pub fn update_portfolio_notes(&self, id: &str, notes: String) -> Result<(), StorageError> {
         Self::validate_id(id)?;
+        if notes.len() > MAX_NOTES_LENGTH {
+            return Err(StorageError(format!(
+                "Notes exceed maximum length of {} characters",
+                MAX_NOTES_LENGTH
+            )));
+        }
         let mut entry = self.load_portfolio_entry(id)?;
         entry.notes = Some(notes);
         self.save_to_portfolio(&entry)?;
@@ -305,6 +316,12 @@ impl StorageService {
 
     pub fn rename_portfolio_entry(&self, id: &str, name: String) -> Result<(), StorageError> {
         Self::validate_id(id)?;
+        if name.len() > MAX_NAME_LENGTH {
+            return Err(StorageError(format!(
+                "Name exceeds maximum length of {} characters",
+                MAX_NAME_LENGTH
+            )));
+        }
         let mut entry = self.load_portfolio_entry(id)?;
         entry.proof.theorem.name = Some(name);
         self.save_to_portfolio(&entry)?;

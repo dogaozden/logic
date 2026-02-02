@@ -277,19 +277,39 @@ impl Proof {
     /// Check if current subproof can be auto-closed and return the conclusion
     /// Returns (technique, conclusion_formula) if auto-close is possible
     pub fn get_auto_close_conclusion(&self) -> Option<(ProofTechnique, Formula)> {
+        use crate::models::rules::technique::is_contradiction;
+
         // Get current open scope
         let current_scope = self.scope_manager.current_scope()?;
         let assumption = &current_scope.assumption;
         let technique = current_scope.technique;
+        let scope_start = current_scope.start_line;
 
-        // Get the last line in the subproof (within the current scope)
-        let last_line = self.lines.last()?;
-        let derived = &last_line.formula;
-
-        // Use technique to compute expected conclusion
-        let conclusion = technique.get_conclusion(assumption, derived)?;
-
-        Some((technique, conclusion))
+        if technique.requires_contradiction() {
+            // For IP: Search for ANY contradiction within the current subproof scope
+            for line in self.lines.iter().rev() {
+                // Only consider lines within the current scope
+                if line.line_number < scope_start {
+                    break;
+                }
+                // Check if this line is a contradiction
+                if is_contradiction(&line.formula) {
+                    // Found a contradiction - IP can be closed
+                    let conclusion = technique.get_conclusion(assumption, &line.formula)?;
+                    return Some((technique, conclusion));
+                }
+            }
+            // No contradiction found in the subproof
+            None
+        } else {
+            // For CP: use the last line within the subproof scope
+            let last_line_in_scope = self.lines.iter()
+                .rev()
+                .find(|l| l.line_number >= scope_start)?;
+            let derived = &last_line_in_scope.formula;
+            let conclusion = technique.get_conclusion(assumption, derived)?;
+            Some((technique, conclusion))
+        }
     }
 }
 

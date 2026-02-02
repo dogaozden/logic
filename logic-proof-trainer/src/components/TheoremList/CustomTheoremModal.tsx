@@ -281,6 +281,7 @@ export const CustomTheoremModal: React.FC<CustomTheoremModalProps> = ({
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="e.g., My Theorem"
+            maxLength={200}
           />
         </div>
 

@@ -38,7 +38,7 @@ export const TheoremList: React.FC = () => {
   useEffect(() => {
     loadClassicTheorems();
     loadCustomTheorems();
-  }, []);
+  }, [loadClassicTheorems, loadCustomTheorems]);
 
   const allTheorems = [...classicTheorems, ...customTheorems];
 

@@ -34,7 +34,11 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
   const [nameInput, setNameInput] = useState('');
 
   useEffect(() => {
-    loadPortfolio();
+    let cancelled = false;
+    loadPortfolio().catch(err => {
+      if (!cancelled) console.error('Failed to load portfolio:', err);
+    });
+    return () => { cancelled = true; };
   }, [loadPortfolio]);
 
   useEffect(() => {

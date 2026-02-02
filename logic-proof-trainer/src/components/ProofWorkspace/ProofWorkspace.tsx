@@ -517,7 +517,14 @@ export const ProofWorkspace: React.FC = () => {
       const timeSpent = startTimeRef.current
         ? Math.floor((Date.now() - startTimeRef.current) / 1000)
         : undefined;
-      saveToPortfolio(proof, timeSpent, hintsUsedRef.current);
+      // Await the save to ensure it completes before potential app close
+      (async () => {
+        try {
+          await saveToPortfolio(proof, timeSpent, hintsUsedRef.current);
+        } catch (err) {
+          console.error('Failed to auto-save completed proof:', err);
+        }
+      })();
     }
   }, [proof, saveToPortfolio]);
 
