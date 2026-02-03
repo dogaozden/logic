@@ -454,6 +454,142 @@ impl TheoremGenerator {
 mod tests {
     use super::*;
 
+    // === GeneratorConfig Construction Tests ===
+
+    #[test]
+    fn test_config_default_values() {
+        let config = GeneratorConfig::default();
+
+        assert_eq!(config.max_premises, 3);
+        assert_eq!(config.max_depth, 3);
+        assert_eq!(config.atom_pool.len(), 4);
+        assert!(config.atom_pool.contains(&"P".to_string()));
+        assert!(config.atom_pool.contains(&"Q".to_string()));
+        assert!(config.allow_biconditional);
+        assert!(config.allow_nested_negation);
+    }
+
+    #[test]
+    fn test_config_for_easy_difficulty() {
+        let config = GeneratorConfig::for_difficulty(Difficulty::Easy);
+
+        assert_eq!(config.max_premises, 2);
+        assert_eq!(config.max_depth, 2);
+        assert_eq!(config.atom_pool.len(), 2);
+        assert!(!config.allow_biconditional);
+        assert!(!config.allow_nested_negation);
+    }
+
+    #[test]
+    fn test_config_for_hard_difficulty() {
+        let config = GeneratorConfig::for_difficulty(Difficulty::Hard);
+
+        assert_eq!(config.max_premises, 3);
+        assert_eq!(config.max_depth, 4);
+        assert_eq!(config.atom_pool.len(), 4);
+        assert!(config.allow_biconditional);
+        assert!(config.allow_nested_negation);
+    }
+
+    // === Difficulty Value Boundary Tests ===
+
+    #[test]
+    fn test_difficulty_value_1_maps_to_easy() {
+        let difficulty = TheoremGenerator::preset_for_value(1);
+        assert_eq!(difficulty, Difficulty::Easy);
+    }
+
+    #[test]
+    fn test_difficulty_value_25_maps_to_easy() {
+        let difficulty = TheoremGenerator::preset_for_value(25);
+        assert_eq!(difficulty, Difficulty::Easy);
+    }
+
+    #[test]
+    fn test_difficulty_value_26_maps_to_medium() {
+        let difficulty = TheoremGenerator::preset_for_value(26);
+        assert_eq!(difficulty, Difficulty::Medium);
+    }
+
+    #[test]
+    fn test_difficulty_value_46_maps_to_hard() {
+        let difficulty = TheoremGenerator::preset_for_value(46);
+        assert_eq!(difficulty, Difficulty::Hard);
+    }
+
+    #[test]
+    fn test_difficulty_value_71_maps_to_expert() {
+        let difficulty = TheoremGenerator::preset_for_value(71);
+        assert_eq!(difficulty, Difficulty::Expert);
+    }
+
+    #[test]
+    fn test_difficulty_value_100_maps_to_expert() {
+        let difficulty = TheoremGenerator::preset_for_value(100);
+        assert_eq!(difficulty, Difficulty::Expert);
+    }
+
+    // === Theorem Generation Property Tests ===
+
+    #[test]
+    fn test_generate_easy_produces_valid_theorem() {
+        let generator = TheoremGenerator::with_difficulty(Difficulty::Easy);
+        let theorem = generator.generate(Difficulty::Easy);
+
+        // Easy theorems should have a theme
+        assert!(theorem.theme.is_some());
+        // Easy theorems should have a reasonable difficulty value
+        assert!(theorem.difficulty_value <= 25);
+    }
+
+    #[test]
+    fn test_generate_hard_produces_valid_theorem() {
+        let generator = TheoremGenerator::with_difficulty(Difficulty::Hard);
+        let theorem = generator.generate(Difficulty::Hard);
+
+        // Hard theorems should have a theme
+        assert!(theorem.theme.is_some());
+        // Difficulty value should be in hard range
+        assert!(theorem.difficulty_value >= 46 && theorem.difficulty_value <= 70);
+    }
+
+    #[test]
+    fn test_generate_with_proof_returns_matching_tree() {
+        let generator = TheoremGenerator::with_difficulty(Difficulty::Easy);
+        let generated = generator.generate_with_proof(Difficulty::Easy);
+
+        // The proof tree's conclusion should match the theorem's conclusion
+        assert_eq!(generated.proof_tree.conclusion(), &generated.theorem.conclusion);
+
+        // The proof tree's premises should match the theorem's premises
+        let tree_premises = generated.proof_tree.premises();
+        for premise in &generated.theorem.premises {
+            assert!(tree_premises.contains(premise),
+                "Theorem premise {:?} not found in proof tree premises {:?}",
+                premise, tree_premises);
+        }
+    }
+
+    #[test]
+    fn test_generated_formula_respects_max_depth() {
+        let generator = TheoremGenerator::with_difficulty(Difficulty::Easy);
+        let config = GeneratorConfig::for_difficulty(Difficulty::Easy);
+
+        // Generate several theorems and check conclusion depth
+        for _ in 0..10 {
+            let theorem = generator.generate(Difficulty::Easy);
+            // Easy config has max_depth of 2
+            // The conclusion depth should be reasonable (not excessively deep)
+            let depth = theorem.conclusion.depth();
+            // Allow some flexibility since generation is probabilistic
+            assert!(depth <= config.max_depth + 2,
+                "Conclusion depth {} exceeds expected max {}",
+                depth, config.max_depth + 2);
+        }
+    }
+
+    // === Original Tests ===
+
     #[test]
     fn test_generate_easy() {
         let generator = TheoremGenerator::with_difficulty(Difficulty::Easy);

@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { SymbolToolbar } from '../shared/SymbolToolbar';
 
 interface FormulaInputProps {
   value: string;
@@ -6,19 +7,6 @@ interface FormulaInputProps {
   onSubmit: () => void;
   placeholder?: string;
 }
-
-const SYMBOLS = [
-  { symbol: '~', label: '~', description: 'Negation' },
-  { symbol: '.', label: '.', description: 'Conjunction (AND)' },
-  { symbol: '∨', label: '∨', description: 'Disjunction (OR)' },
-  { symbol: '⊃', label: '⊃', description: 'Implication' },
-  { symbol: '≡', label: '≡', description: 'Biconditional' },
-  { symbol: '⊥', label: '⊥', description: 'Contradiction' },
-  { symbol: '(', label: '(', description: 'Left paren' },
-  { symbol: ')', label: ')', description: 'Right paren' },
-];
-
-const ATOMS = ['P', 'Q', 'R', 'S', 'T'];
 
 // Symbol replacements: typing these characters auto-converts to logic symbols
 const SYMBOL_REPLACEMENTS: Record<string, string> = {
@@ -93,29 +81,7 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
         spellCheck={false}
         autoComplete="off"
       />
-      <div className="symbol-toolbar">
-        {ATOMS.map((atom) => (
-          <button
-            key={atom}
-            className="symbol-button"
-            onClick={() => insertSymbol(atom)}
-            title={`Atom ${atom}`}
-          >
-            {atom}
-          </button>
-        ))}
-        <span style={{ width: '8px' }} />
-        {SYMBOLS.map((s) => (
-          <button
-            key={s.symbol}
-            className="symbol-button"
-            onClick={() => insertSymbol(s.symbol)}
-            title={s.description}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
+      <SymbolToolbar onSymbolClick={insertSymbol} />
     </div>
   );
 };

@@ -140,6 +140,9 @@ export function reorderLines(
 
   const lines = [...proof.lines];
   const fromIndex = lines.findIndex(l => l.line_number === fromLineNumber);
+  if (fromIndex === -1) {
+    return null;
+  }
   const movingLine = lines[fromIndex];
 
   // Remove and reinsert

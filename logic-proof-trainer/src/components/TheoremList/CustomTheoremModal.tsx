@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useTheorems } from '../../hooks/useTheorems';
+import { useProof } from '../../hooks/useProof';
+import { SymbolToolbar } from '../shared/SymbolToolbar';
 import type { Theorem, Difficulty, Formula } from '../../types';
 
 interface CustomTheoremModalProps {
@@ -18,19 +20,6 @@ const SYMBOL_REPLACEMENTS: Record<string, string> = {
   '<>': '≡',
   '!': '~',
 };
-
-const SYMBOLS = [
-  { symbol: '~', label: '~', description: 'Negation' },
-  { symbol: '.', label: '.', description: 'Conjunction (AND)' },
-  { symbol: '∨', label: '∨', description: 'Disjunction (OR)' },
-  { symbol: '⊃', label: '⊃', description: 'Implication' },
-  { symbol: '≡', label: '≡', description: 'Biconditional' },
-  { symbol: '⊥', label: '⊥', description: 'Contradiction' },
-  { symbol: '(', label: '(', description: 'Left paren' },
-  { symbol: ')', label: ')', description: 'Right paren' },
-];
-
-const ATOMS = ['P', 'Q', 'R', 'S', 'T'];
 
 function applySymbolReplacements(value: string): string {
   let result = value;
@@ -55,6 +44,7 @@ export const CustomTheoremModal: React.FC<CustomTheoremModalProps> = ({
   onCreated,
 }) => {
   const { saveCustomTheorem, selectTheorem } = useTheorems();
+  const { createProof } = useProof();
 
   const [name, setName] = useState('');
   const [premises, setPremises] = useState<string[]>(['']);
@@ -253,6 +243,8 @@ export const CustomTheoremModal: React.FC<CustomTheoremModalProps> = ({
 
       await saveCustomTheorem(theorem);
       selectTheorem(theorem);
+      // Auto-start proof after creation
+      await createProof(theorem);
       onCreated(theorem);
       handleClose();
     } catch (err) {
@@ -349,29 +341,7 @@ export const CustomTheoremModal: React.FC<CustomTheoremModalProps> = ({
         {/* Symbol Toolbar */}
         <div className="custom-theorem-field">
           <label className="custom-theorem-label">Symbol Palette</label>
-          <div className="symbol-toolbar">
-            {ATOMS.map(atom => (
-              <button
-                key={atom}
-                className="symbol-button"
-                onClick={() => insertSymbol(atom)}
-                title={`Atom ${atom}`}
-              >
-                {atom}
-              </button>
-            ))}
-            <span style={{ width: '8px' }} />
-            {SYMBOLS.map(s => (
-              <button
-                key={s.symbol}
-                className="symbol-button"
-                onClick={() => insertSymbol(s.symbol)}
-                title={s.description}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
+          <SymbolToolbar onSymbolClick={insertSymbol} />
         </div>
 
         {/* Difficulty */}

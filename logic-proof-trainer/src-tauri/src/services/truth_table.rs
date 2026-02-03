@@ -757,4 +757,74 @@ mod tests {
         let conclusion = not(atom("P"));
         assert!(can_derive_directly(&premises, &conclusion));
     }
+
+    // === New Edge Case Tests ===
+
+    #[test]
+    fn test_forces_ip_with_negation_conclusion() {
+        // For a negation conclusion like ~P, check forces_ip behavior
+        // If ~P is not directly derivable, IP might be needed
+
+        // P⊃Q ⊢ ~P (hypothetically invalid but tests structure)
+        let premises = vec![implies(atom("P"), atom("Q"))];
+        let conclusion = not(atom("P"));
+
+        // ~P is not directly available via MT (need ~Q), so IP might be forced
+        let result = forces_ip(&premises, &conclusion);
+        // Since ~P can't be derived via basic rules from P⊃Q alone, should return true
+        assert!(result, "forces_ip should return true when negation can't be directly derived");
+    }
+
+    #[test]
+    fn test_forces_case_split_multiple_disjunctions() {
+        // Test with multiple disjunctions in premises
+        // P∨Q, R∨S ⊢ X
+        // Both disjunctions lack their negations, so case split is forced
+
+        let p = atom("P");
+        let q = atom("Q");
+        let r = atom("R");
+        let s = atom("S");
+
+        let premises = vec![or(p, q), or(r, s)];
+
+        // Should force case split because neither ~P/~Q nor ~R/~S is available
+        assert!(forces_case_split(&premises));
+    }
+
+    #[test]
+    fn test_can_derive_directly_via_dn_elimination() {
+        // ~~P ⊢ P - should be derivable via DN (recognized as direct availability)
+        let premises = vec![not(not(atom("P")))];
+        let conclusion = atom("P");
+
+        // Note: can_derive_directly checks for DN in conclusion form (~~A where A is conclusion)
+        // but here we have ~~P as premise and P as conclusion
+        // This tests semantic equivalence - ~~P and P have the same truth table
+        assert!(can_derive_directly(&premises, &conclusion),
+            "P should be derivable from ~~P via semantic equivalence");
+    }
+
+    #[test]
+    fn test_biconditional_truth_table_computation() {
+        // P ≡ Q should be equivalent to (P ⊃ Q) & (Q ⊃ P)
+        let p = atom("P");
+        let q = atom("Q");
+
+        let biconditional = Formula::Biconditional(Box::new(p.clone()), Box::new(q.clone()));
+        let expanded = and(
+            implies(p.clone(), q.clone()),
+            implies(q, p),
+        );
+
+        // Both should have the same truth table
+        let bicon_tt = compute_truth_table(&biconditional);
+        let expanded_tt = compute_truth_table(&expanded);
+
+        assert_eq!(bicon_tt, expanded_tt,
+            "P≡Q should have same truth table as (P⊃Q)&(Q⊃P)");
+
+        // Also verify they are semantically equivalent
+        assert!(are_equivalent(&biconditional, &expanded));
+    }
 }

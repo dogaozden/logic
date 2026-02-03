@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { usePortfolio } from '../../hooks/usePortfolio';
 import { useProof } from '../../hooks/useProof';
 import type { PortfolioEntry } from '../../types';
@@ -17,7 +18,6 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
     selectedEntry,
     loadPortfolio,
     deleteEntry,
-    updateNotes,
     renameEntry,
     selectEntry,
     clearError,
@@ -28,10 +28,13 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
   // Tab state for completed vs incomplete
   const [activeTab, setActiveTab] = useState<'completed' | 'incomplete'>('completed');
 
-  const [notesInput, setNotesInput] = useState('');
-  const [editingNotes, setEditingNotes] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
+
+  // Global notepad state
+  const [globalNotes, setGlobalNotes] = useState('');
+  const [notesSaving, setNotesSaving] = useState(false);
+  const saveTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,11 +44,33 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
     return () => { cancelled = true; };
   }, [loadPortfolio]);
 
+  // Load global notes on mount
   useEffect(() => {
-    if (selectedEntry) {
-      setNotesInput(selectedEntry.notes || '');
+    invoke<string>('load_global_notes')
+      .then(notes => setGlobalNotes(notes))
+      .catch(err => console.error('Failed to load global notes:', err));
+  }, []);
+
+  // Auto-save global notes with debounce
+  const handleNotesChange = (value: string) => {
+    setGlobalNotes(value);
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
-  }, [selectedEntry]);
+
+    // Debounce save
+    saveTimeoutRef.current = window.setTimeout(async () => {
+      setNotesSaving(true);
+      try {
+        await invoke('save_global_notes', { notes: value });
+      } catch (err) {
+        console.error('Failed to save notes:', err);
+      }
+      setNotesSaving(false);
+    }, 500);
+  };
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -66,13 +91,6 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
       return `${mins}m ${remainingSecs}s`;
     }
     return `${remainingSecs}s`;
-  };
-
-  const handleSaveNotes = async () => {
-    if (selectedEntry) {
-      await updateNotes(selectedEntry.id, notesInput);
-      setEditingNotes(false);
-    }
   };
 
   const handleStartRename = () => {
@@ -331,42 +349,22 @@ export const Portfolio: React.FC<PortfolioProps> = ({ onRetry }) => {
                 readOnly={true}
               />
             </div>
-
-            <div className="detail-notes">
-              <div className="label">Notes</div>
-              {editingNotes ? (
-                <div className="notes-editor">
-                  <textarea
-                    value={notesInput}
-                    onChange={(e) => setNotesInput(e.target.value)}
-                    placeholder="Add notes about this proof..."
-                    rows={4}
-                  />
-                  <div className="notes-actions">
-                    <button className="btn btn-primary" onClick={handleSaveNotes}>
-                      Save
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => {
-                        setEditingNotes(false);
-                        setNotesInput(selectedEntry.notes || '');
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="notes-display" onClick={() => setEditingNotes(true)}>
-                  {selectedEntry.notes || (
-                    <span className="notes-placeholder">Click to add notes...</span>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
         )}
+
+        {/* Global Notepad */}
+        <div className="global-notepad">
+          <div className="notepad-header">
+            <span className="label">Notepad</span>
+            {notesSaving && <span className="saving-indicator">Saving...</span>}
+          </div>
+          <textarea
+            className="notepad-textarea"
+            value={globalNotes}
+            onChange={(e) => handleNotesChange(e.target.value)}
+            placeholder="Write your notes here... (auto-saves)"
+          />
+        </div>
       </div>
     </div>
   );

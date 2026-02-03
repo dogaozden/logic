@@ -611,4 +611,137 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), DegenerateProofError::SinglePremiseEntails));
     }
+
+    // === New Edge Case Tests ===
+
+    #[test]
+    fn test_deeply_nested_subproofs_count_correctly() {
+        // Build a tree with multiple levels of nesting
+        // CP { CP { MP } }
+        let p = atom("P");
+        let q = atom("Q");
+        let _r = atom("R"); // Available for more complex tests
+
+        // Inner CP: |- Q -> Q
+        let inner_cp = ProofNode::derivation(
+            implies(q.clone(), q.clone()),
+            "CP",
+            vec![ProofNode::assumption(q.clone())],
+            Some(q.clone()),
+        );
+
+        // Outer CP: |- P -> (Q -> Q)
+        let outer_cp = ProofNode::derivation(
+            implies(p.clone(), implies(q.clone(), q.clone())),
+            "CP",
+            vec![
+                ProofNode::assumption(p.clone()),
+                inner_cp,
+            ],
+            Some(p.clone()),
+        );
+
+        // Nesting depth should be 2 (two CP rules)
+        assert_eq!(outer_cp.nesting_depth(), 2);
+
+        // Total derivation count should be 2
+        assert_eq!(outer_cp.derivation_count(), 2);
+    }
+
+    #[test]
+    fn test_validate_with_difficulty_min_steps_boundary() {
+        // Create a simple tree that has a known number of steps
+        let p = atom("P");
+        let q = atom("Q");
+
+        // P, P -> Q |- Q (1 step - MP)
+        let root = ProofNode::derivation(
+            q.clone(),
+            "MP",
+            vec![
+                ProofNode::premise(implies(p.clone(), q.clone())),
+                ProofNode::premise(p),
+            ],
+            None,
+        );
+
+        let tree = ProofTree::new(root);
+
+        // Should pass with min_steps = 1
+        assert!(tree.is_valid_with_difficulty(1, false, false, false));
+
+        // Basic validation should still pass
+        assert!(tree.is_valid());
+    }
+
+    #[test]
+    fn test_validate_with_difficulty_requires_cp_true() {
+        // P -> Q, Q -> R |- P -> R
+        // This requires CP because conclusion is conditional
+        let p = atom("P");
+        let q = atom("Q");
+        let r = atom("R");
+
+        let root = ProofNode::derivation(
+            implies(p.clone(), r.clone()),
+            "CP",
+            vec![
+                ProofNode::derivation(
+                    r.clone(),
+                    "HS",
+                    vec![
+                        ProofNode::premise(implies(p.clone(), q.clone())),
+                        ProofNode::premise(implies(q, r.clone())),
+                        ProofNode::assumption(p.clone()),
+                    ],
+                    None,
+                ),
+            ],
+            Some(p),
+        );
+
+        let tree = ProofTree::new(root);
+
+        // The tree should have nesting >= 1 due to CP
+        assert!(tree.max_nesting >= 1);
+    }
+
+    #[test]
+    fn test_pretty_print_deep_tree() {
+        // Build a moderately complex tree and verify pretty_print doesn't panic
+        let p = atom("P");
+        let q = atom("Q");
+
+        let inner = ProofNode::derivation(
+            q.clone(),
+            "MP",
+            vec![
+                ProofNode::premise(implies(p.clone(), q.clone())),
+                ProofNode::premise(p.clone()),
+            ],
+            None,
+        );
+
+        let outer = ProofNode::derivation(
+            implies(p.clone(), q.clone()),
+            "CP",
+            vec![
+                ProofNode::assumption(p.clone()),
+                inner,
+            ],
+            Some(p),
+        );
+
+        let tree = ProofTree::new(outer);
+        let output = tree.pretty_print();
+
+        // Verify output contains expected elements
+        assert!(output.contains("Theorem:"));
+        assert!(output.contains("Fragments:"));
+        assert!(output.contains("Nesting:"));
+        assert!(output.contains("Proof Tree:"));
+        assert!(output.contains("CP"));
+        assert!(output.contains("MP"));
+        assert!(output.contains("Premise:"));
+    }
 }

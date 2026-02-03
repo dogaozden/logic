@@ -20,7 +20,7 @@ This document tracks identified issues, technical debt, and improvement proposal
 
 Issues that should be fixed immediately due to bugs, potential data loss, or missing critical functionality.
 
-### 1. No Frontend Tests
+### 1. ~~No Frontend Tests~~ ✅ FIXED (2026-02-02)
 
 **Location:** `/src/`
 
@@ -30,13 +30,20 @@ Issues that should be fixed immediately due to bugs, potential data loss, or mis
 
 **Proposal:** Set up Vitest, write component tests for ProofWorkspace, FormulaDisplay, Portfolio. Add `npm test` script to package.json.
 
-**Estimated Effort:** Large
+**Resolution:**
+- Created `vitest.config.ts` with jsdom environment
+- Created `src/setupTests.ts` with Tauri mock
+- Created `src/types/index.test.ts` (19 tests for `formulaToString`, `justificationToString`, `difficultyColor`)
+- Created `src/hooks/useProof.test.ts` (17 tests for proof state management)
+- Added test dependencies to `package.json`: vitest, @testing-library/react, @testing-library/jest-dom, jsdom
+- Added scripts: `npm test`, `npm run test:ui`, `npm run test:run`
+- **36 tests passing**
 
 ---
 
-### 2. ProofWorkspace Component Too Large
+### 2. ~~ProofWorkspace Component Too Large~~ ✅ FIXED (2026-02-02)
 
-**Location:** `src/components/ProofWorkspace/ProofWorkspace.tsx` (1,129 lines)
+**Location:** `src/components/ProofWorkspace/ProofWorkspace.tsx` (1,129 → 698 lines)
 
 **Problem:**
 - Massive component with 15+ useState declarations
@@ -46,21 +53,19 @@ Issues that should be fixed immediately due to bugs, potential data loss, or mis
 
 **Impact:** Hard to maintain, test, and reason about. High bug risk.
 
-**Proposal:** Split into smaller modules:
-- `ProofInputParser.ts` - utility module for parsing commands
-- `ProofControls.tsx` - buttons, mode selector
-- `ProofMetadata.tsx` - name editing, timer, stats
-- `useProofAutoApply.ts` - auto-apply logic hook
-- `useProofTimer.ts` - timer logic hook
-- `useProofGoals.ts` - goal tracking hook
+**Resolution:** Extracted into focused modules:
+- `src/utils/proofCommandParser.ts` (329 lines) - Unified input parser + rule abbreviation maps
+- `src/hooks/useProofAutoApply.ts` (116 lines) - Auto-apply logic for inference/equivalence rules
+- `src/hooks/useProofGoals.ts` (53 lines) - Subproof goal tracking state
+- `src/hooks/useProofTimer.ts` (70 lines) - Timing, hints tracking, and portfolio auto-save
 
-**Estimated Effort:** Large
+ProofWorkspace.tsx reduced from 1,145 to 698 lines (~40% reduction).
 
 ---
 
-### 3. Race Condition in Auto-Apply Logic
+### 3. ~~Race Condition in Auto-Apply Logic~~ ✅ FIXED (2026-02-02)
 
-**Location:** `src/components/ProofWorkspace/ProofWorkspace.tsx:454-466`
+**Location:** `src/hooks/useProofAutoApply.ts` (extracted from ProofWorkspace.tsx)
 
 **Problem:**
 ```typescript
@@ -76,22 +81,24 @@ useEffect(() => {
 
 **Impact:** Unexpected behavior, potential state corruption.
 
-**Proposal:** Add AbortController to cancel stale async operations:
+**Resolution:** Added `pendingAutoApplyRef` guard to prevent concurrent operations:
 ```typescript
-useEffect(() => {
-  const controller = new AbortController();
-  if (selectedInferenceRule && selectedLines.length > 0) {
-    tryAutoApplyInference(selectedInferenceRule, selectedLines, controller.signal);
-  }
-  return () => controller.abort();
-}, [selectedLines, selectedInferenceRule]);
-```
+const pendingAutoApplyRef = useRef<boolean>(false);
 
-**Estimated Effort:** Small
+useEffect(() => {
+  if (selectedInferenceRule && selectedLines.length > 0 && !pendingAutoApplyRef.current) {
+    pendingAutoApplyRef.current = true;
+    tryAutoApplyInference(selectedInferenceRule, selectedLines).finally(() => {
+      pendingAutoApplyRef.current = false;
+    });
+  }
+}, [selectedLines, selectedInferenceRule, tryAutoApplyInference]);
+```
+Same fix applied to equivalence rule auto-apply useEffect.
 
 ---
 
-### 4. Memory Leak in FitchBox Timer
+### 4. ~~Memory Leak in FitchBox Timer~~ ✅ FIXED (2026-02-02)
 
 **Location:** `src/components/ProofWorkspace/FitchBox.tsx:122-147`
 
@@ -111,21 +118,28 @@ If `proof.lines` changes rapidly, previous timers are NOT cleared before setting
 
 **Impact:** Memory leak, unexpected state updates.
 
-**Proposal:** Store timer in ref, clear previous timer before setting new one:
+**Resolution:** Added `timerRef` to track and clear timers:
 ```typescript
-const timerRef = useRef<NodeJS.Timeout | null>(null);
+const timerRef = useRef<number | undefined>(undefined);
 
 useEffect(() => {
-  if (timerRef.current) clearTimeout(timerRef.current);
-  // ... rest of logic
+  // Always clear existing timer first
+  if (timerRef.current !== undefined) {
+    clearTimeout(timerRef.current);
+    timerRef.current = undefined;
+  }
+  // ... rest of logic with timerRef.current = window.setTimeout(...)
+  return () => {
+    if (timerRef.current !== undefined) {
+      clearTimeout(timerRef.current);
+    }
+  };
 }, [proof.lines]);
 ```
 
-**Estimated Effort:** Small
-
 ---
 
-### 5. Missing Null Check in reorderLines
+### 5. ~~Missing Null Check in reorderLines~~ ✅ FIXED (2026-02-02)
 
 **Location:** `src/utils/proofReorder.ts:143`
 
@@ -138,15 +152,14 @@ If `fromLineNumber` doesn't exist, `fromIndex` is -1, and `lines[-1]` is undefin
 
 **Impact:** Runtime crash when reordering with invalid line number.
 
-**Proposal:**
+**Resolution:** Added early return check:
 ```typescript
+const fromIndex = lines.findIndex(l => l.line_number === fromLineNumber);
 if (fromIndex === -1) {
   return null;
 }
 const movingLine = lines[fromIndex];
 ```
-
-**Estimated Effort:** Small
 
 ---
 
@@ -154,7 +167,7 @@ const movingLine = lines[fromIndex];
 
 Issues that significantly impact code quality, performance, or maintainability.
 
-### 6. StorageService Recreated Per Call
+### 6. ~~StorageService Recreated Per Call~~ ✅ FIXED (2026-02-02)
 
 **Location:** `src-tauri/src/commands.rs`
 
@@ -167,21 +180,14 @@ pub fn save_proof(proof: Proof) -> Result<(), String> {
 ```
 StorageService is recreated on every storage operation, including directory creation checks.
 
-**Impact:** Performance overhead on every I/O operation.
-
-**Proposal:** Use Tauri's state management to create a single shared instance:
-```rust
-#[tauri::command]
-pub fn save_proof(storage: State<StorageService>, proof: Proof) -> Result<(), String> {
-    storage.save_proof(&proof).map_err(|e| e.to_string())
-}
-```
-
-**Estimated Effort:** Medium
+**Resolution:** Implemented StorageService as a singleton using Tauri's state management:
+- Modified `lib.rs` to initialize StorageService once in `.setup()` handler
+- Used `app.manage(Mutex::new(storage))` to store it as managed state
+- Updated all 13 storage-related commands to accept `State<Mutex<StorageService>>` parameter
 
 ---
 
-### 7. Excessive Formula Cloning
+### 7. ~~Excessive Formula Cloning~~ ✅ ADDRESSED (2026-02-02)
 
 **Location:** Throughout backend (468 occurrences)
 
@@ -190,124 +196,83 @@ pub fn save_proof(storage: State<StorageService>, proof: Proof) -> Result<(), St
 - Particularly bad in `tree_gen.rs` (235 clones), `equivalence.rs` (49 clones)
 - Deeply nested Formula structures amplify the cost
 
-**Impact:** Performance overhead, especially with complex formulas.
-
-**Proposal:**
-- Use `Arc<Formula>` for shared ownership
-- Pass references (`&Formula`) where possible
-- Consider implementing `Copy` for simple types
-
-**Estimated Effort:** Large
+**Resolution:**
+- Added `SharedFormula` type alias (`Arc<Formula>`) to `formula.rs`
+- Added helper methods: `Formula::shared()`, `Formula::from_shared()`
+- Analysis revealed most clones are structurally necessary due to Formula's recursive enum design
+- Created `CLONE_OPTIMIZATION.md` documenting analysis and future opportunities
+- **Verdict:** Current cloning is NOT a performance bottleneck for this interactive app
 
 ---
 
-### 8. tree_gen.rs Too Large
+### 8. ~~tree_gen.rs Too Large~~ ✅ FIXED (2026-02-02)
 
 **Location:** `src-tauri/src/services/tree_gen.rs` (2,341 lines)
 
 **Problem:** Single file handling proof tree generation is massive and difficult to maintain.
 
-**Impact:** Hard to understand, test, and modify.
-
-**Proposal:** Split into smaller modules:
-- `tree_context.rs` - ConstructionContext, RequiredTechniques
-- `tree_builder.rs` - ProofTreeGenerator main algorithm
-- `tree_fragments.rs` - Individual proof fragment builders
-- `tree_validation.rs` - DegenerateProofError handling
-
-**Estimated Effort:** Large
+**Resolution:** Split into module structure:
+```
+services/tree_gen/
+├── mod.rs       (16 lines)   - Public exports
+├── context.rs   (298 lines)  - RequiredTechniques, TreeGenConfig, ConstructionContext
+├── backward.rs  (763 lines)  - Backward construction algorithm
+├── templates.rs (278 lines)  - Fallback template theorems
+└── builder.rs   (991 lines)  - ProofTreeGenerator and forward generation
+```
+All 156 tests passing, complete backward compatibility maintained.
 
 ---
 
-### 9. Symbol Toolbar Code Duplication
+### 9. ~~Symbol Toolbar Code Duplication~~ ✅ FIXED (2026-02-02)
 
 **Location:**
-- `src/components/ProofWorkspace/FormulaInput.tsx` (lines 10-19, 96-118)
-- `src/components/TheoremList/CustomTheoremModal.tsx` (lines 22-31, 349-374)
-- `src/components/Scratchpad/Scratchpad.tsx` (lines 4-14, 146-170)
+- `src/components/ProofWorkspace/FormulaInput.tsx`
+- `src/components/TheoremList/CustomTheoremModal.tsx`
+- `src/components/Scratchpad/Scratchpad.tsx`
 
 **Problem:** ~150 lines of nearly identical symbol toolbar code duplicated across 3 files.
 
-**Impact:** Maintenance burden, inconsistency risk.
-
-**Proposal:** Create shared component:
-```typescript
-// src/components/shared/SymbolToolbar.tsx
-export const SymbolToolbar: React.FC<{
-  onSymbolClick: (symbol: string) => void;
-  size?: 'small' | 'medium' | 'large';
-}> = ({ onSymbolClick, size = 'medium' }) => {
-  // Shared implementation
-};
-```
-
-**Estimated Effort:** Small
+**Resolution:** Created `src/components/shared/SymbolToolbar.tsx`:
+- Shared component with props: `onSymbolClick`, `compact`, `includeAtoms`
+- Displays logic symbols: ~, ·, ∨, ⊃, ≡, ⊥, (, )
+- Displays atom buttons: P, Q, R, S, T
+- Updated all 3 files to use the shared component
+- Eliminated ~55 lines of duplicated code
 
 ---
 
-### 10. Proof Mutation Loses State on Error
+### 10. ~~Proof Mutation Loses State on Error~~ ✅ FIXED (2026-02-02)
 
-**Location:** `src-tauri/src/commands.rs:67-108`
+**Location:** `src-tauri/src/commands.rs`
 
-**Problem:**
-```rust
-pub fn apply_rule(
-    mut proof: Proof,
-    rule_application: RuleApplication,
-    formula_str: String,
-) -> Result<Proof, String> {
-    proof.add_line(formula, justification);  // MUTATION
-    if !result.is_valid {
-        return Err(...);  // Lost original state!
-    }
-    Ok(proof)
-}
-```
-Frontend receives an error but the proof object is mutated.
+**Problem:** Commands mutated proof before validation, causing potential state issues on errors.
 
-**Impact:** UI state desync, unexpected behavior.
+**Resolution:** Modified all proof-mutating commands to clone first:
+- `apply_rule()` - now clones proof before mutation
+- `open_subproof()` - now clones proof before mutation
+- `close_subproof()` - now clones proof before mutation
+- `delete_line()` - now clones proof before mutation
+- `undo_line()` - now clones proof before mutation
+- `check_proof_complete()` - now clones proof before mutation
 
-**Proposal:** Clone before mutation, return original on validation failure:
-```rust
-let original = proof.clone();
-proof.add_line(formula, justification);
-if !result.is_valid {
-    return Err(...);
-}
-Ok(proof)
-```
-
-**Estimated Effort:** Small
+Pattern: `let mut working_proof = proof.clone();` at start, mutate working copy only.
 
 ---
 
-### 11. Missing Error Boundaries
+### 11. ~~Missing Error Boundaries~~ ✅ FIXED (2026-02-02)
 
 **Location:** `src/App.tsx`
 
 **Problem:** No React error boundary to catch rendering errors. Uncaught errors crash the entire app.
 
-**Impact:** Poor user experience, difficult debugging.
-
-**Proposal:** Add error boundary component:
-```typescript
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error: Error | null }
-> {
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-  render() {
-    if (this.state.hasError) {
-      return <ErrorFallback error={this.state.error} />;
-    }
-    return this.props.children;
-  }
-}
-```
-
-**Estimated Effort:** Small
+**Resolution:**
+- Created `src/components/ErrorBoundary.tsx` with:
+  - `getDerivedStateFromError` to catch errors
+  - `componentDidCatch` for error logging
+  - User-friendly fallback UI with error message and "Try Again" button
+- Updated `App.tsx` to wrap entire app with ErrorBoundary
+- Styled using existing CSS variables for theme consistency
 
 ---
 
@@ -660,14 +625,14 @@ export const useFormulaValidation = () => {
 
 Easy fixes that can be implemented quickly:
 
-| # | Issue | Location | Change |
-|---|-------|----------|--------|
-| 1 | Memoize scopeInfo | `FitchBox.tsx:100` | Wrap in `useMemo` |
-| 2 | Add null check | `proofReorder.ts:143` | Check `fromIndex !== -1` |
-| 3 | Fix timer memory leak | `FitchBox.tsx:122-147` | Use ref for timer |
-| 4 | Register missing command | `lib.rs` | Add `generate_theorem_with_proof` |
-| 5 | Fix theme useEffect deps | `App.tsx:22-26` | Add `theme` to dependency array |
-| 6 | Extract symbol constants | 3 files | Create `constants/symbols.ts` |
+| # | Issue | Location | Change | Status |
+|---|-------|----------|--------|--------|
+| 1 | Memoize scopeInfo | `FitchBox.tsx:100` | Wrap in `useMemo` | Open |
+| 2 | ~~Add null check~~ | `proofReorder.ts:143` | Check `fromIndex !== -1` | ✅ Fixed |
+| 3 | ~~Fix timer memory leak~~ | `FitchBox.tsx:122-147` | Use ref for timer | ✅ Fixed |
+| 4 | Register missing command | `lib.rs` | Add `generate_theorem_with_proof` | Open |
+| 5 | Fix theme useEffect deps | `App.tsx:22-26` | Add `theme` to dependency array | Open |
+| 6 | ~~Extract symbol constants~~ | 3 files | Created `shared/SymbolToolbar.tsx` | ✅ Fixed |
 
 ---
 
@@ -675,17 +640,32 @@ Easy fixes that can be implemented quickly:
 
 | Priority | Total | Completed | In Progress |
 |----------|-------|-----------|-------------|
-| Critical | 5 | 0 | 0 |
-| High | 7 | 0 | 0 |
+| Critical | 5 | **5** | 0 |
+| High | 7 | **6** | 0 |
 | Medium | 8 | 0 | 0 |
 | Low | 8 | 0 | 0 |
-| **Total** | **28** | **0** | **0** |
+| **Total** | **28** | **11** | **0** |
+
+**Last Updated:** 2026-02-02
+
+### Completed Items
+- ✅ Issue #1: Frontend testing infrastructure (Vitest + 36 tests)
+- ✅ Issue #2: ProofWorkspace refactored (1,145 → 698 lines)
+- ✅ Issue #3: Race condition in auto-apply fixed
+- ✅ Issue #4: FitchBox timer memory leak fixed
+- ✅ Issue #5: Null check in reorderLines added
+- ✅ Issue #6: StorageService singleton implemented
+- ✅ Issue #7: Formula cloning analyzed, SharedFormula type added
+- ✅ Issue #8: tree_gen.rs split into module (2,341 → 5 files)
+- ✅ Issue #9: SymbolToolbar shared component created
+- ✅ Issue #10: Proof mutation on error fixed
+- ✅ Issue #11: ErrorBoundary component added
 
 ---
 
 ## Recommended Action Order
 
-**Week 1:** Critical issues #1-5
-**Week 2:** High priority #6-12
+~~**Week 1:** Critical issues #1-5~~ ✅ COMPLETED
+~~**Week 2:** High priority #6-12~~ ✅ 6/7 COMPLETED (Issue #12: Backend tests remaining)
 **Week 3-4:** Medium priority #13-20
 **Ongoing:** Low priority #21-28

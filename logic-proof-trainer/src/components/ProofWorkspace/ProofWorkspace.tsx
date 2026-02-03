@@ -1,346 +1,23 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useProof } from '../../hooks/useProof';
 import { usePortfolio } from '../../hooks/usePortfolio';
 import { useScratchpad } from '../../hooks/useScratchpad';
+import { useProofAutoApply } from '../../hooks/useProofAutoApply';
+import { useProofGoals } from '../../hooks/useProofGoals';
+import { useProofTimer } from '../../hooks/useProofTimer';
 import { FitchBox } from './FitchBox';
 import { FormulaInput } from './FormulaInput';
 import { RulePalette } from './RulePalette';
-import type { InferenceRule, EquivalenceRule, ProofTechnique, TransformationResult } from '../../types';
-import { inferenceRuleInfo, equivalenceRuleInfo, proofTechniqueInfo, formulaToString } from '../../types';
+import type { InferenceRule, EquivalenceRule, ProofTechnique } from '../../types';
+import { inferenceRuleInfo, equivalenceRuleInfo, proofTechniqueInfo } from '../../types';
 import { FormulaDisplay } from '../FormulaDisplay';
+import { parseCommand, abbrevToInference, abbrevToEquivalence } from '../../utils/proofCommandParser';
 
 // Type for auto-close info from backend
 interface AutoCloseInfo {
   technique: string;
   conclusion: string;
-}
-
-// Create reverse lookup maps from abbreviations to rule keys
-// Includes official abbreviations plus common shorthands
-const abbrevToInference: Record<string, InferenceRule> = {};
-for (const [key, info] of Object.entries(inferenceRuleInfo)) {
-  abbrevToInference[info.abbrev.toLowerCase()] = key as InferenceRule;
-}
-// Add shorthand aliases for inference rules - match rules.md abbreviations
-const inferenceAliases: Record<string, InferenceRule> = {
-  // Modus Ponens (MP)
-  'modus': 'modusPonens',
-  'ponens': 'modusPonens',
-  // Modus Tollens (MT)
-  'tollens': 'modusTollens',
-  // Disjunctive Syllogism (DS)
-  'disj': 'disjunctiveSyllogism',
-  'disjsyl': 'disjunctiveSyllogism',
-  // Simplification (Simp)
-  'simple': 'simplification',
-  // Conjunction (Conj)
-  'and': 'conjunction',
-  // Hypothetical Syllogism (HS)
-  'hyp': 'hypotheticalSyllogism',
-  'hypo': 'hypotheticalSyllogism',
-  'syl': 'hypotheticalSyllogism',
-  // Addition (Add)
-  'or': 'addition',
-  // Constructive Dilemma (CD)
-  'dil': 'constructiveDilemma',
-  'dilemma': 'constructiveDilemma',
-};
-Object.assign(abbrevToInference, inferenceAliases);
-
-const abbrevToEquivalence: Record<string, EquivalenceRule> = {};
-for (const [key, info] of Object.entries(equivalenceRuleInfo)) {
-  abbrevToEquivalence[info.abbrev.toLowerCase()] = key as EquivalenceRule;
-}
-// Add shorthand aliases for equivalence rules - match rules.md abbreviations
-const equivalenceAliases: Record<string, EquivalenceRule> = {
-  // Double Negation (DN)
-  'dn': 'doubleNegation',
-  // DeMorgan's Theorem (DeM)
-  'demorgan': 'deMorgan',
-  'morgan': 'deMorgan',
-  'dm': 'deMorgan',
-  // Commutation (Comm)
-  'com': 'commutation',
-  // Association (Assoc)
-  'associate': 'association',
-  // Distribution (Dist)
-  'distrib': 'distribution',
-  'distribute': 'distribution',
-  // Contraposition (Contra)
-  'contrap': 'contraposition',
-  'trans': 'contraposition',
-  // Implication (Impl)
-  'imp': 'implication',
-  // Exportation (Exp)
-  'export': 'exportation',
-  // Tautology (Taut)
-  // (abbrev is already 'taut')
-  // Equivalence (Equiv)
-  'eq': 'equivalence',
-  'bicon': 'equivalence',
-};
-Object.assign(abbrevToEquivalence, equivalenceAliases);
-
-const abbrevToTechnique: Record<string, ProofTechnique> = {};
-for (const [key, info] of Object.entries(proofTechniqueInfo)) {
-  abbrevToTechnique[info.abbrev.toLowerCase()] = key as ProofTechnique;
-}
-// Add shorthand aliases for proof techniques
-const techniqueAliases: Record<string, ProofTechnique> = {
-  'conditional': 'conditionalProof',
-  'cond': 'conditionalProof',
-  'condproof': 'conditionalProof',
-  'indirect': 'indirectProof',
-  'ind': 'indirectProof',
-  'indproof': 'indirectProof',
-  'raa': 'indirectProof',  // Reductio ad absurdum
-  // Legacy ~I aliases now map to IP (IP handles both directions)
-  'negintro': 'indirectProof',
-  'negi': 'indirectProof',
-  '~i': 'indirectProof',
-  'ni': 'indirectProof',
-};
-Object.assign(abbrevToTechnique, techniqueAliases);
-
-// =============================================================================
-// UNIFIED INPUT PARSER
-// =============================================================================
-// Handles all input formats for proof commands in a clean, prioritized way.
-//
-// SUPPORTED FORMATS:
-//
-// 1. SUBPROOF CLOSE (with line range):
-//    - "P > Q 2-5 CP"       → Close CP subproof with formula "P > Q", lines 2-5
-//    - "P v Q 2-5 IP"       → Close IP subproof with formula "P v Q", lines 2-5
-//    - "2-5 CP"             → Auto-close CP subproof, lines 2-5
-//    - "CP" or "IP"         → Auto-close with auto-detected lines
-//
-// 2. SUBPROOF OPEN (assumption + technique, no line numbers):
-//    - "P CP"               → Open CP subproof assuming P
-//    - "~Q IP"              → Open IP subproof assuming ~Q
-//
-// 3. INFERENCE/EQUIVALENCE RULES (comma-separated or space-separated lines):
-//    - "Q 1,2 MP"           → Apply MP to lines 1,2, derive Q
-//    - "Q 1 2 MP"           → Apply MP to lines 1,2, derive Q
-//    - "~~P 3 DN"           → Apply DN to line 3, derive ~~P
-//    - "MP 1,2"             → Apply MP to lines 1,2 (auto-derive formula)
-//
-// 4. LEGACY FORMAT (with //):
-//    - "Q //1, 2, MP"       → Apply MP to lines 1,2, derive Q
-//    - "P > Q //2-5, CP"    → Close CP subproof
-// =============================================================================
-
-// Regex for matching technique abbreviations (CP, IP, ~I, NI)
-const TECHNIQUE_PATTERN = /^(cp|ip|~i|ni)$/i;
-
-// Regex for matching line ranges like "2-5" or "2–5" (en-dash)
-const LINE_RANGE_PATTERN = /(\d+)\s*[-–]\s*(\d+)/;
-
-// Check if a string is a known rule abbreviation
-function isKnownRule(abbrev: string): 'inference' | 'equivalence' | 'technique' | null {
-  const lower = abbrev.toLowerCase();
-  if (abbrevToTechnique[lower]) return 'technique';
-  if (abbrevToInference[lower]) return 'inference';
-  if (abbrevToEquivalence[lower]) return 'equivalence';
-  return null;
-}
-
-// Parse result types
-interface SubproofCloseResult {
-  type: 'subproofClose';
-  formula: string | null;
-  technique: ProofTechnique;
-  lineRange?: { start: number; end: number };
-}
-
-interface SubproofOpenResult {
-  type: 'subproofOpen';
-  formula: string;
-  technique: ProofTechnique;
-}
-
-interface RuleApplicationResult {
-  type: 'ruleApplication';
-  formula: string;
-  lines: number[];
-  rule: string;
-  ruleType: 'inference' | 'equivalence';
-}
-
-type ParseResult = SubproofCloseResult | SubproofOpenResult | RuleApplicationResult | null;
-
-/**
- * Unified parser for all proof input commands.
- * Returns a typed result indicating what kind of command was parsed.
- */
-function parseCommand(input: string): ParseResult {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-
-  // Extract the last word (potential rule/technique)
-  const lastWordMatch = trimmed.match(/\s+([A-Za-z~]+)$/i);
-  const lastWord = lastWordMatch ? lastWordMatch[1] : trimmed;
-  const lastWordLower = lastWord.toLowerCase();
-
-  // Check if it's a known rule/technique
-  const ruleType = isKnownRule(lastWord);
-
-  // CASE 1: Just a technique name alone (e.g., "CP", "IP")
-  if (TECHNIQUE_PATTERN.test(trimmed)) {
-    const tech = abbrevToTechnique[trimmed.toLowerCase()];
-    if (tech) {
-      return { type: 'subproofClose', formula: null, technique: tech };
-    }
-  }
-
-  // CASE 2: Check for line range pattern (indicates subproof close)
-  const rangeMatch = trimmed.match(LINE_RANGE_PATTERN);
-  if (rangeMatch && ruleType === 'technique') {
-    const technique = abbrevToTechnique[lastWordLower]!;
-    const lineStart = parseInt(rangeMatch[1], 10);
-    const lineEnd = parseInt(rangeMatch[2], 10);
-
-    // Validate parsed line numbers (including lineStart > lineEnd check)
-    if (isNaN(lineStart) || isNaN(lineEnd) || lineStart < 1 || lineEnd < 1 || lineStart > lineEnd) {
-      return null;  // Invalid line range
-    }
-
-    // Check if there's a formula before the range
-    const beforeRange = trimmed.substring(0, rangeMatch.index).trim();
-    // Remove any trailing // or whitespace
-    const formula = beforeRange.replace(/\s*\/\/\s*$/, '').trim() || null;
-
-    return {
-      type: 'subproofClose',
-      formula,
-      technique,
-      lineRange: { start: lineStart, end: lineEnd },
-    };
-  }
-
-  // CASE 3: Ends with technique, no line range or line numbers → subproof open
-  // e.g., "P CP", "~Q IP", "A > B CP"
-  if (ruleType === 'technique' && lastWordMatch) {
-    const beforeTechnique = trimmed.substring(0, lastWordMatch.index).trim();
-    // Remove optional // prefix
-    const formula = beforeTechnique.replace(/\s*\/\/\s*$/, '').trim();
-
-    // Make sure there are no digits that look like line numbers
-    // Allow digits that are part of atom names (e.g., "P1") but not standalone line refs
-    const hasStandaloneDigits = /(?:^|\s)\d+(?:\s|$)/.test(formula);
-
-    if (formula && !hasStandaloneDigits) {
-      return {
-        type: 'subproofOpen',
-        formula,
-        technique: abbrevToTechnique[lastWordLower]!,
-      };
-    }
-  }
-
-  // CASE 4: Parse as inference/equivalence rule application
-  // Try to extract: FORMULA LINES RULE or RULE LINES FORMULA
-
-  // Format A: "FORMULA LINES RULE" (e.g., "Q 1,2 MP" or "Q 1 2 MP")
-  // The lines can be comma-separated or space-separated
-  const formatAMatch = trimmed.match(/^(.+?)\s+(\d[\d\s,]*\d|\d)\s+([A-Za-z~]+)$/);
-  if (formatAMatch) {
-    const formula = formatAMatch[1].trim();
-    const linesPart = formatAMatch[2];
-    const rule = formatAMatch[3];
-    const rType = isKnownRule(rule);
-
-    if (rType === 'inference' || rType === 'equivalence') {
-      const lines = linesPart
-        .split(/[\s,]+/)
-        .map(s => parseInt(s, 10))
-        .filter(n => !isNaN(n));
-
-      if (lines.length > 0) {
-        return {
-          type: 'ruleApplication',
-          formula,
-          lines,
-          rule,
-          ruleType: rType,
-        };
-      }
-    }
-  }
-
-  // Format B: "RULE LINES [FORMULA]" (e.g., "MP 1,2" or "MP 1,2 Q")
-  const formatBMatch = trimmed.match(/^([A-Za-z~]+)\s+(\d[\d\s,]*\d|\d)(?:\s*,?\s*(.*))?$/);
-  if (formatBMatch) {
-    const rule = formatBMatch[1];
-    const linesPart = formatBMatch[2];
-    const formula = formatBMatch[3]?.trim() || '';
-    const rType = isKnownRule(rule);
-
-    if (rType === 'inference' || rType === 'equivalence') {
-      const lines = linesPart
-        .split(/[\s,]+/)
-        .map(s => parseInt(s, 10))
-        .filter(n => !isNaN(n));
-
-      if (lines.length > 0) {
-        return {
-          type: 'ruleApplication',
-          formula,
-          lines,
-          rule,
-          ruleType: rType,
-        };
-      }
-    }
-  }
-
-  // Format C: Legacy "FORMULA //LINES, RULE" (e.g., "Q //1, 2, MP")
-  const legacyMatch = trimmed.match(/^(.+?)\s*\/\/\s*(.+)$/);
-  if (legacyMatch) {
-    const formula = legacyMatch[1].trim();
-    const rest = legacyMatch[2].trim();
-
-    // Parse the rest as "lines, rule" or "range, technique"
-    const parts = rest.split(',').map(p => p.trim());
-    if (parts.length >= 2) {
-      const rule = parts[parts.length - 1];
-      const lineStrs = parts.slice(0, -1);
-      const rType = isKnownRule(rule);
-
-      // Check for range format in lines
-      const rangeInLegacy = lineStrs.join(',').match(LINE_RANGE_PATTERN);
-      if (rangeInLegacy && rType === 'technique') {
-        return {
-          type: 'subproofClose',
-          formula,
-          technique: abbrevToTechnique[rule.toLowerCase()]!,
-          lineRange: {
-            start: parseInt(rangeInLegacy[1], 10),
-            end: parseInt(rangeInLegacy[2], 10),
-          },
-        };
-      }
-
-      if (rType === 'inference' || rType === 'equivalence') {
-        const lines = lineStrs
-          .map(s => parseInt(s, 10))
-          .filter(n => !isNaN(n));
-
-        if (lines.length > 0) {
-          return {
-            type: 'ruleApplication',
-            formula,
-            lines,
-            rule,
-            ruleType: rType,
-          };
-        }
-      }
-    }
-  }
-
-  return null;
 }
 
 export const ProofWorkspace: React.FC = () => {
@@ -373,19 +50,9 @@ export const ProofWorkspace: React.FC = () => {
   const [selectedTechnique, setSelectedTechnique] = useState<ProofTechnique | null>(null);
   const [mode, setMode] = useState<'apply' | 'open' | 'close'>('apply');
 
-  // Goal tracking for subproofs
-  const [scopeGoals, setScopeGoals] = useState<Record<string, string>>({});
-  const [pendingGoalScopeId, setPendingGoalScopeId] = useState<string | null>(null);
-  const [goalInput, setGoalInput] = useState('');
-
   // Proof renaming
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
-
-  // Portfolio tracking
-  const startTimeRef = useRef<number | null>(null);
-  const hintsUsedRef = useRef(0);
-  const savedToPortfolioRef = useRef<string | null>(null); // Track which proof was saved
 
   // Ref to track selectedLines for use in async handlers (avoids stale closure issues)
   const selectedLinesRef = useRef<number[]>(selectedLines);
@@ -393,154 +60,50 @@ export const ProofWorkspace: React.FC = () => {
     selectedLinesRef.current = selectedLines;
   }, [selectedLines]);
 
-  // Auto-apply inference rule when we have the right number of lines selected
-  const tryAutoApplyInference = useCallback(async (rule: InferenceRule, lines: number[]) => {
-    const info = inferenceRuleInfo[rule];
-    if (lines.length === info.premises) {
-      // For rules that don't need additional input, auto-apply without formula
-      if (!['addition'].includes(rule)) {
-        const success = await applyInferenceRule(rule, lines, '');
-        if (success) {
-          setSelectedInferenceRule(null);
-          clearLineSelection();
-        }
-        // Don't clear selection on failure so user can see what went wrong
-        return success;
-      }
-    }
-    return false;
-  }, [applyInferenceRule, clearLineSelection]);
+  // Use extracted hooks
+  const {
+    scopeGoals,
+    pendingGoalScopeId,
+    goalInput,
+    setGoalInput,
+    handleGoalSubmit,
+    handleGoalSkip,
+  } = useProofGoals({ proof });
 
-  // Auto-apply equivalence rule when we have 1 line selected
-  const tryAutoApplyEquivalence = useCallback(async (rule: EquivalenceRule, line: number) => {
-    if (!proof) return false;
+  const {
+    incrementHintsUsed,
+    getTimeSpent,
+    getHintsUsed,
+  } = useProofTimer({ proof, saveToPortfolio });
 
-    const proofLine = proof.lines.find(l => l.line_number === line);
-    if (!proofLine) return false;
-
-    try {
-      // Get all possible transformations for this formula
-      const allTransformations = await invoke<TransformationResult[]>('get_all_transformations', {
-        formulaStr: formulaToString(proofLine.formula),
-      });
-
-      // Filter to only transformations matching the selected rule
-      const matchingTransformations = allTransformations.filter(
-        t => t.rule.toLowerCase() === rule.toLowerCase() ||
-          t.rule_abbrev.toLowerCase() === equivalenceRuleInfo[rule].abbrev.toLowerCase()
-      );
-
-      // Auto-apply only if there's exactly one matching transformation
-      if (matchingTransformations.length === 1) {
-        const success = await applyEquivalenceRule(rule, line, matchingTransformations[0].result);
-        if (success) {
-          setSelectedEquivalenceRule(null);
-          clearLineSelection();
-        }
-        return success;
-      }
-
-      // If multiple options, put first one in input field as suggestion
-      if (matchingTransformations.length > 1) {
-        setFormulaInput(matchingTransformations[0].result);
-      }
-
-      return false;
-    } catch {
-      return false;
-    }
-  }, [proof, applyEquivalenceRule, clearLineSelection]);
-
-  // Effect to auto-apply when lines + rule are ready
-  useEffect(() => {
-    if (selectedInferenceRule && selectedLines.length > 0) {
-      tryAutoApplyInference(selectedInferenceRule, selectedLines);
-    }
-  }, [selectedLines, selectedInferenceRule, tryAutoApplyInference]);
-
-  // Effect to auto-apply equivalence when line + rule are ready
-  useEffect(() => {
-    if (selectedEquivalenceRule && selectedLines.length === 1) {
-      tryAutoApplyEquivalence(selectedEquivalenceRule, selectedLines[0]);
-    }
-  }, [selectedLines, selectedEquivalenceRule, tryAutoApplyEquivalence]);
-
-  // Track previous scope count to detect new subproofs
-  const prevScopeCountRef = useRef(0);
-  useEffect(() => {
-    if (!proof) return;
-    const currentScopeCount = proof.scope_manager.scopes.length;
-    if (currentScopeCount > prevScopeCountRef.current) {
-      // New scope was added - find the newest open scope
-      const newestOpenScope = proof.scope_manager.scopes.find(s => s.end_line === undefined);
-      if (newestOpenScope && !scopeGoals[newestOpenScope.id]) {
-        setPendingGoalScopeId(newestOpenScope.id);
-        setGoalInput('');
-      }
-    }
-    prevScopeCountRef.current = currentScopeCount;
-  }, [proof, scopeGoals]);
-
-  // Handle goal submission
-  const handleGoalSubmit = () => {
-    if (pendingGoalScopeId && goalInput.trim()) {
-      setScopeGoals(prev => ({ ...prev, [pendingGoalScopeId]: goalInput.trim() }));
-    }
-    setPendingGoalScopeId(null);
-    setGoalInput('');
-  };
-
-  const handleGoalSkip = () => {
-    setPendingGoalScopeId(null);
-    setGoalInput('');
-  };
-
-  // Start timer when proof begins
-  useEffect(() => {
-    if (proof && !proof.is_complete && startTimeRef.current === null) {
-      startTimeRef.current = Date.now();
-      hintsUsedRef.current = 0;
-      savedToPortfolioRef.current = null;
-    }
-    // Reset when proof is cleared
-    if (!proof) {
-      startTimeRef.current = null;
-      hintsUsedRef.current = 0;
-      savedToPortfolioRef.current = null;
-    }
-  }, [proof]);
-
-  // Save to portfolio when proof is completed
-  useEffect(() => {
-    if (proof?.is_complete && savedToPortfolioRef.current !== proof.id) {
-      savedToPortfolioRef.current = proof.id;
-      const timeSpent = startTimeRef.current
-        ? Math.floor((Date.now() - startTimeRef.current) / 1000)
-        : undefined;
-      // Await the save to ensure it completes before potential app close
-      (async () => {
-        try {
-          await saveToPortfolio(proof, timeSpent, hintsUsedRef.current);
-        } catch (err) {
-          console.error('Failed to auto-save completed proof:', err);
-        }
-      })();
-    }
-  }, [proof, saveToPortfolio]);
+  const {
+    tryAutoApplyInference,
+    tryAutoApplyEquivalence,
+  } = useProofAutoApply({
+    proof,
+    selectedLines,
+    selectedInferenceRule,
+    selectedEquivalenceRule,
+    applyInferenceRule,
+    applyEquivalenceRule,
+    clearLineSelection,
+    setSelectedInferenceRule,
+    setSelectedEquivalenceRule,
+    setFormulaInput,
+  });
 
   // Track hints used
   const handleGetHint = async () => {
-    hintsUsedRef.current += 1;
+    incrementHintsUsed();
     await getHint();
   };
 
   // Save incomplete proof progress to portfolio
   const handleSaveProgress = async () => {
     if (!proof || proof.is_complete) return;
-    const timeSpent = startTimeRef.current
-      ? Math.floor((Date.now() - startTimeRef.current) / 1000)
-      : undefined;
-    const entry = await saveToPortfolio(proof, timeSpent, hintsUsedRef.current);
+    const timeSpent = getTimeSpent();
+    const hintsUsed = getHintsUsed();
+    const entry = await saveToPortfolio(proof, timeSpent, hintsUsed);
     if (entry) {
       // Show brief success feedback (error state doubles as message)
       setError(null);

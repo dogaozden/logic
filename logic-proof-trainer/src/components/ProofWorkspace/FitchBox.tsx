@@ -102,6 +102,7 @@ export const FitchBox: React.FC<FitchBoxProps> = ({
   // Track new lines for animation
   const prevLineCountRef = useRef(proof.lines.length);
   const [newLineIds, setNewLineIds] = useState<Set<string>>(new Set());
+  const timerRef = useRef<number | undefined>(undefined);
 
   // Drag and drop state
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -121,6 +122,12 @@ export const FitchBox: React.FC<FitchBoxProps> = ({
   );
 
   useEffect(() => {
+    // Always clear existing timer first
+    if (timerRef.current !== undefined) {
+      clearTimeout(timerRef.current);
+      timerRef.current = undefined;
+    }
+
     const currentCount = proof.lines.length;
     const prevCount = prevLineCountRef.current;
 
@@ -132,17 +139,22 @@ export const FitchBox: React.FC<FitchBoxProps> = ({
       setNewLineIds(newIds);
 
       // Clear the "new" status after animation completes
-      const timer = setTimeout(() => {
+      timerRef.current = window.setTimeout(() => {
         setNewLineIds(new Set());
+        timerRef.current = undefined;
       }, 300);
-
-      prevLineCountRef.current = currentCount;
-      return () => clearTimeout(timer);
     } else {
       // Lines were removed or stayed the same (undo, etc.)
-      prevLineCountRef.current = currentCount;
       setNewLineIds(new Set());
     }
+
+    prevLineCountRef.current = currentCount;
+
+    return () => {
+      if (timerRef.current !== undefined) {
+        clearTimeout(timerRef.current);
+      }
+    };
   }, [proof.lines]);
 
   // Find the maximum number of active scopes (for calculating width)

@@ -121,6 +121,10 @@ impl StorageService {
         self.data_dir.join("statistics.json")
     }
 
+    fn global_notes_file(&self) -> PathBuf {
+        self.data_dir.join("global_notes.txt")
+    }
+
     // Proof operations
 
     pub fn save_proof(&self, proof: &Proof) -> Result<(), StorageError> {
@@ -361,6 +365,29 @@ impl StorageService {
 
         Ok(())
     }
+
+    // Global notes operations
+
+    pub fn load_global_notes(&self) -> Result<String, StorageError> {
+        let path = self.global_notes_file();
+        if path.exists() {
+            Ok(fs::read_to_string(path)?)
+        } else {
+            Ok(String::new())
+        }
+    }
+
+    pub fn save_global_notes(&self, notes: &str) -> Result<(), StorageError> {
+        if notes.len() > MAX_NOTES_LENGTH {
+            return Err(StorageError(format!(
+                "Notes exceed maximum length of {} characters",
+                MAX_NOTES_LENGTH
+            )));
+        }
+        let path = self.global_notes_file();
+        fs::write(path, notes)?;
+        Ok(())
+    }
 }
 
 impl Default for StorageService {
@@ -377,15 +404,71 @@ mod tests {
 
     fn create_test_storage() -> StorageService {
         let temp = tempdir().unwrap();
-        StorageService {
+        let storage = StorageService {
             data_dir: temp.into_path(),
-        }
+        };
+        // Create required subdirectories
+        fs::create_dir_all(storage.proofs_dir()).unwrap();
+        fs::create_dir_all(storage.theorems_dir()).unwrap();
+        fs::create_dir_all(storage.portfolio_dir()).unwrap();
+        storage
     }
+
+    fn make_simple_theorem() -> Theorem {
+        Theorem::new(
+            vec![Formula::parse("P").unwrap()],
+            Formula::parse("P").unwrap(),
+            Difficulty::Easy,
+            None,
+            Some("Test Theorem".to_string()),
+        )
+    }
+
+    fn make_simple_proof() -> Proof {
+        Proof::new(make_simple_theorem())
+    }
+
+    // === ID Validation Tests (Security - Path Traversal Prevention) ===
+
+    #[test]
+    fn test_validate_id_rejects_empty() {
+        let result = StorageService::validate_id("");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().0.contains("empty"));
+    }
+
+    #[test]
+    fn test_validate_id_rejects_path_traversal_dots() {
+        let result = StorageService::validate_id("../../../etc/passwd");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().0.contains("path traversal"));
+    }
+
+    #[test]
+    fn test_validate_id_rejects_forward_slash() {
+        let result = StorageService::validate_id("some/path/id");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().0.contains("path traversal"));
+    }
+
+    #[test]
+    fn test_validate_id_rejects_backslash() {
+        let result = StorageService::validate_id("some\\path\\id");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().0.contains("path traversal"));
+    }
+
+    #[test]
+    fn test_validate_id_accepts_valid_uuid() {
+        let result = StorageService::validate_id("550e8400-e29b-41d4-a716-446655440000");
+        assert!(result.is_ok());
+    }
+
+    // === Proof Operations Tests ===
 
     #[test]
     fn test_save_and_load_proof() {
         let storage = create_test_storage();
-        fs::create_dir_all(storage.proofs_dir()).unwrap();
 
         let theorem = Theorem::new(
             vec![Formula::parse("P").unwrap()],
@@ -402,6 +485,264 @@ mod tests {
 
         assert_eq!(loaded.id, id);
     }
+
+    #[test]
+    fn test_load_proof_nonexistent_returns_error() {
+        let storage = create_test_storage();
+
+        let result = storage.load_proof("nonexistent-id-12345");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_all_proofs_skips_corrupted_json() {
+        let storage = create_test_storage();
+
+        // Save a valid proof
+        let proof = make_simple_proof();
+        storage.save_proof(&proof).unwrap();
+
+        // Write a corrupted JSON file
+        let corrupted_path = storage.proofs_dir().join("corrupted.json");
+        fs::write(&corrupted_path, "{ invalid json !!!").unwrap();
+
+        // load_all_proofs should skip the corrupted file
+        let proofs = storage.load_all_proofs().unwrap();
+        assert_eq!(proofs.len(), 1);
+        assert_eq!(proofs[0].id, proof.id);
+    }
+
+    #[test]
+    fn test_delete_proof_success() {
+        let storage = create_test_storage();
+
+        let proof = make_simple_proof();
+        let id = proof.id.clone();
+        storage.save_proof(&proof).unwrap();
+
+        // Verify it exists
+        assert!(storage.load_proof(&id).is_ok());
+
+        // Delete it
+        storage.delete_proof(&id).unwrap();
+
+        // Verify it's gone
+        assert!(storage.load_proof(&id).is_err());
+    }
+
+    // === Custom Theorem Operations Tests ===
+
+    #[test]
+    fn test_save_and_load_custom_theorem() {
+        let storage = create_test_storage();
+
+        let theorem = make_simple_theorem();
+        let id = theorem.id.clone();
+
+        storage.save_custom_theorem(&theorem).unwrap();
+        let loaded = storage.load_custom_theorem(&id).unwrap();
+
+        assert_eq!(loaded.id, id);
+        assert_eq!(loaded.name, Some("Test Theorem".to_string()));
+    }
+
+    #[test]
+    fn test_load_all_custom_theorems_multiple() {
+        let storage = create_test_storage();
+
+        // Save multiple theorems
+        let theorem1 = make_simple_theorem();
+        let theorem2 = Theorem::new(
+            vec![Formula::parse("Q").unwrap()],
+            Formula::parse("Q").unwrap(),
+            Difficulty::Medium,
+            None,
+            Some("Second Theorem".to_string()),
+        );
+
+        storage.save_custom_theorem(&theorem1).unwrap();
+        storage.save_custom_theorem(&theorem2).unwrap();
+
+        let theorems = storage.load_all_custom_theorems().unwrap();
+        assert_eq!(theorems.len(), 2);
+    }
+
+    #[test]
+    fn test_delete_custom_theorem_success() {
+        let storage = create_test_storage();
+
+        let theorem = make_simple_theorem();
+        let id = theorem.id.clone();
+        storage.save_custom_theorem(&theorem).unwrap();
+
+        // Verify it exists
+        assert!(storage.load_custom_theorem(&id).is_ok());
+
+        // Delete it
+        storage.delete_custom_theorem(&id).unwrap();
+
+        // Verify it's gone
+        assert!(storage.load_custom_theorem(&id).is_err());
+    }
+
+    // === Portfolio Operations Tests ===
+
+    #[test]
+    fn test_save_and_load_portfolio_entry() {
+        let storage = create_test_storage();
+
+        let proof = make_simple_proof();
+        let entry = PortfolioEntry::new(proof, Some(120), 0);
+        let id = entry.id.clone();
+
+        storage.save_to_portfolio(&entry).unwrap();
+        let loaded = storage.load_portfolio_entry(&id).unwrap();
+
+        assert_eq!(loaded.id, id);
+        assert_eq!(loaded.time_spent_secs, Some(120));
+    }
+
+    #[test]
+    fn test_load_portfolio_sorted_by_date() {
+        let storage = create_test_storage();
+
+        // Create entries with different timestamps
+        let proof1 = make_simple_proof();
+        let mut entry1 = PortfolioEntry::new(proof1, Some(60), 0);
+
+        let proof2 = make_simple_proof();
+        let mut entry2 = PortfolioEntry::new(proof2, Some(120), 0);
+
+        // Manually set dates to ensure ordering
+        entry1.saved_at = chrono::Utc::now() - chrono::Duration::hours(2);
+        entry2.saved_at = chrono::Utc::now();
+
+        storage.save_to_portfolio(&entry1).unwrap();
+        storage.save_to_portfolio(&entry2).unwrap();
+
+        let portfolio = storage.load_portfolio().unwrap();
+        assert_eq!(portfolio.len(), 2);
+        // Newest first
+        assert_eq!(portfolio[0].id, entry2.id);
+        assert_eq!(portfolio[1].id, entry1.id);
+    }
+
+    #[test]
+    fn test_update_portfolio_notes_exceeds_max_length() {
+        let storage = create_test_storage();
+
+        let proof = make_simple_proof();
+        let entry = PortfolioEntry::new(proof, None, 0);
+        let id = entry.id.clone();
+        storage.save_to_portfolio(&entry).unwrap();
+
+        // Try to update with notes that exceed max length
+        let long_notes = "x".repeat(MAX_NOTES_LENGTH + 1);
+        let result = storage.update_portfolio_notes(&id, long_notes);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().0.contains("maximum length"));
+    }
+
+    #[test]
+    fn test_rename_portfolio_entry_exceeds_max_length() {
+        let storage = create_test_storage();
+
+        let proof = make_simple_proof();
+        let entry = PortfolioEntry::new(proof, None, 0);
+        let id = entry.id.clone();
+        storage.save_to_portfolio(&entry).unwrap();
+
+        // Try to rename with name that exceeds max length
+        let long_name = "x".repeat(MAX_NAME_LENGTH + 1);
+        let result = storage.rename_portfolio_entry(&id, long_name);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().0.contains("maximum length"));
+    }
+
+    // === Export/Import Operations Tests ===
+
+    #[test]
+    fn test_export_all_includes_all_data() {
+        let storage = create_test_storage();
+
+        // Save various data types
+        let proof = make_simple_proof();
+        storage.save_proof(&proof).unwrap();
+
+        let theorem = make_simple_theorem();
+        storage.save_custom_theorem(&theorem).unwrap();
+
+        let entry = PortfolioEntry::new(make_simple_proof(), Some(300), 1);
+        storage.save_to_portfolio(&entry).unwrap();
+
+        let mut stats = UserStatistics::new();
+        stats.total_proofs_completed = 5;
+        storage.save_statistics(&stats).unwrap();
+
+        // Export all
+        let json = storage.export_all().unwrap();
+
+        // Verify JSON contains expected data
+        assert!(json.contains(&proof.id));
+        assert!(json.contains(&theorem.id));
+        assert!(json.contains(&entry.id));
+        // Serde uses snake_case by default for Rust field names
+        assert!(json.contains("total_proofs_completed"), "JSON should contain total_proofs_completed field");
+        assert!(json.contains("5") || json.contains(": 5"), "JSON should contain value 5");
+    }
+
+    #[test]
+    fn test_import_all_round_trip() {
+        let storage1 = create_test_storage();
+
+        // Save data to first storage
+        let proof = make_simple_proof();
+        let proof_id = proof.id.clone();
+        storage1.save_proof(&proof).unwrap();
+
+        let theorem = make_simple_theorem();
+        let theorem_id = theorem.id.clone();
+        storage1.save_custom_theorem(&theorem).unwrap();
+
+        // Export
+        let json = storage1.export_all().unwrap();
+
+        // Import to fresh storage
+        let storage2 = create_test_storage();
+        storage2.import_all(&json).unwrap();
+
+        // Verify data was imported
+        let loaded_proof = storage2.load_proof(&proof_id).unwrap();
+        assert_eq!(loaded_proof.id, proof_id);
+
+        let loaded_theorem = storage2.load_custom_theorem(&theorem_id).unwrap();
+        assert_eq!(loaded_theorem.id, theorem_id);
+    }
+
+    // === Global Notes Operations Tests ===
+
+    #[test]
+    fn test_load_global_notes_empty_when_missing() {
+        let storage = create_test_storage();
+
+        let notes = storage.load_global_notes().unwrap();
+        assert!(notes.is_empty());
+    }
+
+    #[test]
+    fn test_save_global_notes_exceeds_max_length_rejected() {
+        let storage = create_test_storage();
+
+        let long_notes = "x".repeat(MAX_NOTES_LENGTH + 1);
+        let result = storage.save_global_notes(&long_notes);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().0.contains("maximum length"));
+    }
+
+    // === Original Tests ===
 
     #[test]
     fn test_statistics() {

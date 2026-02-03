@@ -1,5 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::sync::Arc;
+
+/// Type alias for shared ownership of formulas using Arc
+/// Use this when you need to share formulas across multiple owners without cloning
+pub type SharedFormula = Arc<Formula>;
 
 /// Represents a propositional logic formula
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -15,6 +20,18 @@ pub enum Formula {
 }
 
 impl Formula {
+    /// Wrap formula in Arc for shared ownership
+    /// Use this when you need to share a formula across multiple owners without cloning
+    pub fn shared(self) -> SharedFormula {
+        Arc::new(self)
+    }
+
+    /// Clone from Arc reference
+    /// Use this when you need an owned copy from a SharedFormula
+    pub fn from_shared(shared: &SharedFormula) -> Formula {
+        (**shared).clone()
+    }
+
     /// Display string using logical symbols (⊃, ∨, ., ≡, ~, ⊥)
     /// Uses bracket hierarchy: innermost () → [] → {} outermost
     pub fn display_string(&self) -> String {

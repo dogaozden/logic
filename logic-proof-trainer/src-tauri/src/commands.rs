@@ -1,4 +1,5 @@
-use tauri;
+use tauri::{self, State};
+use std::sync::Mutex;
 use crate::models::{
     Formula, Proof, Theorem, UserStatistics, Justification,
     theorem::{Difficulty, get_classic_theorems as get_classics},
@@ -65,10 +66,13 @@ pub enum RuleApplication {
 
 #[tauri::command]
 pub fn apply_rule(
-    mut proof: Proof,
+    proof: Proof,
     rule_application: RuleApplication,
     formula_str: String,
 ) -> Result<Proof, String> {
+    // Clone the proof to avoid mutating the input on error
+    let mut working_proof = proof.clone();
+
     // Parse the formula
     let formula = Formula::parse(&formula_str)
         .map_err(|e| format!("Invalid formula: {}", e))?;
@@ -83,74 +87,80 @@ pub fn apply_rule(
     };
 
     // Add the line
-    proof.add_line(formula, justification);
+    working_proof.add_line(formula, justification);
 
     // Verify the new line
-    if proof.lines.is_empty() {
+    if working_proof.lines.is_empty() {
         return Err("No lines in proof".to_string());
     }
-    let last_idx = proof.lines.len() - 1;
-    let line = &proof.lines[last_idx];
-    let result = ProofVerifier::verify_line(line, &proof);
+    let last_idx = working_proof.lines.len() - 1;
+    let line = &working_proof.lines[last_idx];
+    let result = ProofVerifier::verify_line(line, &working_proof);
 
     // Update validity
-    proof.lines[last_idx].is_valid = result.is_valid;
-    proof.lines[last_idx].validation_message = result.message.clone();
+    working_proof.lines[last_idx].is_valid = result.is_valid;
+    working_proof.lines[last_idx].validation_message = result.message.clone();
 
     if !result.is_valid {
         return Err(result.message.unwrap_or_else(|| "Invalid application".to_string()));
     }
 
     // Check if proof is complete
-    proof.check_complete();
+    working_proof.check_complete();
 
-    Ok(proof)
+    Ok(working_proof)
 }
 
 #[tauri::command]
 pub fn open_subproof(
-    mut proof: Proof,
+    proof: Proof,
     technique: ProofTechnique,
     assumption_str: String,
 ) -> Result<Proof, String> {
+    // Clone the proof to avoid mutating the input on error
+    let mut working_proof = proof.clone();
+
     let assumption = Formula::parse(&assumption_str)
         .map_err(|e| format!("Invalid formula: {}", e))?;
 
-    proof.open_subproof(assumption, technique);
-    Ok(proof)
+    working_proof.open_subproof(assumption, technique);
+    Ok(working_proof)
 }
 
 #[tauri::command]
 pub fn close_subproof(
-    mut proof: Proof,
+    proof: Proof,
     technique: ProofTechnique,
     conclusion_str: String,
 ) -> Result<Proof, String> {
+    // Clone the proof to avoid mutating the input on error
+    let mut working_proof = proof.clone();
+
     let conclusion = Formula::parse(&conclusion_str)
         .map_err(|e| format!("Invalid formula: {}", e))?;
 
-    match proof.close_subproof(conclusion, technique) {
+    match working_proof.close_subproof(conclusion, technique) {
         Some(_line) => {
             // Verify the conclusion line
-            if proof.lines.is_empty() {
+            if working_proof.lines.is_empty() {
                 return Err("No lines in proof".to_string());
             }
-            let last_idx = proof.lines.len() - 1;
-            let line = &proof.lines[last_idx];
-            let result = ProofVerifier::verify_line(line, &proof);
+            let last_idx = working_proof.lines.len() - 1;
+            let line = &working_proof.lines[last_idx];
+            let result = ProofVerifier::verify_line(line, &working_proof);
 
-            proof.lines[last_idx].is_valid = result.is_valid;
-            proof.lines[last_idx].validation_message = result.message.clone();
+            working_proof.lines[last_idx].is_valid = result.is_valid;
+            working_proof.lines[last_idx].validation_message = result.message.clone();
 
             if !result.is_valid {
                 return Err(result.message.unwrap_or_else(|| "Invalid subproof conclusion".to_string()));
             }
 
-            proof.check_complete();
-            Ok(proof)
+            working_proof.check_complete();
+            Ok(working_proof)
         }
         None => {
-            let all_scopes = proof.scope_manager.all_scopes();
+            let all_scopes = working_proof.scope_manager.all_scopes();
             let scope_count = all_scopes.len();
             let open_scopes = all_scopes.iter().filter(|s| s.is_open()).count();
             let scope_details: Vec<String> = all_scopes.iter().map(|s| {
@@ -166,7 +176,7 @@ pub fn close_subproof(
 }
 
 #[tauri::command]
-pub fn delete_line(mut proof: Proof, line_number: usize) -> Result<Proof, String> {
+pub fn delete_line(proof: Proof, line_number: usize) -> Result<Proof, String> {
     // line_number is 1-indexed (matches UI display), proof.lines.len() is count.
     // For line N to be the last line, N must equal the total count.
     // Example: 5 lines means lines 1-5, so only line 5 (== len) can be deleted.
@@ -179,20 +189,23 @@ pub fn delete_line(mut proof: Proof, line_number: usize) -> Result<Proof, String
         return Err("Cannot delete premises".to_string());
     }
 
-    proof.remove_last_line();
-    Ok(proof)
+    let mut working_proof = proof.clone();
+    working_proof.remove_last_line();
+    Ok(working_proof)
 }
 
 #[tauri::command]
-pub fn undo_line(mut proof: Proof) -> Proof {
-    proof.remove_last_line();
-    proof
+pub fn undo_line(proof: Proof) -> Proof {
+    let mut working_proof = proof.clone();
+    working_proof.remove_last_line();
+    working_proof
 }
 
 #[tauri::command]
-pub fn check_proof_complete(mut proof: Proof) -> Proof {
-    proof.check_complete();
-    proof
+pub fn check_proof_complete(proof: Proof) -> Proof {
+    let mut working_proof = proof.clone();
+    working_proof.check_complete();
+    working_proof
 }
 
 #[tauri::command]
@@ -248,32 +261,32 @@ pub fn get_hint(proof: Proof) -> String {
 // ============ Storage Commands ============
 
 #[tauri::command]
-pub fn save_proof(proof: Proof) -> Result<(), String> {
-    let storage = StorageService::new().map_err(|e| e.to_string())?;
+pub fn save_proof(storage: State<Mutex<StorageService>>, proof: Proof) -> Result<(), String> {
+    let storage = storage.lock().map_err(|e| e.to_string())?;
     storage.save_proof(&proof).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn load_proofs() -> Result<Vec<Proof>, String> {
-    let storage = StorageService::new().map_err(|e| e.to_string())?;
+pub fn load_proofs(storage: State<Mutex<StorageService>>) -> Result<Vec<Proof>, String> {
+    let storage = storage.lock().map_err(|e| e.to_string())?;
     storage.load_all_proofs().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn get_statistics() -> Result<UserStatistics, String> {
-    let storage = StorageService::new().map_err(|e| e.to_string())?;
+pub fn get_statistics(storage: State<Mutex<StorageService>>) -> Result<UserStatistics, String> {
+    let storage = storage.lock().map_err(|e| e.to_string())?;
     storage.load_statistics().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn save_custom_theorem(theorem: Theorem) -> Result<(), String> {
-    let storage = StorageService::new().map_err(|e| e.to_string())?;
+pub fn save_custom_theorem(storage: State<Mutex<StorageService>>, theorem: Theorem) -> Result<(), String> {
+    let storage = storage.lock().map_err(|e| e.to_string())?;
     storage.save_custom_theorem(&theorem).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn load_custom_theorems() -> Result<Vec<Theorem>, String> {
-    let storage = StorageService::new().map_err(|e| e.to_string())?;
+pub fn load_custom_theorems(storage: State<Mutex<StorageService>>) -> Result<Vec<Theorem>, String> {
+    let storage = storage.lock().map_err(|e| e.to_string())?;
     storage.load_all_custom_theorems().map_err(|e| e.to_string())
 }
 
@@ -281,45 +294,60 @@ pub fn load_custom_theorems() -> Result<Vec<Theorem>, String> {
 
 #[tauri::command]
 pub fn save_to_portfolio(
+    storage: State<Mutex<StorageService>>,
     proof: Proof,
     time_spent_secs: Option<u64>,
     hints_used: u32,
 ) -> Result<PortfolioEntry, String> {
     // Allow saving both complete and incomplete proofs
     let entry = PortfolioEntry::new(proof, time_spent_secs, hints_used);
-    let storage = StorageService::new().map_err(|e| e.to_string())?;
+    let storage = storage.lock().map_err(|e| e.to_string())?;
     storage.save_to_portfolio(&entry).map_err(|e| e.to_string())?;
     Ok(entry)
 }
 
 #[tauri::command]
-pub fn load_portfolio() -> Result<Vec<PortfolioEntry>, String> {
-    let storage = StorageService::new().map_err(|e| e.to_string())?;
+pub fn load_portfolio(storage: State<Mutex<StorageService>>) -> Result<Vec<PortfolioEntry>, String> {
+    let storage = storage.lock().map_err(|e| e.to_string())?;
     storage.load_portfolio().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn get_portfolio_entry(id: String) -> Result<PortfolioEntry, String> {
-    let storage = StorageService::new().map_err(|e| e.to_string())?;
+pub fn get_portfolio_entry(storage: State<Mutex<StorageService>>, id: String) -> Result<PortfolioEntry, String> {
+    let storage = storage.lock().map_err(|e| e.to_string())?;
     storage.load_portfolio_entry(&id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn delete_portfolio_entry(id: String) -> Result<(), String> {
-    let storage = StorageService::new().map_err(|e| e.to_string())?;
+pub fn delete_portfolio_entry(storage: State<Mutex<StorageService>>, id: String) -> Result<(), String> {
+    let storage = storage.lock().map_err(|e| e.to_string())?;
     storage.delete_portfolio_entry(&id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn update_portfolio_notes(id: String, notes: String) -> Result<(), String> {
-    let storage = StorageService::new().map_err(|e| e.to_string())?;
+pub fn update_portfolio_notes(storage: State<Mutex<StorageService>>, id: String, notes: String) -> Result<(), String> {
+    let storage = storage.lock().map_err(|e| e.to_string())?;
     storage.update_portfolio_notes(&id, notes).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn rename_portfolio_entry(id: String, name: String) -> Result<(), String> {
-    let storage = StorageService::new().map_err(|e| e.to_string())?;
+pub fn rename_portfolio_entry(storage: State<Mutex<StorageService>>, id: String, name: String) -> Result<(), String> {
+    let storage = storage.lock().map_err(|e| e.to_string())?;
     storage.rename_portfolio_entry(&id, name).map_err(|e| e.to_string())
+}
+
+// ============ Global Notes Commands ============
+
+#[tauri::command]
+pub fn load_global_notes(storage: State<Mutex<StorageService>>) -> Result<String, String> {
+    let storage = storage.lock().map_err(|e| e.to_string())?;
+    storage.load_global_notes().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_global_notes(storage: State<Mutex<StorageService>>, notes: String) -> Result<(), String> {
+    let storage = storage.lock().map_err(|e| e.to_string())?;
+    storage.save_global_notes(&notes).map_err(|e| e.to_string())
 }
 
 // ============ Utility Commands ============

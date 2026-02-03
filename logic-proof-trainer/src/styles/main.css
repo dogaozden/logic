@@ -1177,7 +1177,7 @@ body {
 
 .portfolio-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1.5fr 1fr;
   gap: 16px;
   flex: 1;
   overflow: hidden;
@@ -1374,6 +1374,60 @@ body {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+/* Global Notepad */
+.global-notepad {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.notepad-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.notepad-header .label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.saving-indicator {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.notepad-textarea {
+  flex: 1;
+  width: 100%;
+  min-height: 200px;
+  padding: 12px;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: none;
+  outline: none;
+  line-height: 1.5;
+}
+
+.notepad-textarea:focus {
+  border-color: var(--accent);
+}
+
+.notepad-textarea::placeholder {
+  color: var(--text-secondary);
 }
 
 /* Scrollbar */

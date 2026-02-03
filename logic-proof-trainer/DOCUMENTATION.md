@@ -145,16 +145,27 @@ logic-proof-trainer/
 ├── src/                             # React frontend
 │   ├── main.tsx
 │   ├── App.tsx                      # Main app + navigation
+│   ├── setupTests.ts                # Vitest test setup
 │   ├── types/
-│   │   └── index.ts                 # TypeScript types
+│   │   ├── index.ts                 # TypeScript types
+│   │   └── index.test.ts            # Unit tests for pure functions
+│   ├── utils/
+│   │   └── proofCommandParser.ts    # Unified proof command parser
 │   ├── hooks/
 │   │   ├── useProof.ts              # Proof state (Zustand)
+│   │   ├── useProof.test.ts         # Unit tests for useProof
+│   │   ├── useProofAutoApply.ts     # Auto-apply inference/equivalence
+│   │   ├── useProofGoals.ts         # Subproof goal tracking
+│   │   ├── useProofTimer.ts         # Proof timing + portfolio save
 │   │   ├── useTheorems.ts           # Theorem state
 │   │   ├── usePortfolio.ts          # Portfolio state
 │   │   ├── useTheme.ts              # Theme state (dark/high-contrast)
 │   │   └── useScratchpad.ts         # Scratchpad state
 │   ├── components/
+│   │   ├── ErrorBoundary.tsx        # Error boundary for app stability
 │   │   ├── FormulaDisplay.tsx       # Color-coded bracket rendering
+│   │   ├── shared/
+│   │   │   └── SymbolToolbar.tsx    # Shared symbol toolbar component
 │   │   ├── TheoremList/
 │   │   │   ├── TheoremList.tsx      # Theorem browser + generator
 │   │   │   └── CustomTheoremModal.tsx # Custom theorem creator UI
@@ -301,13 +312,28 @@ The `formulaToString` function renders formulas with appropriate bracketing for 
 
 ### State Management (Zustand)
 
-**useProof**:
-- `proof`, `selectedLines`, `isLoading`, `error`, `hint`
-- Actions: `createProof`, `applyInferenceRule`, `applyEquivalenceRule`, `openSubproof`, `closeSubproof`, `undoLine`, `getHint`, `reorderProof`
+**useProof** (main proof state):
+- State: `proof`, `selectedLines`, `isLoading`, `error`, `hint`
+- Actions: `createProof`, `applyInferenceRule`, `applyEquivalenceRule`, `openSubproof`, `closeSubproof`, `undoLine`, `getHint`, `reorderProof`, `renameProof`
+
+**useProofAutoApply** (auto-apply logic):
+- Automatically applies inference rules when correct number of premises selected
+- Automatically applies equivalence rules when single transformation available
+- Uses race condition guard (`pendingAutoApplyRef`) to prevent concurrent operations
+
+**useProofGoals** (subproof goals):
+- Tracks user-defined goals for each subproof
+- Prompts for goal when new subproof opened
+
+**useProofTimer** (timing + portfolio):
+- Tracks time spent on proof
+- Counts hints used
+- Auto-saves completed proofs to portfolio
 
 **useTheorems**:
-- `classicTheorems`, `customTheorems`, `selectedTheorem`
-- Actions: `loadClassicTheorems`, `loadCustomTheorems`, `generateTheorem`, `generateTheoremWithValue`, `selectTheorem`, `saveCustomTheorem`
+- `customTheorems`, `selectedTheorem`
+- `CURATED_EXAMPLES`: Static examples for each difficulty level (Easy: Modus Ponens, Medium: Contraposition, Hard: De Morgan, Expert: Peirce's Law)
+- Actions: `loadCustomTheorems`, `generateTheorem`, `generateTheoremWithValue`, `selectTheorem`, `saveCustomTheorem`
 
 **usePortfolio**:
 - `entries`, `selectedEntry`
@@ -323,6 +349,15 @@ The `formulaToString` function renders formulas with appropriate bracketing for 
 - Actions: `addFormula`, `addNote`, `applyTransformation`, `selectLine`, `removeLine`, `clearAll`, `copyToProof`
 
 ### Components
+
+**ErrorBoundary**: React error boundary component that catches JavaScript errors anywhere in the component tree. Displays a fallback UI with error details and a "Try Again" button that reloads the page. Wraps the entire application in App.tsx to provide global error handling and prevent white-screen crashes.
+
+**SymbolToolbar**: Shared component used across FormulaInput, CustomTheoremModal, and Scratchpad for consistent symbol input. Features:
+- Displays logic symbols: ~, ·, ∨, ⊃, ≡, ⊥, (, )
+- Displays atom buttons: P, Q, R, S, T
+- Supports compact mode for smaller spaces (used in Scratchpad)
+- Optional `includeAtoms` prop to hide atom buttons when not needed
+- Reduces code duplication and ensures consistent UX
 
 **FormulaDisplay**: Renders formulas with color-coded brackets. `[]` uses a fixed color, `{}` uses depth-based colors (2-5). Optional bracket lines feature draws connecting lines for `{}` curly brackets only (not `()` or `[]`), alternating above/below the formula for visual clarity. The component clears stale refs on each render to prevent incorrect line connections.
 
@@ -360,7 +395,11 @@ Features:
 - **Inference rules**: When lines are selected and you click a rule, the rule auto-applies if the correct number of premises is selected
 - **Equivalence rules**: When exactly one line is selected and you click a rule, auto-applies if there's only one possible transformation; if multiple options exist, the first is suggested in the input field
 
-**TheoremList**: Theorem browser with difficulty filter and custom generation (1-100). Includes a "Custom" button that opens a modal for creating custom theorems.
+**TheoremList**: Minimal theorem panel with:
+- **Difficulty Selector**: 4 buttons (Easy, Medium, Hard, Expert)
+- **Example Preview**: Shows a curated static example for the selected difficulty level
+- **Generate New**: Generates a random theorem at selected difficulty AND auto-starts the proof
+- **Custom**: Opens CustomTheoremModal to create a custom theorem (also auto-starts proof)
 
 **CustomTheoremModal**: Modal UI for creating custom theorems (arguments) with:
 - Optional theorem name
@@ -485,7 +524,22 @@ npm run tauri build
 
 ### Tests
 ```bash
+# Backend tests (209 tests total)
 cd src-tauri && cargo test
+
+# Service layer tests (114 tests across 5 services):
+# - verifier.rs: 18 tests (line validation, scope access, rule verification)
+# - storage.rs: 21 tests (security/path traversal, CRUD, export/import)
+# - generator.rs: 15 tests (config, difficulty mapping, theorem generation)
+# - proof_tree.rs: 17 tests (tree structure, validation, pretty printing)
+# - truth_table.rs: 43 tests (semantic checks, forcing conditions)
+
+# Frontend tests
+npm run test        # Watch mode
+npm run test:run    # Single run
+npm run test:ui     # Vitest UI
+
+# Type checking
 npm run typecheck
 ```
 
@@ -529,7 +583,11 @@ Each entry includes:
 - Complete proof lines (current state)
 - Save timestamp (`saved_at` - renamed from `completed_at` for backward compatibility via serde alias)
 - Step count, time spent, hints used
-- User notes (editable)
+
+The Portfolio view has three columns:
+- **Entry List**: Browse completed and incomplete proofs with tabs to filter
+- **Entry Detail**: View selected proof details, theorem, stats, and solution
+- **Global Notepad**: A persistent notepad for general notes (auto-saves with debounce)
 
 The Portfolio view has two tabs:
 - **Completed**: Shows finished proofs with:
@@ -538,6 +596,8 @@ The Portfolio view has two tabs:
 - **Incomplete**: Shows in-progress proofs with a "Resume" button to continue where you left off
 
 Incomplete entries are visually distinguished with an orange left border indicator.
+
+The Global Notepad is stored separately from individual proofs at `global_notes.txt` in the data directory.
 
 Storage locations:
 - macOS: `~/Library/Application Support/logic-proof-trainer/`
@@ -569,7 +629,7 @@ All storage operations validate IDs to prevent path traversal attacks:
 - **Difficulty values**: `generate_theorem_with_value` validates that the difficulty is between 1-100
 - **Line range validation**: The proof workspace validates that `lineStart <= lineEnd` in subproof close commands
 - **Delete verification**: Storage delete operations verify that the file was actually removed, returning an error if the file still exists after deletion
-- **String length limits**: Portfolio notes are limited to 10,000 characters, theorem/entry names are limited to 200 characters to prevent memory exhaustion
+- **String length limits**: Global notes are limited to 10,000 characters, theorem/entry names are limited to 200 characters to prevent memory exhaustion
 
 ### Error Handling
 

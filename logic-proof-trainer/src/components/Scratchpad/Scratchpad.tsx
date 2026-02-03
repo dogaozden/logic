@@ -1,17 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useScratchpad } from '../../hooks/useScratchpad';
-
-const SYMBOLS = [
-  { symbol: '~', label: '~', description: 'Negation' },
-  { symbol: '.', label: '.', description: 'Conjunction (AND)' },
-  { symbol: '∨', label: '∨', description: 'Disjunction (OR)' },
-  { symbol: '⊃', label: '⊃', description: 'Implication' },
-  { symbol: '≡', label: '≡', description: 'Biconditional' },
-  { symbol: '(', label: '(', description: 'Left paren' },
-  { symbol: ')', label: ')', description: 'Right paren' },
-];
-
-const ATOMS = ['P', 'Q', 'R', 'S'];
+import { SymbolToolbar } from '../shared/SymbolToolbar';
 
 const SYMBOL_REPLACEMENTS: Record<string, string> = {
   '>': '⊃',
@@ -143,30 +132,8 @@ export const Scratchpad: React.FC = () => {
             spellCheck={false}
             autoComplete="off"
           />
-          <div className="symbol-toolbar" style={{ marginTop: '6px' }}>
-            {ATOMS.map((atom) => (
-              <button
-                key={atom}
-                className="symbol-button"
-                onClick={() => insertSymbol(atom)}
-                title={`Atom ${atom}`}
-                style={{ padding: '4px 8px', fontSize: '0.875rem' }}
-              >
-                {atom}
-              </button>
-            ))}
-            <span style={{ width: '4px' }} />
-            {SYMBOLS.map((s) => (
-              <button
-                key={s.symbol}
-                className="symbol-button"
-                onClick={() => insertSymbol(s.symbol)}
-                title={s.description}
-                style={{ padding: '4px 8px', fontSize: '0.875rem' }}
-              >
-                {s.label}
-              </button>
-            ))}
+          <div style={{ marginTop: '6px' }}>
+            <SymbolToolbar onSymbolClick={insertSymbol} compact={true} />
           </div>
         </div>
       ) : (

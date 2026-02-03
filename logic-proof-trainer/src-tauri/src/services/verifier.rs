@@ -411,6 +411,28 @@ mod tests {
     use super::*;
     use crate::models::theorem::{Theorem, Difficulty};
 
+    // Helper functions
+    fn atom(name: &str) -> Formula {
+        Formula::Atom(name.to_string())
+    }
+
+    fn not(f: Formula) -> Formula {
+        Formula::Not(Box::new(f))
+    }
+
+    #[allow(dead_code)]
+    fn and(a: Formula, b: Formula) -> Formula {
+        Formula::And(Box::new(a), Box::new(b))
+    }
+
+    fn or(a: Formula, b: Formula) -> Formula {
+        Formula::Or(Box::new(a), Box::new(b))
+    }
+
+    fn implies(a: Formula, b: Formula) -> Formula {
+        Formula::Implies(Box::new(a), Box::new(b))
+    }
+
     fn make_mp_theorem() -> Theorem {
         Theorem::new(
             vec![
@@ -422,6 +444,357 @@ mod tests {
             None,
             Some("Test MP".to_string()),
         )
+    }
+
+    fn make_cd_theorem() -> Theorem {
+        // Constructive Dilemma: (P -> Q) & (R -> S), P | R ⊢ Q | S
+        Theorem::new(
+            vec![
+                Formula::parse("(P -> Q) & (R -> S)").unwrap(),
+                Formula::parse("P | R").unwrap(),
+            ],
+            Formula::parse("Q | S").unwrap(),
+            Difficulty::Medium,
+            None,
+            Some("Test CD".to_string()),
+        )
+    }
+
+    // === VerificationResult Construction Tests ===
+
+    #[test]
+    fn test_verification_result_valid_has_no_message() {
+        let result = VerificationResult::valid();
+        assert!(result.is_valid);
+        assert!(result.message.is_none());
+    }
+
+    #[test]
+    fn test_verification_result_invalid_captures_message() {
+        let result = VerificationResult::invalid("Test error message");
+        assert!(!result.is_valid);
+        assert_eq!(result.message, Some("Test error message".to_string()));
+    }
+
+    // === Line Reference Error Tests ===
+
+    #[test]
+    fn test_verify_inference_forward_reference_rejected() {
+        let theorem = make_mp_theorem();
+        let mut proof = Proof::new(theorem);
+
+        // Try to reference line 4 from line 3 (forward reference)
+        proof.add_line(
+            atom("Q"),
+            Justification::Inference {
+                rule: InferenceRule::ModusPonens,
+                lines: vec![1, 4], // line 4 doesn't exist yet
+            },
+        );
+
+        let result = ProofVerifier::verify_line(&proof.lines[2], &proof);
+        assert!(!result.is_valid);
+        assert!(result.message.as_ref().unwrap().contains("must reference earlier lines"));
+    }
+
+    #[test]
+    fn test_verify_inference_nonexistent_line_rejected() {
+        let theorem = make_mp_theorem();
+        let mut proof = Proof::new(theorem);
+
+        // Try to reference line 100 which doesn't exist
+        proof.add_line(
+            atom("Q"),
+            Justification::Inference {
+                rule: InferenceRule::ModusPonens,
+                lines: vec![1, 100],
+            },
+        );
+
+        let result = ProofVerifier::verify_line(&proof.lines[2], &proof);
+        assert!(!result.is_valid);
+        // Either "must reference earlier lines" or "does not exist"
+        let msg = result.message.as_ref().unwrap();
+        assert!(msg.contains("earlier") || msg.contains("exist"));
+    }
+
+    #[test]
+    fn test_verify_inference_inaccessible_scope_rejected() {
+        let theorem = make_mp_theorem();
+        let mut proof = Proof::new(theorem);
+
+        // Open a subproof
+        proof.open_subproof(atom("R"), ProofTechnique::ConditionalProof);
+
+        // Add a line inside the subproof
+        proof.add_line(
+            atom("Q"),
+            Justification::Inference {
+                rule: InferenceRule::ModusPonens,
+                lines: vec![1, 2],
+            },
+        );
+
+        // Close the subproof
+        proof.close_subproof(
+            implies(atom("R"), atom("Q")),
+            ProofTechnique::ConditionalProof,
+        );
+
+        // Try to reference line 4 (inside closed subproof) from line 6
+        proof.add_line(
+            atom("Q"),
+            Justification::Inference {
+                rule: InferenceRule::ModusPonens,
+                lines: vec![1, 4], // line 4 is inside closed subproof
+            },
+        );
+
+        let result = ProofVerifier::verify_line(proof.lines.last().unwrap(), &proof);
+        assert!(!result.is_valid);
+        assert!(result.message.as_ref().unwrap().contains("not accessible") ||
+                result.message.as_ref().unwrap().contains("scope"));
+    }
+
+    #[test]
+    fn test_verify_inference_invalid_referenced_line_rejected() {
+        let theorem = make_mp_theorem();
+        let mut proof = Proof::new(theorem);
+
+        // Add an invalid line first
+        proof.add_line(
+            atom("R"), // R doesn't follow from premises
+            Justification::Inference {
+                rule: InferenceRule::ModusPonens,
+                lines: vec![1, 2],
+            },
+        );
+
+        // Mark it as invalid
+        proof.lines[2].is_valid = false;
+
+        // Try to use the invalid line
+        proof.add_line(
+            or(atom("R"), atom("S")),
+            Justification::Inference {
+                rule: InferenceRule::Addition,
+                lines: vec![3],
+            },
+        );
+
+        let result = ProofVerifier::verify_line(&proof.lines[3], &proof);
+        assert!(!result.is_valid);
+        assert!(result.message.as_ref().unwrap().contains("invalid"));
+    }
+
+    // === Premise Count Validation Tests ===
+
+    #[test]
+    fn test_verify_inference_wrong_premise_count_mp() {
+        let theorem = make_mp_theorem();
+        let mut proof = Proof::new(theorem);
+
+        // MP requires 2 premises, provide only 1
+        proof.add_line(
+            atom("Q"),
+            Justification::Inference {
+                rule: InferenceRule::ModusPonens,
+                lines: vec![1], // only 1 line, MP needs 2
+            },
+        );
+
+        let result = ProofVerifier::verify_line(&proof.lines[2], &proof);
+        assert!(!result.is_valid);
+        assert!(result.message.as_ref().unwrap().contains("requires"));
+        assert!(result.message.as_ref().unwrap().contains("premise"));
+    }
+
+    #[test]
+    fn test_verify_inference_wrong_premise_count_cd() {
+        let theorem = make_cd_theorem();
+        let mut proof = Proof::new(theorem);
+
+        // CD requires 4 premises, provide only 2
+        proof.add_line(
+            or(atom("Q"), atom("S")),
+            Justification::Inference {
+                rule: InferenceRule::ConstructiveDilemma,
+                lines: vec![1, 2], // only 2 lines, CD needs 4
+            },
+        );
+
+        let result = ProofVerifier::verify_line(&proof.lines[2], &proof);
+        assert!(!result.is_valid);
+        assert!(result.message.as_ref().unwrap().contains("requires"));
+    }
+
+    // === Equivalence Rule Verification Tests ===
+
+    #[test]
+    fn test_verify_equivalence_forward_reference_rejected() {
+        let theorem = Theorem::new(
+            vec![atom("P")],
+            not(not(atom("P"))),
+            Difficulty::Easy,
+            None,
+            None,
+        );
+        let mut proof = Proof::new(theorem);
+
+        // Try to reference line 5 from line 2 (forward reference)
+        proof.add_line(
+            not(not(atom("P"))),
+            Justification::Equivalence {
+                rule: EquivalenceRule::DoubleNegation,
+                line: 5, // doesn't exist
+            },
+        );
+
+        let result = ProofVerifier::verify_line(&proof.lines[1], &proof);
+        assert!(!result.is_valid);
+        assert!(result.message.as_ref().unwrap().contains("earlier"));
+    }
+
+    #[test]
+    fn test_verify_equivalence_case_sensitivity_hint() {
+        let theorem = Theorem::new(
+            vec![atom("P")],
+            atom("p"), // lowercase p - different from P
+            Difficulty::Easy,
+            None,
+            None,
+        );
+        let mut proof = Proof::new(theorem);
+
+        // Try to derive 'p' from 'P' using DN (should fail with case sensitivity hint)
+        proof.add_line(
+            atom("p"),
+            Justification::Equivalence {
+                rule: EquivalenceRule::DoubleNegation,
+                line: 1,
+            },
+        );
+
+        let result = ProofVerifier::verify_line(&proof.lines[1], &proof);
+        assert!(!result.is_valid);
+        // Should provide helpful case-sensitivity message
+        let msg = result.message.as_ref().unwrap();
+        assert!(msg.contains("case") || msg.contains("Cannot derive"));
+    }
+
+    // === Subproof Conclusion Verification Tests ===
+
+    #[test]
+    fn test_verify_subproof_conclusion_technique_mismatch() {
+        let theorem = make_mp_theorem();
+        let mut proof = Proof::new(theorem);
+
+        // Open a CP subproof
+        proof.open_subproof(atom("R"), ProofTechnique::ConditionalProof);
+
+        // Add a line inside
+        proof.add_line(
+            atom("Q"),
+            Justification::Inference {
+                rule: InferenceRule::ModusPonens,
+                lines: vec![1, 2],
+            },
+        );
+
+        // Close with wrong technique (IP instead of CP)
+        let line_number = proof.next_line_number();
+        let depth = proof.current_depth() - 1;
+
+        proof.lines.push(ProofLine::new(
+            line_number,
+            not(atom("R")), // IP conclusion format
+            Justification::SubproofConclusion {
+                technique: ProofTechnique::IndirectProof, // Wrong technique!
+                subproof_start: 3,
+                subproof_end: 4,
+            },
+            depth,
+            None,
+        ));
+
+        let result = ProofVerifier::verify_line(proof.lines.last().unwrap(), &proof);
+        assert!(!result.is_valid);
+        assert!(result.message.as_ref().unwrap().contains("technique") ||
+                result.message.as_ref().unwrap().contains("match"));
+    }
+
+    #[test]
+    fn test_verify_subproof_conclusion_inaccessible_subproof() {
+        let theorem = make_mp_theorem();
+        let mut proof = Proof::new(theorem);
+
+        // Open a subproof
+        proof.open_subproof(atom("R"), ProofTechnique::ConditionalProof);
+        proof.add_line(
+            atom("Q"),
+            Justification::Inference {
+                rule: InferenceRule::ModusPonens,
+                lines: vec![1, 2],
+            },
+        );
+        proof.close_subproof(
+            implies(atom("R"), atom("Q")),
+            ProofTechnique::ConditionalProof,
+        );
+
+        // Try to close a non-existent subproof range
+        let line_number = proof.next_line_number();
+        proof.lines.push(ProofLine::new(
+            line_number,
+            implies(atom("X"), atom("Y")),
+            Justification::SubproofConclusion {
+                technique: ProofTechnique::ConditionalProof,
+                subproof_start: 100, // doesn't exist
+                subproof_end: 101,
+            },
+            0,
+            None,
+        ));
+
+        let result = ProofVerifier::verify_line(proof.lines.last().unwrap(), &proof);
+        assert!(!result.is_valid);
+        assert!(result.message.as_ref().unwrap().contains("does not exist") ||
+                result.message.as_ref().unwrap().contains("not accessible"));
+    }
+
+    // === Full Proof Verification Tests ===
+
+    #[test]
+    fn test_verify_proof_marks_all_lines_valid_or_invalid() {
+        let theorem = make_mp_theorem();
+        let mut proof = Proof::new(theorem);
+
+        // Add valid MP conclusion
+        proof.add_line(
+            atom("Q"),
+            Justification::Inference {
+                rule: InferenceRule::ModusPonens,
+                lines: vec![1, 2],
+            },
+        );
+
+        // Add invalid line
+        proof.add_line(
+            atom("R"), // R doesn't follow
+            Justification::Inference {
+                rule: InferenceRule::ModusPonens,
+                lines: vec![1, 2],
+            },
+        );
+
+        ProofVerifier::verify_proof(&mut proof);
+
+        // Check all lines have been validated
+        assert!(proof.lines[0].is_valid); // Premise
+        assert!(proof.lines[1].is_valid); // Premise
+        assert!(proof.lines[2].is_valid); // Valid MP
+        assert!(!proof.lines[3].is_valid); // Invalid - R doesn't follow
+        assert!(proof.lines[3].validation_message.is_some());
     }
 
     #[test]
