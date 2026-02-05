@@ -1,0 +1,21 @@
+{
+  "name": "propbench",
+  "version": "0.1.0",
+  "description": "LLM benchmark harness for propositional logic proof efficiency",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "bench": "ts-node harness.ts"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "@anthropic-ai/sdk": "^0.39.0",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "ts-node": "^10.9.2",
+    "@types/node": "^20.14.0"
+  }
+}

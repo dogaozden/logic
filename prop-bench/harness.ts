@@ -1,0 +1,464 @@
+#!/usr/bin/env npx ts-node
+
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
+import { getModel } from "./models/index";
+import type { ModelConfig, ModelResponse } from "./models/index";
+import type { Theorem, ProofLine } from "./config";
+
+const execFileAsync = promisify(execFile);
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/** Theorem as stored in the benchmark JSON (from Rust CLI output) */
+interface BenchTheorem {
+  id: string;
+  premises: string[];
+  conclusion: string;
+  difficulty: string;
+  difficulty_value: number;
+}
+
+export interface BenchmarkResult {
+  theorem_id: string;
+  model: string;
+  model_name: string;
+  raw_response: string;
+  parsed_proof: ProofLine[] | null;
+  parse_error: string | null;
+  validation_result: "valid" | "invalid" | "error";
+  validation_errors: string[];
+  line_count: number | null;
+  latency_ms: number;
+  tokens_used: number | undefined;
+  timestamp: string;
+}
+
+interface RunState {
+  completed: Set<string>;
+}
+
+// ---------------------------------------------------------------------------
+// CLI argument parsing
+// ---------------------------------------------------------------------------
+
+interface CliArgs {
+  theorems: string;
+  models: string[];
+  output: string;
+  start: number;
+  count: number | null;
+  propbenchBin: string;
+  temperature: number;
+  maxTokens: number;
+}
+
+function parseArgs(): CliArgs {
+  const args = process.argv.slice(2);
+  const parsed: CliArgs = {
+    theorems: "",
+    models: [],
+    output: "results/",
+    start: 0,
+    count: null,
+    propbenchBin: "propbench",
+    temperature: 0.2,
+    maxTokens: 4096,
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    switch (args[i]) {
+      case "--theorems":
+        parsed.theorems = args[++i];
+        break;
+      case "--models":
+        parsed.models = args[++i].split(",").map((m) => m.trim());
+        break;
+      case "--output":
+        parsed.output = args[++i];
+        break;
+      case "--start":
+        parsed.start = parseInt(args[++i], 10);
+        break;
+      case "--count":
+        parsed.count = parseInt(args[++i], 10);
+        break;
+      case "--propbench-bin":
+        parsed.propbenchBin = args[++i];
+        break;
+      case "--temperature":
+        parsed.temperature = parseFloat(args[++i]);
+        break;
+      case "--max-tokens":
+        parsed.maxTokens = parseInt(args[++i], 10);
+        break;
+      default:
+        console.error(`Unknown argument: ${args[i]}`);
+        printUsage();
+        process.exit(1);
+    }
+  }
+
+  if (!parsed.theorems || parsed.models.length === 0) {
+    printUsage();
+    process.exit(1);
+  }
+
+  return parsed;
+}
+
+function printUsage(): void {
+  console.log(`
+Usage: npx ts-node harness.ts --theorems <path> --models <list> [options]
+
+Required:
+  --theorems <path>         Path to theorems JSON file
+  --models <list>           Comma-separated model names (gemini,claude,gpt)
+
+Options:
+  --output <dir>            Output directory (default: results/)
+  --start <n>               Start at theorem index n (default: 0)
+  --count <n>               Process only n theorems (default: all)
+  --propbench-bin <path>    Path to propbench CLI binary (default: propbench)
+  --temperature <n>         Model temperature (default: 0.2)
+  --max-tokens <n>          Max tokens for model response (default: 4096)
+`);
+}
+
+// ---------------------------------------------------------------------------
+// Core functions
+// ---------------------------------------------------------------------------
+
+function loadTheorems(filepath: string): BenchTheorem[] {
+  const raw = fs.readFileSync(filepath, "utf-8");
+  return JSON.parse(raw) as BenchTheorem[];
+}
+
+/** Convert BenchTheorem to the Theorem type expected by prompt/parser */
+function toTheorem(bt: BenchTheorem): Theorem {
+  return {
+    id: bt.id,
+    premises: bt.premises,
+    conclusion: bt.conclusion,
+    difficulty: bt.difficulty as Theorem["difficulty"],
+    difficulty_value: bt.difficulty_value,
+  };
+}
+
+function loadRunState(outputDir: string): RunState {
+  const completed = new Set<string>();
+  const resultsDir = path.join(outputDir, "raw");
+
+  if (!fs.existsSync(resultsDir)) {
+    return { completed };
+  }
+
+  const files = fs.readdirSync(resultsDir).filter((f) => f.endsWith(".json"));
+  for (const file of files) {
+    try {
+      const data = JSON.parse(
+        fs.readFileSync(path.join(resultsDir, file), "utf-8")
+      ) as BenchmarkResult;
+      completed.add(`${data.theorem_id}::${data.model}`);
+    } catch {
+      // Skip corrupt files
+    }
+  }
+
+  return { completed };
+}
+
+function resultKey(theoremId: string, modelName: string): string {
+  return `${theoremId}::${modelName}`;
+}
+
+function promptForTheorem(theorem: Theorem): string {
+  // Use the dedicated prompt builder from prompt.ts
+  const { buildPrompt: build } = require("./prompt");
+  return build(theorem);
+}
+
+function parseModelResponse(
+  rawResponse: string,
+  theorem: Theorem
+): { proof: ProofLine[] | null; error: string | null } {
+  try {
+    const { parseProof } = require("./parser");
+    const result = parseProof(rawResponse, theorem);
+    if (result.errors && result.errors.length > 0) {
+      return { proof: null, error: result.errors.map((e: any) => e.message).join("; ") };
+    }
+    // Convert ParsedLine[] to ProofLine[]
+    const proof: ProofLine[] = result.lines.map((l: any) => ({
+      line_number: l.line_number,
+      formula: l.formula,
+      justification: l.justification,
+      depth: l.depth,
+    }));
+    return { proof, error: null };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { proof: null, error: `Parse error: ${msg}` };
+  }
+}
+
+async function validateProof(
+  benchTheorem: BenchTheorem,
+  proof: ProofLine[],
+  propbenchBin: string
+): Promise<{ valid: boolean; line_count: number; errors: string[] }> {
+  // The Rust CLI expects file paths, so write temp files
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "propbench-"));
+  const theoremFile = path.join(tmpDir, "theorem.json");
+  const proofFile = path.join(tmpDir, "proof.json");
+
+  try {
+    fs.writeFileSync(theoremFile, JSON.stringify(benchTheorem), "utf-8");
+    fs.writeFileSync(proofFile, JSON.stringify(proof), "utf-8");
+
+    const { stdout, stderr } = await execFileAsync(propbenchBin, [
+      "validate",
+      "--theorem", theoremFile,
+      "--proof", proofFile,
+    ], { timeout: 30_000 });
+
+    if (stderr && stderr.trim()) {
+      return { valid: false, line_count: 0, errors: [stderr.trim()] };
+    }
+
+    const result = JSON.parse(stdout) as {
+      valid: boolean;
+      line_count: number;
+      errors: string[];
+    };
+    return { valid: result.valid, line_count: result.line_count, errors: result.errors };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { valid: false, line_count: 0, errors: [`Validation process error: ${msg}`] };
+  } finally {
+    // Clean up temp files
+    try {
+      fs.unlinkSync(theoremFile);
+      fs.unlinkSync(proofFile);
+      fs.rmdirSync(tmpDir);
+    } catch { /* ignore cleanup errors */ }
+  }
+}
+
+function saveResult(result: BenchmarkResult, outputDir: string): void {
+  const rawDir = path.join(outputDir, "raw");
+  fs.mkdirSync(rawDir, { recursive: true });
+
+  const filename = `${result.theorem_id}_${result.model}_${Date.now()}.json`;
+  const filepath = path.join(rawDir, filename);
+  fs.writeFileSync(filepath, JSON.stringify(result, null, 2), "utf-8");
+}
+
+// ---------------------------------------------------------------------------
+// Main orchestration loop
+// ---------------------------------------------------------------------------
+
+async function run(): Promise<void> {
+  const args = parseArgs();
+
+  console.log("=== PropBench Harness ===");
+  console.log(`Theorems: ${args.theorems}`);
+  console.log(`Models:   ${args.models.join(", ")}`);
+  console.log(`Output:   ${args.output}`);
+  console.log();
+
+  // Load theorems
+  const allBenchTheorems = loadTheorems(args.theorems);
+  console.log(`Loaded ${allBenchTheorems.length} theorems`);
+
+  // Apply --start and --count
+  const startIdx = args.start;
+  const endIdx =
+    args.count !== null
+      ? Math.min(startIdx + args.count, allBenchTheorems.length)
+      : allBenchTheorems.length;
+  const benchTheorems = allBenchTheorems.slice(startIdx, endIdx);
+  console.log(
+    `Processing theorems ${startIdx} to ${endIdx - 1} (${benchTheorems.length} total)`
+  );
+
+  // Load run state for resume support
+  const state = loadRunState(args.output);
+  console.log(`Found ${state.completed.size} already-completed results`);
+  console.log();
+
+  // Ensure output directory
+  fs.mkdirSync(args.output, { recursive: true });
+
+  // Initialize model adapters
+  const adapters = args.models.map((name) => {
+    try {
+      return getModel(name);
+    } catch (err) {
+      console.error(
+        `Failed to initialize model "${name}": ${err instanceof Error ? err.message : err}`
+      );
+      process.exit(1);
+    }
+  });
+
+  // Stats
+  let totalRun = 0;
+  let totalSkipped = 0;
+  let totalValid = 0;
+  let totalInvalid = 0;
+  let totalErrors = 0;
+
+  // Main loop
+  for (let ti = 0; ti < benchTheorems.length; ti++) {
+    const benchThm = benchTheorems[ti];
+    const theorem = toTheorem(benchThm);
+    const progress = `[${ti + 1}/${benchTheorems.length}]`;
+
+    for (const adapter of adapters) {
+      const key = resultKey(benchThm.id, adapter.name);
+
+      // Resume support: skip already-completed pairs
+      if (state.completed.has(key)) {
+        totalSkipped++;
+        console.log(
+          `${progress} ${benchThm.id} x ${adapter.name} — SKIPPED (already done)`
+        );
+        continue;
+      }
+
+      console.log(
+        `${progress} ${benchThm.id} x ${adapter.name} — running...`
+      );
+
+      const result: BenchmarkResult = {
+        theorem_id: benchThm.id,
+        model: adapter.name,
+        model_name: "",
+        raw_response: "",
+        parsed_proof: null,
+        parse_error: null,
+        validation_result: "error",
+        validation_errors: [],
+        line_count: null,
+        latency_ms: 0,
+        tokens_used: undefined,
+        timestamp: new Date().toISOString(),
+      };
+
+      const modelConfig: ModelConfig = {
+        model: "",
+        temperature: args.temperature,
+        maxTokens: args.maxTokens,
+      };
+
+      // Step 1: Build prompt
+      let prompt: string;
+      try {
+        prompt = promptForTheorem(theorem);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        result.validation_errors = [`Prompt build error: ${msg}`];
+        saveResult(result, args.output);
+        totalErrors++;
+        console.log(`  -> PROMPT ERROR: ${msg}`);
+        continue;
+      }
+
+      // Step 2: Call model API
+      let response: ModelResponse;
+      try {
+        response = await adapter.callModel(prompt, modelConfig);
+        result.raw_response = response.raw_response;
+        result.latency_ms = response.latency_ms;
+        result.model_name = response.model;
+        result.tokens_used = response.tokens_used;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        result.validation_errors = [`API error: ${msg}`];
+        saveResult(result, args.output);
+        totalErrors++;
+        console.log(`  -> API ERROR: ${msg}`);
+        continue;
+      }
+
+      // Step 3: Parse response
+      const { proof, error: parseError } = parseModelResponse(
+        response.raw_response,
+        theorem
+      );
+      if (parseError || !proof) {
+        result.parse_error = parseError;
+        result.validation_result = "error";
+        result.validation_errors = [parseError ?? "Unknown parse error"];
+        saveResult(result, args.output);
+        totalErrors++;
+        console.log(`  -> PARSE ERROR: ${parseError}`);
+        continue;
+      }
+      result.parsed_proof = proof;
+
+      // Step 4: Validate via CLI
+      const { valid, line_count, errors } = await validateProof(
+        benchThm,
+        proof,
+        args.propbenchBin
+      );
+      result.validation_result = valid ? "valid" : "invalid";
+      result.validation_errors = errors;
+      result.line_count = valid ? line_count : null;
+
+      saveResult(result, args.output);
+      totalRun++;
+
+      if (valid) {
+        totalValid++;
+        console.log(`  -> VALID (${proof.length} lines, ${result.latency_ms}ms)`);
+      } else {
+        totalInvalid++;
+        console.log(
+          `  -> INVALID: ${errors.slice(0, 2).join("; ")}${errors.length > 2 ? ` (+${errors.length - 2} more)` : ""}`
+        );
+      }
+    }
+  }
+
+  // Summary
+  console.log();
+  console.log("=== Summary ===");
+  console.log(`Run:     ${totalRun}`);
+  console.log(`Skipped: ${totalSkipped}`);
+  console.log(`Valid:   ${totalValid}`);
+  console.log(`Invalid: ${totalInvalid}`);
+  console.log(`Errors:  ${totalErrors}`);
+  console.log();
+
+  // Write summary to output
+  const summary = {
+    timestamp: new Date().toISOString(),
+    theorems_file: args.theorems,
+    models: args.models,
+    total_run: totalRun,
+    total_skipped: totalSkipped,
+    total_valid: totalValid,
+    total_invalid: totalInvalid,
+    total_errors: totalErrors,
+  };
+  const summaryPath = path.join(args.output, "summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2), "utf-8");
+  console.log(`Summary written to ${summaryPath}`);
+}
+
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+
+run().catch((err) => {
+  console.error("Fatal error:", err);
+  process.exit(1);
+});
