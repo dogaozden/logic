@@ -14,9 +14,9 @@ This is a novel benchmark because:
 
 PropBench is being built as a **new feature branch** on the existing Logic Proof Trainer app. The app already has the hard parts: theorem generation, truth table validation, and Fitch proof verification — all in Rust.
 
-**Repo location**: `~/Documents/AI_Projects/logic-proof-trainer`
+**Repo location**: `~/Documents/AI_Projects/logic/logic-proof-trainer`
 
-**Branch**: Create `propbench` branch off `main`.
+**Branch**: Create `propbench` branch off `master`.
 
 ## What Already Exists (DO NOT rebuild)
 
@@ -26,7 +26,7 @@ The Rust backend already has everything needed for generation and validation:
 - `services/generator.rs` — Dual-mode orchestrator (template-based for easy, obfuscation-based for medium+)
 - `services/obfuscate_gen.rs` — 3-layer generation: base form → atom substitution → wrap + transform
 - `services/tree_gen/` — Backward proof tree construction
-- `services/truth_table.rs` — 32-bit semantic validation, tautology checking
+- `services/truth_table.rs` — 32-bit semantic validation, tautology checking (currently supports max 5 variables P, Q, R, S, T; expandable to u64/u128/BigInt for more variables if needed)
 - Difficulty 1-100 with tiers: Easy (1-25), Medium (26-45), Hard (46-70), Expert (71-85), Nightmare (86-95), Marathon (96-100)
 
 ### Proof Verification
@@ -99,10 +99,12 @@ The existing frontend parser (`utils/proofCommandParser.ts`) handles line-by-lin
 
 The existing parser is already forgiving with symbol aliases and rule name variations. The main gap is handling the full-proof-as-block format.
 
+**Note**: The proposed output format (e.g., `Assumption (CP)`) diverges from the existing parser's expected format (e.g., `P CP`). The batch parser can't simply reuse `parseCommand()` line-by-line without adaptation — it needs its own format handling.
+
 ### 4. Prompt Template
 
 The prompt must include:
-- The theorem to prove (as a tautology with no premises)
+- The theorem to prove — **note**: Easy theorems (difficulty 1-25) are generated via templates and have explicit premises + conclusion (e.g., `P⊃Q, P ∴ Q`). Medium+ theorems (26-100) use the obfuscation pipeline and are standalone tautologies with no premises. The prompt format must handle both cases.
 - All 19 rules + CP/IP with exact names and abbreviations
 - Strict output format specification
 - Instruction to minimize proof length
@@ -204,4 +206,4 @@ logic-proof-trainer/          (existing repo)
 - The verifier checks scope accessibility, rule correctness, and line references — it's thorough
 - All equivalence rules work bidirectionally and on subformulas
 - CD tries all 6 permutations of 3 premises — the verifier is forgiving about ordering
-- The app has 175+ backend tests — don't break them
+- The app has 209+ backend tests — don't break them
