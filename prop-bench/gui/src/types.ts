@@ -1,0 +1,98 @@
+// PropBench GUI — Shared types
+// Mirrors the types from ../../config.ts and ../../scorer.ts for GUI usage.
+
+export type Difficulty =
+  | "Easy"
+  | "Medium"
+  | "Hard"
+  | "Expert"
+  | "Nightmare"
+  | "Marathon";
+
+export type DifficultyTier =
+  | "easy"
+  | "medium"
+  | "hard"
+  | "expert"
+  | "nightmare"
+  | "marathon";
+
+export interface Theorem {
+  id: string;
+  premises: string[];
+  conclusion: string;
+  difficulty: Difficulty;
+  difficulty_value: number;
+}
+
+export interface ProofLine {
+  line_number: number;
+  formula: string;
+  justification: string;
+  depth: number;
+}
+
+export interface ProofResult {
+  valid: boolean;
+  line_count: number;
+  errors: string[];
+}
+
+export interface BenchmarkResult {
+  theorem_id: string;
+  model: string;
+  proof_lines: ProofLine[];
+  result: ProofResult;
+  raw_response: string;
+  raw_prompt: string;
+  parse_errors: string[];
+  timestamp: string;
+  latency_ms: number;
+}
+
+export interface TheoremResult {
+  theoremId: string;
+  valid: boolean;
+  parseSuccess: boolean;
+  lineCount: number | null;
+  difficulty: DifficultyTier;
+  difficultyValue: number;
+  failureStage?: "api_call" | "parse" | "validation";
+}
+
+export interface ModelStats {
+  model: string;
+  totalLines: number;
+  validCount: number;
+  invalidCount: number;
+  totalAttempted: number;
+  avgLinesPerValidProof: number | null;
+  linesByDifficulty: Record<
+    DifficultyTier,
+    { total: number; count: number; avg: number | null }
+  >;
+  eloRating: number;
+}
+
+export interface HeadToHead {
+  theoremId: string;
+  modelA: string;
+  modelB: string;
+  winner: string | "tie";
+  modelALines: number | null;
+  modelBLines: number | null;
+}
+
+export interface BenchmarkReport {
+  timestamp: string;
+  models: ModelStats[];
+  headToHead: HeadToHead[];
+  perTheorem: Record<string, Record<string, TheoremResult>>;
+  rankings: {
+    rank: number;
+    model: string;
+    eloRating: number;
+    totalLines: number;
+    validRate: string;
+  }[];
+}

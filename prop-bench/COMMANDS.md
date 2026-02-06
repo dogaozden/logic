@@ -159,14 +159,53 @@ results/
 └── summary.json                   # Run summary (counts, models used)
 ```
 
+## GUI
+
+### Setup
+
+```bash
+cd ~/Documents/AI_Projects/logic/prop-bench/gui
+npm install
+```
+
+### Development server
+
+```bash
+cd ~/Documents/AI_Projects/logic/prop-bench/gui
+npm run dev
+# Opens at http://localhost:3000
+```
+
+### Production build
+
+```bash
+cd ~/Documents/AI_Projects/logic/prop-bench/gui
+npx vite build
+# Output in gui/dist/
+```
+
+### Pages
+
+| Route | Page | Description |
+|-------|------|-------------|
+| `/` | Dashboard | Load results JSON, view Elo rankings, difficulty breakdown, aggregate stats |
+| `/theorems` | Theorem Explorer | Browse 100 theorems, filter by difficulty, view Fitch-style proofs, compare models side-by-side |
+| `/runner` | Benchmark Runner | Configure benchmark parameters, generate CLI command, track run history |
+
 ## Development
 
 ```bash
-# Type-check all TypeScript
+# Type-check harness TypeScript
 npx tsc --noEmit
 
-# Build TypeScript to dist/
+# Build harness TypeScript to dist/
 npm run build
+
+# Type-check GUI TypeScript
+cd gui && npx tsc --noEmit
+
+# Build GUI for production
+cd gui && npx vite build
 
 # Run Rust tests (from prop-bench/)
 cargo test
