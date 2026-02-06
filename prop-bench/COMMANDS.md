@@ -15,22 +15,58 @@ cargo build --release
 
 ### Generate a theorem set
 
+The generate command supports three modes: **distribution** (legacy), **tier preset**, and **custom spec**.
+
 ```bash
-# Generate the default v1 set (100 theorems, 30:easy,30:medium,20:hard,15:expert,5:nightmare)
+# Legacy distribution mode (default if no --tier/--spec flags)
 ./target/release/propbench generate --output benchmarks/v1/theorems.json
 
-# Generate a custom set
+# Custom distribution (counts must sum to --count)
 ./target/release/propbench generate \
   --count 50 \
   --difficulty-distribution "20:easy,20:medium,10:hard" \
   --output my_theorems.json
 
-# Generate with all difficulty tiers
+# Distribution with extended tiers (absurd/cosmic/mind use spec-based generation)
 ./target/release/propbench generate \
-  --count 100 \
-  --difficulty-distribution "30:easy,30:medium,20:hard,15:expert,5:nightmare" \
-  --output benchmarks/v2/theorems.json
+  --count 10 \
+  --difficulty-distribution "3:easy,3:absurd,4:cosmic" \
+  --output extended.json
+
+# Tier preset mode — all theorems use one tier's DifficultySpec
+./target/release/propbench generate --tier nightmare --count 20 --output nightmare.json
+./target/release/propbench generate --tier absurd --count 5 --output absurd.json
+
+# Custom spec mode — full control over generation parameters
+./target/release/propbench generate \
+  --variables 10 --passes 3 --transforms 15 \
+  --base complex --substitution 3 \
+  --count 20 --output custom.json
 ```
+
+### Difficulty tiers
+
+| Tier       | Vars | Passes | Transforms/pass | Base    | Substitution |
+|------------|------|--------|-----------------|---------|-------------|
+| Easy       | 2    | 1      | 2               | simple  | 0           |
+| Medium     | 3    | 1      | 5               | simple  | 0           |
+| Hard       | 4    | 1      | 10              | complex | 0           |
+| Expert     | 5    | 1      | 15              | complex | 2           |
+| Nightmare  | 5    | 2      | 12              | complex | 3           |
+| Marathon   | 5    | 3      | 15              | complex | 4           |
+| Absurd     | 8    | 5      | 20              | complex | 4           |
+| Cosmic     | 15   | 10     | 20              | complex | 4           |
+| Mind       | 20   | 20     | 24              | complex | 4           |
+
+### DifficultySpec fields
+
+| Field               | Range | Description |
+|---------------------|-------|-------------|
+| `variables`         | 2-20  | Number of propositional variables |
+| `passes`            | 1-20  | Number of transform passes (re-wrapping between each) |
+| `transforms_per_pass` | 1-24 | Random equivalence transforms applied per pass |
+| `base_complexity`   | simple/complex | `simple` = standard base forms, `complex` = includes ConstructiveDilemmaFull, NestedCP, Chain4 |
+| `substitution_depth` | 0-4  | Depth of atom-to-formula substitutions (0 = none) |
 
 ### Validate a proof
 
@@ -39,7 +75,7 @@ cargo build --release
 ./target/release/propbench validate --theorem theorem.json --proof proof.json
 ```
 
-**theorem.json** format:
+**theorem.json** format (formulas use ASCII with alternating brackets):
 ```json
 {
   "id": "v1-001",
@@ -47,6 +83,15 @@ cargo build --release
   "conclusion": "Q",
   "difficulty": "Easy",
   "difficulty_value": 8
+}
+
+// Medium+ example with brackets:
+{
+  "id": "v1-042",
+  "premises": [],
+  "conclusion": "[(P -> Q) & ~Q] -> ~P",
+  "difficulty": "Medium",
+  "difficulty_value": 39
 }
 ```
 
@@ -99,6 +144,13 @@ npx ts-node harness.ts \
   --output my_results/ \
   --propbench-bin ./target/release/propbench
 
+# Run with parallel workers
+npx ts-node harness.ts \
+  --theorems benchmarks/v1/theorems.json \
+  --models gemini \
+  --workers 5 \
+  --propbench-bin ./target/release/propbench
+
 # Adjust model parameters
 npx ts-node harness.ts \
   --theorems benchmarks/v1/theorems.json \
@@ -118,6 +170,7 @@ npx ts-node harness.ts \
 | `--start <n>` | No | `0` | Start at theorem index n |
 | `--count <n>` | No | all | Process only n theorems |
 | `--propbench-bin <path>` | No | `propbench` | Path to the Rust CLI binary |
+| `--workers <n>` | No | `1` | Number of parallel API workers |
 | `--temperature <n>` | No | `0.2` | Model temperature |
 | `--max-tokens <n>` | No | `4096` | Max tokens for model response |
 
@@ -127,11 +180,20 @@ The harness automatically detects completed theorem+model pairs in the output di
 
 ## Environment Variables
 
-| Variable | Required for | Description |
-|----------|-------------|-------------|
-| `GEMINI_API_KEY` | `--models gemini` | Google AI API key |
-| `ANTHROPIC_API_KEY` | `--models claude` | Anthropic API key |
-| `OPENAI_API_KEY` | `--models gpt` | OpenAI API key |
+**Recommended: Use `.env` file** (v2.5+)
+
+Create a `.env` file in the prop-bench root directory:
+
+```bash
+# prop-bench/.env
+GEMINI_API_KEY=your-key-here
+ANTHROPIC_API_KEY=your-key-here
+OPENAI_API_KEY=your-key-here
+```
+
+The harness and GUI server will automatically load these on startup using the `dotenv` package.
+
+**Alternative: Shell environment**
 
 ```bash
 # Set before running
@@ -140,13 +202,26 @@ export ANTHROPIC_API_KEY="your-key-here"
 export OPENAI_API_KEY="your-key-here"
 ```
 
+| Variable | Required for | Description |
+|----------|-------------|-------------|
+| `GEMINI_API_KEY` | `--models gemini` | Google AI API key |
+| `ANTHROPIC_API_KEY` | `--models claude` | Anthropic API key |
+| `OPENAI_API_KEY` | `--models gpt` | OpenAI API key |
+
 ## Model Aliases
 
-| Alias | Provider | Default Model |
-|-------|----------|---------------|
-| `gemini`, `gemini-flash` | Google | `gemini-2.5-flash-lite-preview-09-2025` |
-| `claude`, `anthropic` | Anthropic | `claude-sonnet-4-5-20250929` |
-| `gpt`, `openai` | OpenAI | `gpt-4o` |
+**IMPORTANT:** When changing model names, defaults, or CLI arguments, always update the GUI to match. See `CLAUDE.md` for the "PropBench: Keep GUI in sync with CLI" rule.
+
+| Alias | Provider | Default Model | SDK |
+|-------|----------|---------------|-----|
+| `gemini`, `gemini-flash` | Google | `gemini-2.5-flash-lite-preview-09-2025` | `@google/genai` v1.0.0 |
+| `claude`, `anthropic` | Anthropic | `claude-sonnet-4-5-20250929` | `@anthropic-ai/sdk` v0.39.0 |
+| `gpt`, `openai` | OpenAI | `gpt-4o` | `openai` v4.77.0 |
+
+**v2.5 Changes:**
+- Gemini: migrated from `@google/generative-ai` to `@google/genai` SDK
+- Gemini: default model changed from `gemini-2.0-flash` to `gemini-2.5-flash-lite-preview-09-2025`
+- Gemini: constructor changed from `new GoogleGenerativeAI(apiKey)` to `new GoogleGenAI({ apiKey })`
 
 ## Output Structure
 
@@ -221,3 +296,59 @@ cargo test
 # Build Rust in debug mode
 cargo build
 ```
+
+## Recent Improvements (v2.5)
+
+### Parser Fixes
+- Fixed formula parsing for formulas containing dots/spaces (e.g., `P . Q Conj 1,2`)
+- Parser now uses known-rule-name matching instead of ambiguous regex
+- Result: Benchmark accuracy improved from 50% to 100% on first 10 theorems
+
+### Prompt Improvements
+- Added CRITICAL section clarifying that FORMULA must be only the derived result, not premises
+- Includes explicit correct/incorrect examples in the output format specification
+
+### SDK Migration
+- Gemini adapter migrated from deprecated `@google/generative-ai` to new `@google/genai` SDK
+- Constructor syntax changed: `new GoogleGenAI({ apiKey })` instead of `new GoogleGenerativeAI(apiKey)`
+- Default model updated to `gemini-2.5-flash-lite-preview-09-2025`
+
+### Environment Configuration
+- Added `.env` file support via `dotenv` package
+- Both harness and GUI server load `.env` from prop-bench root with `override: true`
+- API keys can now be stored in `.env` instead of shell environment
+
+### GUI Backend Fixes
+- `cli.ts`: Uses local `node_modules/.bin/ts-node` instead of npx
+- `cli.ts`: Explicitly injects `.env` vars into child process
+- `cli.ts`: Pre-spawn validation (checks files exist)
+- `benchmark.ts`: Rewrote SSE handler with structured progress events
+- `benchmark.ts`: Fixed error event format
+- `results.ts`: Fixed to use RESULTS_DIR instead of BENCHMARKS_DIR
+- `index.ts`: Loads dotenv on startup
+
+### GUI Frontend Fixes
+- `BenchmarkRunner.tsx`: Fixed stale closure bug using useRef
+- `ProofViewer.tsx`: Added "Show Raw Model Response" collapsible section
+- `ProofViewer.tsx`: Added latency display
+- `TheoremDetail.tsx`: Passes rawResponse and latencyMs to ProofViewer
+- `theorems.css`: Added styles for raw response viewer
+- `vite.config.ts`: Added SSE proxy buffering fix
+
+### Parallel Execution
+- Added `--workers N` flag for concurrent API calls (default: 1, sequential)
+- GUI: Added "Parallel Workers" field in benchmark configuration
+- Significantly reduces total benchmark time when running many theorems
+
+### Formula Notation & Bracketing
+- Theorem JSON uses ASCII operators (`&`, `|`, `->`, `<->`) for LLM compatibility
+- GUI displays logic notation (`·`, `∨`, `⊃`, `≡`) via `renderFormula()` conversion
+- All formulas use alternating bracket hierarchy: `()` innermost, `[]` next, `{}` outermost
+- Every binary subexpression is explicitly bracketed — no implicit precedence
+- Added `ascii_string_bracketed()` method to Formula (Rust)
+- Added `toDisplayNotation()` utility to `gui/src/types.ts`
+- Fixed `renderFormula()` replacement order bug in GUI components (was replacing `->` before `<->`)
+
+### Import Fixes
+- Removed `.js` extensions from all TypeScript imports (was breaking ts-node in CommonJS mode)
+- Affects: `models/index.ts`, `models/gemini.ts`, `models/anthropic.ts`, `models/openai.ts`

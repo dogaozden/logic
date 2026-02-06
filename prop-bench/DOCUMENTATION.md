@@ -7,14 +7,15 @@ An LLM benchmark that scores models on proof efficiency (fewest lines) for propo
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Shared Types and Configuration (`config.ts`)](#shared-types-and-configuration-configts)
-3. [Prompt Template Builder (`prompt.ts`)](#prompt-template-builder-promptts)
-4. [LLM Output Parser (`parser.ts`)](#llm-output-parser-parserts)
-5. [Benchmark Harness (`harness.ts`)](#benchmark-harness-harnessts)
-6. [Model API Adapters (`models/`)](#model-api-adapters-models)
-7. [Scorer (`scorer.ts`)](#scorer-scorerts)
-8. [Logger (`logger.ts`)](#logger-loggerts)
-9. [CLI Binary (`src/main.rs`)](#cli-binary-srcmainrs)
+2. [Formula Notation](#formula-notation)
+3. [Shared Types and Configuration (`config.ts`)](#shared-types-and-configuration-configts)
+4. [Prompt Template Builder (`prompt.ts`)](#prompt-template-builder-promptts)
+5. [LLM Output Parser (`parser.ts`)](#llm-output-parser-parserts)
+6. [Benchmark Harness (`harness.ts`)](#benchmark-harness-harnessts)
+7. [Model API Adapters (`models/`)](#model-api-adapters-models)
+8. [Scorer (`scorer.ts`)](#scorer-scorerts)
+9. [Logger (`logger.ts`)](#logger-loggerts)
+10. [CLI Binary (`src/main.rs`)](#cli-binary-srcmainrs)
 
 ---
 
@@ -68,6 +69,61 @@ Score + Log                    ← scorer.ts + logger.ts
 
 ---
 
+## Formula Notation
+
+PropBench uses two notation systems for formulas: **ASCII** (for LLM-facing output) and **logic notation** (for human display in the GUI).
+
+### Dual Notation
+
+| Operator | ASCII (JSON/LLM) | Logic (GUI display) |
+|----------|-------------------|---------------------|
+| AND | `&` | `·` |
+| OR | `\|` | `∨` |
+| IMPLIES | `->` | `⊃` |
+| BICONDITIONAL | `<->` | `≡` |
+| NOT | `~` | `~` |
+| CONTRADICTION | `_\|_` | `⊥` |
+
+**Why two notations?** ASCII symbols (`&`, `|`, `->`) are universally familiar to LLMs from programming language training data, making them easier for models to read and reliably generate in proof output. The Rust parser accepts both notations, so LLM responses using either symbol set are valid.
+
+### Alternating Bracket Hierarchy
+
+All formulas in theorem JSON files use explicit bracketing with alternating bracket styles by nesting depth to eliminate ambiguity. Every binary subexpression that appears as an operand of another binary operator is wrapped — there is no reliance on implicit operator precedence.
+
+Bracket styles cycle by depth from inside out:
+- **Innermost**: `( )`
+- **Next level**: `[ ]`
+- **Outermost**: `{ }`
+- Deeper nesting cycles back to `( )`, then `[ ]`, then `{ }`, etc.
+
+**Rules:**
+- Negation of atoms is NOT bracketed: `~P`, not `~(P)`
+- Negation of compound formulas IS bracketed: `~(P & Q)`
+- The outermost formula is NOT wrapped in brackets
+
+**Example:**
+
+```
+ASCII (in JSON):   {[(~B | ~A) -> C] & A} -> C
+GUI display:       {[(~B ∨ ~A) ⊃ C] · A} ⊃ C
+```
+
+This uses `ascii_string_bracketed()` on the Rust `Formula` type, which mirrors the Logic Proof Trainer app's `display_string()` approach (local bracket depth) but emits ASCII operators.
+
+### GUI Display Conversion
+
+The GUI converts ASCII formulas to logic notation via `renderFormula()` (defined in `TheoremList.tsx`, `TheoremDetail.tsx`, and `ProofViewer.tsx`). The replacement order matters — longer patterns are replaced first to avoid partial matches:
+
+1. `_|_` → `⊥`
+2. ` <-> ` → ` ≡ `
+3. ` -> ` → ` ⊃ `
+4. ` & ` → ` · `
+5. ` | ` → ` ∨ `
+
+A `toDisplayNotation()` utility is also exported from `gui/src/types.ts`.
+
+---
+
 ## Shared Types and Configuration (`config.ts`)
 
 Central type definitions and default parameters used by all other modules.
@@ -82,22 +138,45 @@ interface Theorem {
   conclusion: string;       // formula string
   difficulty: Difficulty;
   difficulty_value: number;  // 1-100
+  difficulty_spec?: DifficultySpec; // present for spec-generated theorems
 }
 ```
 
-**`Difficulty`** — Six difficulty tiers:
+**`Difficulty`** — Nine difficulty tiers (plus Custom for spec-generated):
 ```typescript
-type Difficulty = "Easy" | "Medium" | "Hard" | "Expert" | "Nightmare" | "Marathon";
+type Difficulty = "Easy" | "Medium" | "Hard" | "Expert" | "Nightmare"
+  | "Marathon" | "Absurd" | "Cosmic" | "Mind" | "Custom";
 ```
 
-| Tier | Value Range |
-|------|-------------|
-| Easy | 1-25 |
-| Medium | 26-45 |
-| Hard | 46-70 |
-| Expert | 71-85 |
-| Nightmare | 86-95 |
-| Marathon | 96-100 |
+| Tier | Value Range | Generation Method |
+|------|-------------|-------------------|
+| Easy | 1-25 | Legacy (difficulty_value) |
+| Medium | 26-45 | Legacy |
+| Hard | 46-70 | Legacy |
+| Expert | 71-85 | Legacy |
+| Nightmare | 86-95 | Legacy |
+| Marathon | 96-100 | Legacy |
+| Absurd | — | DifficultySpec (8 vars, 5 passes) |
+| Cosmic | — | DifficultySpec (15 vars, 10 passes) |
+| Mind | — | DifficultySpec (20 vars, 20 passes) |
+
+**`DifficultySpec`** — Fine-grained control over theorem generation:
+```typescript
+interface DifficultySpec {
+  variables: number;           // 2-20
+  passes: number;              // 1-20
+  transforms_per_pass: number; // 1-24
+  base_complexity: "simple" | "complex";
+  substitution_depth: number;  // 0-4
+}
+```
+
+The DifficultySpec system replaces the single `difficulty_value` for advanced tiers (Absurd, Cosmic, Mind) and custom generation. Each field directly controls:
+- **variables**: Number of propositional atoms (>5 uses the dynamic truth table engine)
+- **passes**: Multi-pass pipeline — each pass wraps the formula as a new tautology and applies transforms
+- **transforms_per_pass**: Random equivalence transformations per pass
+- **base_complexity**: `simple` uses 7 standard argument forms; `complex` adds ConstructiveDilemmaFull, NestedCP, Chain4
+- **substitution_depth**: Replaces simple atoms with complex sub-formulas (0 = none, 4 = deeply nested)
 
 **`ProofLine`** — A single line in a structured proof:
 ```typescript
@@ -205,7 +284,7 @@ interface ParseError {
 |----------|-------|-------------|
 | `DEFAULT_DISTRIBUTION` | `{ easy: 30, medium: 30, hard: 20, expert: 15, nightmare: 5 }` | 100-theorem benchmark distribution |
 | `DEFAULT_TOTAL_THEOREMS` | `100` | Total theorems in v1 benchmark |
-| `DEFAULT_MODEL_CONFIGS` | Gemini 2.0 Flash (temp 0.0, 4096 tokens) | Initial model to test |
+| `DEFAULT_MODEL_CONFIGS` | Gemini 2.5 Flash Lite (temp 0.2, 4096 tokens) | Initial model to test |
 
 ### Helper Functions
 
@@ -235,7 +314,7 @@ Every prompt follows this fixed structure:
 3. **Inference rules** — All 9 valid argument forms with number, name, abbreviation, and pattern
 4. **Equivalence rules** — All 10 replacement rules with bidirectional equivalences
 5. **Proof techniques** — CP and IP with step-by-step procedure
-6. **Output format** — Exact line format specification
+6. **Output format** — Exact line format specification with CRITICAL clarification that FORMULA must be only the derived result, not premises
 7. **Theorem section** — The specific theorem to prove
 8. **Closing instruction** — "Output ONLY the numbered proof lines"
 
@@ -312,9 +391,18 @@ Where JUSTIFICATION is one of:
 - `RULE LINE_NUMBERS` — e.g. `MP 1,2` or `Simp 3` or `DeM 5`
 - `CP START-END` or `IP START-END` — closes a subproof (e.g. `CP 3-7`)
 
+**CRITICAL Clarification (v2.5 prompt improvement):** The prompt explicitly states that FORMULA must contain ONLY the single formula you derived, NOT the premises used to derive it. This prevents common LLM errors where models include premise formulas in the FORMULA field.
+
+Example (CORRECT):
+```
+1. P > Q Premise
+2. ~Q Premise
+3. ~P MT 1,2          ← formula is just "~P", not "P > Q, ~Q"
+```
+
 ### Design Decisions
 
-- **ASCII symbols preferred**: The prompt uses `>`, `v`, `.` rather than Unicode symbols (`⊃`, `∨`, `·`) to reduce the chance of models producing unusual Unicode variants. The Rust parser accepts both.
+- **ASCII symbols preferred**: The prompt and theorem JSON files use ASCII symbols (`&`, `|`, `->`, `<->`) rather than Unicode (`⊃`, `∨`, `·`, `≡`) to reduce the chance of models producing unusual Unicode variants. The Rust parser accepts both. The GUI converts to logic notation for human display (see [Formula Notation](#formula-notation)).
 - **Minimization instruction**: Appears twice (opening system instruction and output format section) to reinforce the efficiency objective.
 - **No example proof included**: Including an example proof could bias models toward a specific proof style or length. The rule descriptions are sufficient.
 - **Fixed structure**: The rule reference is identical for every theorem. Only the theorem section varies. This ensures consistent prompting across the benchmark.
@@ -459,9 +547,14 @@ The `parseJustification(text)` function splits a line (after line number strippi
 1. **Premise** — Matches `FORMULA Premise` (case-insensitive)
 2. **Assumption** — Matches `FORMULA Assumption (CP)`, `FORMULA Assume (IP)`, `FORMULA Ass. CP`, etc. Technique name is canonicalized.
 3. **Subproof close** — Matches `FORMULA CP 3-7` or `FORMULA IP 4-9` (en-dash also accepted)
-4. **Rule + lines (rule first)** — Matches `FORMULA RULE N,N,N` where RULE is a known inference/equivalence rule
+4. **Rule + lines (rule first)** — Matches `FORMULA RULE N,N,N` where RULE is a known inference/equivalence rule (using known-rule-name matching)
 5. **Rule + lines (lines first)** — Matches `FORMULA N,N RULE` (alternate ordering)
 6. **Single line reference** — Matches `FORMULA RULE N` (common for equivalence rules)
+
+**v2.5 Parser Fix:** The parser now uses `canonicalizeRule()` to identify known rule names before attempting to split formula from justification. This fixes a critical bug where formulas containing dots or spaces (e.g., `P . Q`) were incorrectly parsed when using greedy regex patterns. The new approach:
+- First checks if any known rule name appears in the line
+- Splits at the known rule boundary
+- Prevents ambiguous splitting between formula and justification
 
 All justifications are output in canonical form:
 - `"Premise"`
@@ -557,6 +650,7 @@ npx tsx harness.ts --theorems <path> --models <list> [options]
 | `--start <n>` | `0` | Start at theorem index n (0-based) |
 | `--count <n>` | all | Process only n theorems from the start index |
 | `--propbench-bin <path>` | `propbench` | Path to the Rust CLI binary for validation |
+| `--workers <n>` | `1` | Number of parallel API workers (concurrent theorem processing) |
 | `--temperature <n>` | `0.2` | Temperature parameter passed to all models |
 | `--max-tokens <n>` | `4096` | Maximum output tokens for model responses |
 
@@ -574,6 +668,19 @@ For each theorem in the selected range, for each model adapter:
 
 Each step is wrapped in try/catch. If any step fails, the error is captured in the `BenchmarkResult`, saved to disk, and the harness continues to the next theorem/model pair.
 
+### Parallel Execution
+
+The harness supports concurrent API calls via the `--workers N` flag (default: 1, sequential). When workers > 1:
+
+- All non-skipped theorem/model pairs are collected into a flat work queue
+- N worker coroutines pull items from the queue concurrently
+- Each worker independently builds prompts, calls the API, parses responses, and validates proofs
+- Results are saved immediately as each worker completes a theorem
+- Progress output remains compatible with the GUI's SSE parser
+- Resume support is unaffected: already-completed pairs are filtered out before the work queue is built
+
+This is safe because JavaScript is single-threaded — counter increments and array index advances are atomic. File writes use unique filenames (including timestamps) so concurrent saves don't conflict.
+
 ### Resume Support
 
 The harness scans `<output>/raw/` on startup for existing result JSON files. Each file contains `theorem_id` and `model` fields. The harness builds a `Set<string>` of `"theorem_id::model"` keys and skips any pair that already has a result file.
@@ -583,9 +690,22 @@ This means:
 - To re-run a specific theorem/model pair, delete its result file from `output/raw/`
 - The `--start` and `--count` flags work independently of resume state
 
+### Environment Configuration
+
+**v2.5 dotenv support:** The harness now loads environment variables from a `.env` file in the prop-bench root directory using the `dotenv` package with `override: true`. This allows API keys to be stored in `.env` instead of shell environment:
+
+```bash
+# prop-bench/.env
+GEMINI_API_KEY=your-key-here
+ANTHROPIC_API_KEY=your-key-here
+OPENAI_API_KEY=your-key-here
+```
+
+The harness loads these at startup before any model adapters are instantiated.
+
 ### Dynamic Module Loading
 
-The harness dynamically imports `prompt.ts` and `parser.ts` at runtime via `await import("./prompt.js")` and `await import("./parser.js")`. If either module is not yet available (e.g., during development), the harness falls back to built-in implementations:
+The harness dynamically imports `prompt.ts` and `parser.ts` at runtime. **v2.5 import fix:** All `.js` extensions were removed from import statements to fix compatibility with ts-node in CommonJS mode. Import paths now use bare module names (e.g., `"./prompt"` not `"./prompt.js"`).
 
 - **`buildFallbackPrompt(theorem)`** — Generates a basic prompt with the theorem, all 19 rules + CP/IP, output format spec, and symbol reference. Handles both premise-based (Easy) and tautology (Medium+) theorem formats.
 - **`parseFallback(rawResponse)`** — Extracts numbered lines via regex, detects subproof depth from `|` markers, and splits formula from justification using known rule keyword patterns.
@@ -736,10 +856,16 @@ Each call to `getModel()` creates a new adapter instance (factory pattern). Adap
 
 | Property | Value |
 |----------|-------|
-| SDK | `@google/generative-ai` |
+| SDK | `@google/genai` (v1.0.0) |
 | API key env var | `GEMINI_API_KEY` |
-| Default model | `gemini-2.0-flash` |
+| Default model | `gemini-2.5-flash-lite-preview-09-2025` |
 | Adapter name | `"gemini"` |
+| Constructor | `new GoogleGenAI({ apiKey })` |
+
+**SDK Migration (v2.5):** Switched from the deprecated `@google/generative-ai` SDK to the new `@google/genai` SDK. Key changes:
+- Constructor: `new GoogleGenAI({ apiKey })` instead of `new GoogleGenerativeAI(apiKey)`
+- Package name changed in package.json
+- Response format unchanged
 
 **Token tracking:** Uses `response.usageMetadata` to report `promptTokenCount + candidatesTokenCount`.
 
@@ -1089,6 +1215,98 @@ results/
 
 ---
 
+## GUI (`gui/`)
+
+PropBench includes a web-based GUI for running benchmarks, viewing results, and exploring theorems. The GUI consists of a React frontend (Vite) and an Express backend that spawns the harness as a subprocess.
+
+### Architecture
+
+```
+gui/
+├── src/                    # React frontend (Vite)
+│   ├── pages/
+│   │   ├── Dashboard.tsx       # Results viewer, Elo rankings
+│   │   ├── TheoremExplorer.tsx # Browse theorems, compare models
+│   │   └── BenchmarkRunner.tsx # Configure and run benchmarks
+│   └── components/
+│       ├── ProofViewer.tsx     # Fitch-style proof display
+│       ├── TheoremDetail.tsx   # Theorem detail view
+│       └── RunConfig.tsx       # Benchmark configuration form
+└── server/                 # Express backend
+    ├── index.ts            # Express server, loads .env
+    ├── cli.ts              # Spawns harness subprocess
+    └── routes/
+        ├── benchmark.ts    # POST /api/benchmark (SSE streaming)
+        ├── results.ts      # GET /api/results (list results)
+        └── theorems.ts     # GET /api/theorems (list theorems)
+```
+
+### Backend (Express Server)
+
+**Environment Loading (`server/index.ts`):** The server loads environment variables from `prop-bench/.env` using dotenv with `override: true` before starting. This ensures API keys are available to spawned harness processes.
+
+**Harness Spawning (`server/cli.ts`):** The `spawnHarness()` function:
+- Uses local `node_modules/.bin/ts-node` directly instead of `npx` to avoid resolution issues
+- Explicitly reads `.env` and injects variables into the child process environment
+- Pre-spawn validation: checks that theorems file, propbench binary, and harness entry point exist
+- Returns a `ChildProcess` for the benchmark route to stream output
+
+**SSE Streaming (`server/routes/benchmark.ts`):** The benchmark endpoint:
+- Accepts POST requests with benchmark configuration
+- Spawns the harness as a subprocess via `spawnHarness()`
+- Parses harness stdout line-by-line into structured progress events
+- Sends Server-Sent Events (SSE) to the frontend with progress updates
+- Event types: `progress` (completed, total, validCount, invalidCount, errorCount, skippedCount), `complete`, `error`
+- Error events send `{type:"error", error:"..."}` (not `{type:"error", data:"..."}`)
+- Includes detailed logging for debugging
+
+**Results API (`server/routes/results.ts`):** Fixed to use `RESULTS_DIR` instead of `BENCHMARKS_DIR` for listing result files.
+
+### Frontend (React + Vite)
+
+**Benchmark Runner (`pages/BenchmarkRunner.tsx`):**
+- Fixed stale closure bug in SSE `onerror` handler using `useRef` for `isRunning` state
+- Real-time progress tracking via SSE
+- Displays validCount, invalidCount, errorCount, skippedCount counters
+- Progress bar and status messages
+
+**Proof Viewer (`components/ProofViewer.tsx`):**
+- Displays Fitch-style proofs with indentation and line numbers
+- **v2.5 feature:** Added collapsible "Show Raw Model Response" section showing full model output
+- **v2.5 feature:** Displays latency in milliseconds
+
+**Theorem Detail (`components/TheoremDetail.tsx`):**
+- **v2.5 feature:** Passes `rawResponse` and `latencyMs` to ProofViewer for display
+
+**Run Config (`components/RunConfig.tsx`):**
+- Model selection dropdown with `MODEL_OPTIONS` constant defining available models
+- Maps model aliases to full names (e.g., "gemini" → "Gemini 2.5 Flash Lite Preview")
+- **Important:** When CLI model names/defaults change, this component must be updated per CLAUDE.md rules
+- Includes a "Parallel Workers" field for configuring concurrent API calls
+
+**Vite Proxy (`vite.config.ts`):**
+- **v2.5 fix:** Added SSE buffering fix by setting `cache-control` and `x-accel-buffering` headers in proxy configuration
+- Proxies `/api/*` requests to Express backend on port 3001
+
+### GUI Running Instructions
+
+```bash
+# Development (runs both frontend and backend)
+cd prop-bench/gui
+npm install
+npm run dev
+
+# Backend only
+npm run server
+
+# Production build
+npx vite build
+```
+
+The GUI requires the same `.env` file in `prop-bench/` root as the CLI harness.
+
+---
+
 ## CLI Binary (`src/main.rs`)
 
 *Section to be filled in by the rust-cli agent.*
@@ -1098,6 +1316,12 @@ results/
 ## Dependencies
 
 ### TypeScript (`package.json`)
+
+**Runtime**:
+- `@anthropic-ai/sdk` ^0.39.0
+- `@google/genai` ^1.0.0 (replaces deprecated `@google/generative-ai`)
+- `dotenv` ^17.2.4 (for .env file support)
+- `openai` ^4.77.0
 
 **Dev**: typescript ^5.5.0, ts-node ^10.9.2, @types/node ^20.14.0
 
@@ -1118,6 +1342,19 @@ npm run build        # Compile TypeScript to dist/
 npm run typecheck    # Type-check without emitting
 ```
 
+### Environment Setup
+
+Create a `.env` file in the prop-bench root directory:
+
+```bash
+# prop-bench/.env
+GEMINI_API_KEY=your-gemini-key-here
+ANTHROPIC_API_KEY=your-anthropic-key-here
+OPENAI_API_KEY=your-openai-key-here
+```
+
+The harness and GUI server will automatically load these environment variables on startup.
+
 ### Rust CLI
 
 ```bash
@@ -1134,4 +1371,7 @@ propbench generate --count 100 --difficulty-distribution "30:easy,40:medium,30:h
 
 # 2. Validate a single proof
 propbench validate --theorem <theorem_json> --proof <proof_json>
+
+# 3. Run harness (uses .env for API keys)
+npx ts-node harness.ts --theorems theorems.json --models gemini
 ```

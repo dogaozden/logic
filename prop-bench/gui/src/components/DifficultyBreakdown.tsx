@@ -11,6 +11,9 @@ const TIERS: DifficultyTier[] = [
   "expert",
   "nightmare",
   "marathon",
+  "absurd",
+  "cosmic",
+  "mind",
 ];
 
 function DifficultyBreakdown({ report }: Props) {

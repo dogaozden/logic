@@ -11,8 +11,8 @@
 use rand::Rng;
 use crate::models::Formula;
 use crate::models::rules::equivalence::EquivalenceRule;
-use crate::models::theorem::{Difficulty, Theme, Theorem};
-use crate::services::truth_table::is_tautology;
+use crate::models::theorem::{BaseComplexity, Difficulty, DifficultySpec, Theme, Theorem};
+use crate::services::truth_table::{is_tautology, is_tautology_dynamic};
 
 /// Configuration for obfuscation generation
 #[derive(Debug, Clone)]
@@ -85,6 +85,55 @@ impl ObfuscateConfig {
             26..=45 => Difficulty::Medium,
             46..=70 => Difficulty::Hard,
             _ => Difficulty::Expert,
+        }
+    }
+
+    /// Create configuration from a DifficultySpec.
+    pub fn from_spec(spec: &DifficultySpec) -> Self {
+        let atoms = build_atom_pool(spec.variables);
+        Self {
+            atom_pool: atoms,
+            transform_count: spec.transforms_per_pass as usize,
+            difficulty: Difficulty::Expert, // All spec-based generation uses Expert as base
+            difficulty_value: 100, // Max value — spec controls actual complexity
+            substitution_depth: spec.substitution_depth as usize,
+        }
+    }
+}
+
+/// Safety bounds for formula complexity
+const MAX_FORMULA_DEPTH: usize = 100;
+const MAX_FORMULA_NODES: usize = 10_000;
+
+/// Build an atom pool of `n` unique atom names.
+/// 1-5: P, Q, R, S, T
+/// 6+: extend with A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, U, V, W, X, Y, Z
+pub fn build_atom_pool(n: u8) -> Vec<String> {
+    let base = ["P", "Q", "R", "S", "T"];
+    let extended = [
+        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
+        "K", "L", "M", "N", "O", "U", "V", "W", "X", "Y", "Z",
+    ];
+    let mut pool: Vec<String> = Vec::with_capacity(n as usize);
+    for &a in base.iter().take(n as usize) {
+        pool.push(a.to_string());
+    }
+    if (n as usize) > base.len() {
+        let remaining = (n as usize) - base.len();
+        for &a in extended.iter().take(remaining) {
+            pool.push(a.to_string());
+        }
+    }
+    pool
+}
+
+/// Count total nodes in a formula tree.
+fn node_count(formula: &Formula) -> usize {
+    match formula {
+        Formula::Atom(_) | Formula::Contradiction => 1,
+        Formula::Not(inner) => 1 + node_count(inner),
+        Formula::And(l, r) | Formula::Or(l, r) | Formula::Implies(l, r) | Formula::Biconditional(l, r) => {
+            1 + node_count(l) + node_count(r)
         }
     }
 }
@@ -223,6 +272,165 @@ impl ObfuscateGenerator {
             Some(Theme::Equivalence),
             None,
         )
+    }
+
+    /// Generate an obfuscated theorem using a DifficultySpec (multi-pass pipeline).
+    pub fn generate_with_spec(spec: &DifficultySpec, rng: &mut impl Rng) -> Theorem {
+        let config = ObfuscateConfig::from_spec(spec);
+        let gen = ObfuscateGenerator::new(config);
+
+        // Layer 1: Generate base theorem
+        let use_complex = spec.base_complexity == BaseComplexity::Complex;
+        let (premises, conclusion) = gen.generate_base_theorem_with_complexity(rng, use_complex);
+
+        // Layer 2: Apply substitutions (once, before multi-pass)
+        let (premises, conclusion) = if spec.substitution_depth > 0 {
+            gen.apply_substitutions(premises, conclusion, rng)
+        } else {
+            (premises, conclusion)
+        };
+
+        // Wrap as conditional tautology
+        let mut formula = gen.wrap_as_conditional(&premises, &conclusion);
+        debug_assert!(
+            is_tautology_dynamic(&formula),
+            "Initial wrapped formula should be a tautology"
+        );
+
+        // Multi-pass pipeline
+        for _pass in 0..spec.passes {
+            // Safety check: skip if formula too large
+            if formula.depth() >= MAX_FORMULA_DEPTH || node_count(&formula) >= MAX_FORMULA_NODES {
+                break;
+            }
+
+            // Apply transforms for this pass
+            formula = gen.apply_transformations(formula, rng);
+
+            debug_assert!(
+                is_tautology_dynamic(&formula),
+                "Formula should remain a tautology after pass"
+            );
+        }
+
+        Theorem::with_difficulty_value(
+            vec![],
+            formula,
+            Difficulty::Expert,
+            100,
+            Some(Theme::Equivalence),
+            None,
+        )
+    }
+
+    /// Generate base theorem with explicit complexity control.
+    fn generate_base_theorem_with_complexity(&self, rng: &mut impl Rng, use_complex: bool) -> (Vec<Formula>, Formula) {
+        let atoms = &self.config.atom_pool;
+        if atoms.is_empty() {
+            let p = Formula::Atom("P".to_string());
+            return (vec![], Formula::Implies(Box::new(p.clone()), Box::new(p)));
+        }
+
+        let available_forms = if use_complex {
+            let mut forms = BaseForm::for_atom_count(atoms.len());
+            // Add complex forms if we have enough atoms
+            if atoms.len() >= 3 {
+                for f in BaseForm::complex() {
+                    if !forms.iter().any(|ef| std::mem::discriminant(ef) == std::mem::discriminant(&f)) {
+                        forms.push(f);
+                    }
+                }
+            }
+            forms
+        } else {
+            BaseForm::for_atom_count(atoms.len())
+        };
+
+        if available_forms.is_empty() {
+            let p = Formula::Atom(atoms[0].clone());
+            return (vec![], Formula::Implies(Box::new(p.clone()), Box::new(p)));
+        }
+
+        let form = available_forms[rng.gen_range(0..available_forms.len())];
+        self.instantiate_base_form(form, atoms)
+    }
+
+    /// Instantiate a base form with the given atoms (factored out for reuse).
+    fn instantiate_base_form(&self, form: BaseForm, atoms: &[String]) -> (Vec<Formula>, Formula) {
+        let p = Formula::Atom(atoms[0].clone());
+        let q = Formula::Atom(atoms[1 % atoms.len()].clone());
+        let r = if atoms.len() > 2 {
+            Formula::Atom(atoms[2].clone())
+        } else {
+            Formula::Atom(atoms[0].clone())
+        };
+        let s = if atoms.len() > 3 {
+            Formula::Atom(atoms[3].clone())
+        } else {
+            Formula::Atom(atoms[1 % atoms.len()].clone())
+        };
+
+        match form {
+            BaseForm::ModusPonens => (
+                vec![p.clone(), Formula::Implies(Box::new(p), Box::new(q.clone()))],
+                q,
+            ),
+            BaseForm::ModusTollens => (
+                vec![Formula::Implies(Box::new(p.clone()), Box::new(q.clone())), Formula::Not(Box::new(q))],
+                Formula::Not(Box::new(p)),
+            ),
+            BaseForm::HypotheticalSyllogism => (
+                vec![Formula::Implies(Box::new(p.clone()), Box::new(q.clone())), Formula::Implies(Box::new(q), Box::new(r.clone()))],
+                Formula::Implies(Box::new(p), Box::new(r)),
+            ),
+            BaseForm::DisjunctiveSyllogism => (
+                vec![Formula::Or(Box::new(p.clone()), Box::new(q.clone())), Formula::Not(Box::new(p))],
+                q,
+            ),
+            BaseForm::Simplification => (
+                vec![Formula::And(Box::new(p.clone()), Box::new(q))],
+                p,
+            ),
+            BaseForm::Conjunction => (
+                vec![p.clone(), q.clone()],
+                Formula::And(Box::new(p), Box::new(q)),
+            ),
+            BaseForm::ConstructiveDilemma => (
+                vec![
+                    Formula::And(
+                        Box::new(Formula::Implies(Box::new(p.clone()), Box::new(q.clone()))),
+                        Box::new(Formula::Implies(Box::new(r.clone()), Box::new(s.clone()))),
+                    ),
+                    Formula::Or(Box::new(p), Box::new(r)),
+                ],
+                Formula::Or(Box::new(q), Box::new(s)),
+            ),
+            BaseForm::ConstructiveDilemmaFull => (
+                vec![
+                    Formula::Or(Box::new(p.clone()), Box::new(q.clone())),
+                    Formula::Implies(Box::new(p), Box::new(r.clone())),
+                    Formula::Implies(Box::new(q), Box::new(r.clone())),
+                ],
+                r,
+            ),
+            BaseForm::NestedCP => (
+                vec![
+                    Formula::Implies(Box::new(p.clone()), Box::new(Formula::Implies(Box::new(q.clone()), Box::new(r.clone())))),
+                    p,
+                    q,
+                ],
+                r,
+            ),
+            BaseForm::Chain4 => (
+                vec![
+                    Formula::Implies(Box::new(p.clone()), Box::new(q.clone())),
+                    Formula::Implies(Box::new(q), Box::new(r.clone())),
+                    Formula::Implies(Box::new(r), Box::new(s.clone())),
+                    p,
+                ],
+                s,
+            ),
+        }
     }
 
     /// Generate a simple valid argument form
@@ -572,6 +780,17 @@ impl ObfuscateGenerator {
         formula
     }
 
+    /// Check tautology using the appropriate engine based on atom count.
+    fn check_tautology(&self, formula: &Formula) -> bool {
+        let atoms = formula.atoms();
+        let standard = ["P", "Q", "R", "S", "T"];
+        if atoms.len() <= 5 && atoms.iter().all(|a| standard.contains(&a.as_str())) {
+            is_tautology(formula)
+        } else {
+            is_tautology_dynamic(formula)
+        }
+    }
+
     /// Try to apply a specific equivalence rule to some subformula
     fn try_apply_specific_rule(&self, formula: &Formula, rule: EquivalenceRule, rng: &mut impl Rng) -> Option<Formula> {
         let subformulas = formula.subformulas();
@@ -594,7 +813,7 @@ impl ObfuscateGenerator {
                 let equivalent = &equivalents[rng.gen_range(0..equivalents.len())];
                 let result = EquivalenceRule::replace_subformula(formula, subformula, equivalent);
 
-                if is_tautology(&result) {
+                if self.check_tautology(&result) {
                     return Some(result);
                 }
             }
@@ -635,7 +854,7 @@ impl ObfuscateGenerator {
             let result = EquivalenceRule::replace_subformula(formula, subformula, equivalent);
 
             // Sanity check: the result should still be a tautology
-            if is_tautology(&result) {
+            if self.check_tautology(&result) {
                 return Some(result);
             }
             // If not (shouldn't happen), try another
@@ -1016,6 +1235,74 @@ mod tests {
 
             // Should have reasonable depth
             assert!(formula.depth() <= 4, "Random formula depth should be bounded");
+        }
+    }
+
+    // === DifficultySpec-based generation tests ===
+
+    #[test]
+    fn test_build_atom_pool() {
+        assert_eq!(super::build_atom_pool(2), vec!["P", "Q"]);
+        assert_eq!(super::build_atom_pool(5), vec!["P", "Q", "R", "S", "T"]);
+        let pool8 = super::build_atom_pool(8);
+        assert_eq!(pool8.len(), 8);
+        assert_eq!(&pool8[0..5], &["P", "Q", "R", "S", "T"]);
+        assert_eq!(&pool8[5..8], &["A", "B", "C"]);
+    }
+
+    #[test]
+    fn test_generate_with_spec_easy() {
+        use crate::models::theorem::{DifficultySpec, DifficultyTier};
+
+        let spec = DifficultySpec::from_tier(DifficultyTier::Easy);
+        let mut rng = rand::thread_rng();
+        for _ in 0..5 {
+            let theorem = ObfuscateGenerator::generate_with_spec(&spec, &mut rng);
+            assert!(
+                is_tautology_dynamic(&theorem.conclusion),
+                "Easy spec should produce tautology"
+            );
+        }
+    }
+
+    #[test]
+    fn test_generate_with_spec_hard() {
+        use crate::models::theorem::{DifficultySpec, DifficultyTier};
+
+        let spec = DifficultySpec::from_tier(DifficultyTier::Hard);
+        let mut rng = rand::thread_rng();
+        for _ in 0..3 {
+            let theorem = ObfuscateGenerator::generate_with_spec(&spec, &mut rng);
+            assert!(
+                is_tautology_dynamic(&theorem.conclusion),
+                "Hard spec should produce tautology"
+            );
+        }
+    }
+
+    #[test]
+    fn test_generate_with_spec_expert() {
+        use crate::models::theorem::{DifficultySpec, DifficultyTier};
+
+        let spec = DifficultySpec::from_tier(DifficultyTier::Expert);
+        let mut rng = rand::thread_rng();
+        let theorem = ObfuscateGenerator::generate_with_spec(&spec, &mut rng);
+        assert!(
+            is_tautology_dynamic(&theorem.conclusion),
+            "Expert spec should produce tautology"
+        );
+    }
+
+    #[test]
+    fn test_from_difficulty_value_bridge() {
+        use crate::models::theorem::DifficultySpec;
+
+        // Verify bridge produces valid specs
+        for d in [10, 30, 50, 75, 90, 100] {
+            let spec = DifficultySpec::from_difficulty_value(d);
+            assert!(spec.variables >= 2 && spec.variables <= 5);
+            assert!(spec.passes >= 1);
+            assert!(spec.transforms_per_pass >= 1);
         }
     }
 }

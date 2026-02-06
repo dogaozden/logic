@@ -35,10 +35,20 @@ export const RESULTS_DIR = path.join(PROJECT_ROOT, "results");
 // Generate theorems
 // ---------------------------------------------------------------------------
 
+export interface DifficultySpec {
+  variables: number;
+  passes: number;
+  transforms_per_pass: number;
+  base_complexity: "simple" | "complex";
+  substitution_depth: number;
+}
+
 export interface GenerateOpts {
   count: number;
-  distribution: string;
   name: string;
+  distribution?: string;   // legacy distribution mode
+  tier?: string;            // tier preset mode
+  spec?: DifficultySpec;    // custom spec mode
 }
 
 export async function generate(opts: GenerateOpts): Promise<{ path: string; theorems: unknown[] }> {
@@ -47,12 +57,30 @@ export async function generate(opts: GenerateOpts): Promise<{ path: string; theo
 
   fs.mkdirSync(outDir, { recursive: true });
 
-  const { stderr } = await execFileAsync(PROPBENCH_BIN, [
+  // Build CLI args based on mode
+  const args: string[] = [
     "generate",
     "--count", String(opts.count),
-    "--difficulty-distribution", opts.distribution,
     "--output", outFile,
-  ], { timeout: 120_000, cwd: PROJECT_ROOT });
+  ];
+
+  if (opts.tier) {
+    args.push("--tier", opts.tier);
+  } else if (opts.spec) {
+    args.push("--variables", String(opts.spec.variables));
+    args.push("--passes", String(opts.spec.passes));
+    args.push("--transforms", String(opts.spec.transforms_per_pass));
+    args.push("--base", opts.spec.base_complexity);
+    args.push("--substitution", String(opts.spec.substitution_depth));
+  } else if (opts.distribution) {
+    args.push("--difficulty-distribution", opts.distribution);
+  }
+  // If none set, CLI uses its own default distribution
+
+  const { stderr } = await execFileAsync(PROPBENCH_BIN, args, {
+    timeout: 120_000,
+    cwd: PROJECT_ROOT,
+  });
 
   if (stderr) {
     // propbench writes progress to stderr, not errors
@@ -114,6 +142,7 @@ export interface HarnessOpts {
   models: string[];
   temperature: number;
   maxTokens: number;
+  workers?: number;
   start?: number;
   count?: number;
 }
@@ -142,6 +171,9 @@ export function spawnHarness(opts: HarnessOpts): ChildProcess {
     "--propbench-bin", PROPBENCH_BIN,
   ];
 
+  if (opts.workers !== undefined && opts.workers > 1) {
+    args.push("--workers", String(opts.workers));
+  }
   if (opts.start !== undefined) {
     args.push("--start", String(opts.start));
   }

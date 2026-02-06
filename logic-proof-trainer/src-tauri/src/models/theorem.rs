@@ -11,6 +11,121 @@ pub enum Difficulty {
     Expert,
 }
 
+// ─── DifficultySpec system (for extended generation) ─────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BaseComplexity {
+    Simple,
+    Complex,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DifficultySpec {
+    pub variables: u8,              // 2-20
+    pub passes: u8,                 // 1-N
+    pub transforms_per_pass: u8,    // per pass
+    pub base_complexity: BaseComplexity,
+    pub substitution_depth: u8,     // 0-4
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DifficultyTier {
+    Easy,
+    Medium,
+    Hard,
+    Expert,
+    Nightmare,
+    Marathon,
+    Absurd,
+    Cosmic,
+    Mind,
+}
+
+impl DifficultySpec {
+    pub fn from_tier(tier: DifficultyTier) -> Self {
+        match tier {
+            DifficultyTier::Easy      => Self { variables: 2,  passes: 1,  transforms_per_pass: 2,  base_complexity: BaseComplexity::Simple,  substitution_depth: 0 },
+            DifficultyTier::Medium    => Self { variables: 3,  passes: 1,  transforms_per_pass: 5,  base_complexity: BaseComplexity::Simple,  substitution_depth: 0 },
+            DifficultyTier::Hard      => Self { variables: 4,  passes: 1,  transforms_per_pass: 10, base_complexity: BaseComplexity::Complex, substitution_depth: 0 },
+            DifficultyTier::Expert    => Self { variables: 5,  passes: 1,  transforms_per_pass: 15, base_complexity: BaseComplexity::Complex, substitution_depth: 2 },
+            DifficultyTier::Nightmare => Self { variables: 5,  passes: 2,  transforms_per_pass: 12, base_complexity: BaseComplexity::Complex, substitution_depth: 3 },
+            DifficultyTier::Marathon  => Self { variables: 5,  passes: 3,  transforms_per_pass: 15, base_complexity: BaseComplexity::Complex, substitution_depth: 4 },
+            DifficultyTier::Absurd    => Self { variables: 8,  passes: 5,  transforms_per_pass: 20, base_complexity: BaseComplexity::Complex, substitution_depth: 4 },
+            DifficultyTier::Cosmic    => Self { variables: 15, passes: 10, transforms_per_pass: 20, base_complexity: BaseComplexity::Complex, substitution_depth: 4 },
+            DifficultyTier::Mind      => Self { variables: 20, passes: 20, transforms_per_pass: 24, base_complexity: BaseComplexity::Complex, substitution_depth: 4 },
+        }
+    }
+
+    /// Bridge from the legacy 1-100 difficulty value to a spec.
+    pub fn from_difficulty_value(d: u8) -> Self {
+        let d_clamped = d.clamp(1, 100) as usize;
+        let variables = match d_clamped {
+            1..=40 => 2,
+            41..=60 => 3,
+            61..=80 => 4,
+            _ => 5,
+        } as u8;
+        let transforms_per_pass = match d_clamped {
+            1..=25 => 1 + (d_clamped - 1) * 2 / 24,
+            26..=45 => 3 + (d_clamped - 26) * 3 / 19,
+            46..=70 => 6 + (d_clamped - 46) * 5 / 24,
+            71..=85 => 11 + (d_clamped - 71) * 5 / 14,
+            86..=95 => 16 + (d_clamped - 86) * 4 / 9,
+            _ => 20 + (d_clamped - 96) * 4 / 4,
+        } as u8;
+        let substitution_depth = match d_clamped {
+            1..=69 => 0,
+            70..=84 => 1,
+            _ => 2,
+        };
+        let base_complexity = if d_clamped >= 70 {
+            BaseComplexity::Complex
+        } else {
+            BaseComplexity::Simple
+        };
+        Self {
+            variables,
+            passes: 1,
+            transforms_per_pass,
+            base_complexity,
+            substitution_depth,
+        }
+    }
+}
+
+impl DifficultyTier {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "easy" => Some(Self::Easy),
+            "medium" => Some(Self::Medium),
+            "hard" => Some(Self::Hard),
+            "expert" => Some(Self::Expert),
+            "nightmare" => Some(Self::Nightmare),
+            "marathon" => Some(Self::Marathon),
+            "absurd" => Some(Self::Absurd),
+            "cosmic" => Some(Self::Cosmic),
+            "mind" => Some(Self::Mind),
+            _ => None,
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Easy => "Easy",
+            Self::Medium => "Medium",
+            Self::Hard => "Hard",
+            Self::Expert => "Expert",
+            Self::Nightmare => "Nightmare",
+            Self::Marathon => "Marathon",
+            Self::Absurd => "Absurd",
+            Self::Cosmic => "Cosmic",
+            Self::Mind => "Mind",
+        }
+    }
+}
+
 impl Difficulty {
     pub fn display_name(&self) -> &'static str {
         match self {

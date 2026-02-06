@@ -144,17 +144,18 @@ PropBench is an LLM benchmark that measures proof efficiency in propositional lo
 
 | Component | Responsibility |
 |-----------|---------------|
-| **harness.ts** | Orchestrates the entire benchmark loop: load theorems, call models, parse responses, validate proofs, log results |
-| **prompt.ts** | Builds complete LLM prompts with theorem, all 19 rules + CP/IP, symbol reference, and output format spec |
-| **parser.ts** | Parses raw LLM text output into structured proof lines: strips line numbers, detects subproof depth, normalizes symbols, canonicalizes rule names |
-| **models/index.ts** | Model adapter registry and shared interfaces (ModelAdapter, ModelConfig, ModelResponse) |
-| **models/gemini.ts** | Gemini API adapter with retry logic and token tracking |
-| **models/anthropic.ts** | Anthropic API adapter with retry logic and token tracking |
-| **models/openai.ts** | OpenAI API adapter with retry logic and token tracking |
+| **harness.ts** | Orchestrates the entire benchmark loop: load theorems, call models, parse responses, validate proofs, log results; loads `.env` for API keys; supports parallel workers via `--workers N` |
+| **prompt.ts** | Builds complete LLM prompts with theorem, all 19 rules + CP/IP, symbol reference, and output format spec; v2.5: added CRITICAL section clarifying FORMULA field |
+| **parser.ts** | Parses raw LLM text output into structured proof lines: strips line numbers, detects subproof depth, normalizes symbols, canonicalizes rule names; v2.5: fixed formula parsing using known-rule-name matching |
+| **models/index.ts** | Model adapter registry and shared interfaces (ModelAdapter, ModelConfig, ModelResponse); v2.5: removed `.js` extensions from imports |
+| **models/gemini.ts** | Gemini API adapter with retry logic and token tracking; v2.5: migrated to `@google/genai` SDK, default model `gemini-2.5-flash-lite-preview-09-2025` |
+| **models/anthropic.ts** | Anthropic API adapter with retry logic and token tracking; v2.5: removed `.js` extensions from imports |
+| **models/openai.ts** | OpenAI API adapter with retry logic and token tracking; v2.5: removed `.js` extensions from imports |
 | **scorer.ts** | Computes Elo ratings, aggregates line counts, tracks per-difficulty statistics |
 | **logger.ts** | Structured JSONL logging of all API calls, responses, parse results, validation results, and errors |
 | **config.ts** | Shared TypeScript types and default benchmark parameters |
 | **src/main.rs** | Rust CLI binary with two commands: `generate` (theorem sets) and `validate` (proof checking) |
+| **gui/** | Web-based GUI for running benchmarks and viewing results; v2.5: many backend and frontend fixes |
 
 ## Data Flow
 
@@ -211,6 +212,105 @@ Easy theorems (difficulty 1-25) are generated via templates with explicit premis
 - **No premises**: Prompt instructs the model to use CP/IP since there are no given starting points
 
 This dual format reflects the existing generator's two-mode design (template-based for pedagogy, obfuscation-based for difficulty scaling).
+
+### Parallel API Calls
+
+The harness supports concurrent API calls via `--workers N`. The implementation uses a simple worker pool pattern: N async workers pull from a shared work queue (a flat array of theorem/model pairs with an atomic index). This is safe in Node.js because:
+
+- JavaScript is single-threaded: counter increments are atomic
+- Each work item writes to a unique file (filename includes timestamp)
+- The concurrency limiter is implemented without external dependencies
+
+Default is 1 (sequential) for backward compatibility. The GUI exposes this as a "Parallel Workers" field.
+
+## Environment and Configuration
+
+**dotenv support (v2.5):** Both the harness (`harness.ts`) and GUI server (`gui/server/index.ts`) load environment variables from a `.env` file in the prop-bench root directory using the `dotenv` package with `override: true`. This allows API keys to be stored in a file instead of shell environment:
+
+```bash
+# prop-bench/.env
+GEMINI_API_KEY=your-key-here
+ANTHROPIC_API_KEY=your-key-here
+OPENAI_API_KEY=your-key-here
+```
+
+The `.env` file is loaded before any model adapters are instantiated, ensuring keys are available throughout the application lifecycle.
+
+**Import fixes (v2.5):** All TypeScript import statements in model files (`models/index.ts`, `models/gemini.ts`, `models/anthropic.ts`, `models/openai.ts`) had `.js` extensions removed. The `.js` extensions were breaking `ts-node` in CommonJS mode. Imports now use bare module names (e.g., `"./index"` not `"./index.js"`).
+
+## Parser Improvements (v2.5)
+
+The parser (`parser.ts`) was significantly improved to handle formulas containing dots and spaces correctly:
+
+**Problem:** The original parser used greedy/non-greedy regex patterns to split lines into `FORMULA + JUSTIFICATION`. This failed when formulas themselves contained dots or spaces (e.g., `P . Q Conj 1,2`), causing ambiguous splits.
+
+**Solution:** The parser now uses `canonicalizeRule()` to identify known rule names before splitting:
+1. Scan the line for any known rule name (inference, equivalence, or technique)
+2. Split at the known rule boundary
+3. Extract formula on the left, justification on the right
+4. Apply this to all three parsing patterns (A, B, C)
+
+This eliminates ambiguity and allows formulas like `P . Q`, `P v Q`, or formulas with spaces to parse correctly.
+
+**Result:** Benchmark accuracy improved from 50% valid to 100% valid on first 10 theorems after parser fix.
+
+## Prompt Improvements (v2.5)
+
+The prompt template (`prompt.ts`) was improved to reduce common LLM errors:
+
+**CRITICAL section added:** The output format specification now includes explicit examples showing that the FORMULA field must contain ONLY the derived result, not the premises used to derive it.
+
+Example (CORRECT):
+```
+1. P > Q Premise
+2. ~Q Premise
+3. ~P MT 1,2          ← formula is just "~P", not "P > Q, ~Q"
+```
+
+This prevents models from including premise formulas in the derived formula field, which was a common error pattern.
+
+## GUI Architecture (v2.5)
+
+The GUI (`gui/`) provides a web interface for running benchmarks and viewing results. It consists of a React frontend (Vite) and an Express backend.
+
+### Backend Improvements
+
+**CLI Spawning (`gui/server/cli.ts`):**
+- Now uses local `node_modules/.bin/ts-node` directly instead of `npx ts-node`/`npx tsx` to avoid npx resolution issues
+- Explicitly reads `.env` file and injects environment variables into child process environment
+- Pre-spawn validation: checks that theorems file, propbench binary, and harness entry point exist before spawning
+- Returns `ChildProcess` for streaming output
+
+**SSE Handler (`gui/server/routes/benchmark.ts`):**
+- Completely rewrote SSE (Server-Sent Events) handler to parse harness stdout into structured progress events
+- Parses stdout line-by-line and extracts: `completed`, `total`, `validCount`, `invalidCount`, `errorCount`, `skippedCount`
+- Sends structured `SSEProgressEvent` objects matching frontend `SSEProgressEvent` type
+- Fixed error event format: sends `{type:"error", error:"..."}` not `{type:"error", data:"..."}`
+- Added detailed logging for debugging
+
+**Results Route (`gui/server/routes/results.ts`):**
+- Fixed to use `RESULTS_DIR` instead of `BENCHMARKS_DIR` when listing result files
+
+**Environment Loading (`gui/server/index.ts`):**
+- Loads dotenv with `override: true` from prop-bench root before starting server
+- Ensures API keys are available to spawned harness processes
+
+### Frontend Improvements
+
+**Benchmark Runner (`gui/src/pages/BenchmarkRunner.tsx`):**
+- Fixed stale closure bug in SSE `onerror` handler by using `useRef` for `isRunning` state instead of stale captured state
+- Prevents race conditions when SSE connection errors occur
+
+**Proof Viewer (`gui/src/components/ProofViewer.tsx`):**
+- Added collapsible "Show Raw Model Response" section that displays full model output
+- Added latency display in milliseconds
+- Updated styling in `gui/src/styles/theorems.css`
+
+**Theorem Detail (`gui/src/components/TheoremDetail.tsx`):**
+- Now passes `rawResponse` and `latencyMs` props to ProofViewer for display
+
+**Vite Config (`gui/vite.config.ts`):**
+- Added SSE proxy buffering fix: sets `cache-control` and `x-accel-buffering` headers to prevent proxy buffering of SSE streams
 
 ## Relationship to Logic Proof Trainer
 

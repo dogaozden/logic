@@ -10,6 +10,8 @@ import * as os from "node:os";
 import { getModel } from "./models/index";
 import type { ModelConfig, ModelResponse } from "./models/index";
 import type { Theorem, ProofLine } from "./config";
+import { Scorer } from "./scorer";
+import type { TheoremResult, DifficultyTier } from "./scorer";
 
 const execFileAsync = promisify(execFile);
 
@@ -58,6 +60,7 @@ interface CliArgs {
   propbenchBin: string;
   temperature: number;
   maxTokens: number;
+  workers: number;
 }
 
 function parseArgs(): CliArgs {
@@ -71,6 +74,7 @@ function parseArgs(): CliArgs {
     propbenchBin: "propbench",
     temperature: 0.2,
     maxTokens: 4096,
+    workers: 1,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -98,6 +102,9 @@ function parseArgs(): CliArgs {
         break;
       case "--max-tokens":
         parsed.maxTokens = parseInt(args[++i], 10);
+        break;
+      case "--workers":
+        parsed.workers = parseInt(args[++i], 10);
         break;
       default:
         console.error(`Unknown argument: ${args[i]}`);
@@ -129,6 +136,7 @@ Options:
   --propbench-bin <path>    Path to propbench CLI binary (default: propbench)
   --temperature <n>         Model temperature (default: 0.2)
   --max-tokens <n>          Max tokens for model response (default: 4096)
+  --workers <n>             Number of parallel API calls (default: 1)
 `);
 }
 
@@ -154,21 +162,44 @@ function toTheorem(bt: BenchTheorem): Theorem {
 
 function loadRunState(outputDir: string): RunState {
   const completed = new Set<string>();
-  const resultsDir = path.join(outputDir, "raw");
 
-  if (!fs.existsSync(resultsDir)) {
+  if (!fs.existsSync(outputDir)) {
     return { completed };
   }
 
-  const files = fs.readdirSync(resultsDir).filter((f) => f.endsWith(".json"));
-  for (const file of files) {
-    try {
-      const data = JSON.parse(
-        fs.readFileSync(path.join(resultsDir, file), "utf-8")
-      ) as BenchmarkResult;
-      completed.add(`${data.theorem_id}::${data.model}`);
-    } catch {
-      // Skip corrupt files
+  // Scan model subdirectories: {outputDir}/{model}/raw/*.json
+  const entries = fs.readdirSync(outputDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const rawDir = path.join(outputDir, entry.name, "raw");
+    if (!fs.existsSync(rawDir)) continue;
+
+    const files = fs.readdirSync(rawDir).filter((f) => f.endsWith(".json"));
+    for (const file of files) {
+      try {
+        const data = JSON.parse(
+          fs.readFileSync(path.join(rawDir, file), "utf-8")
+        ) as BenchmarkResult;
+        completed.add(`${data.theorem_id}::${data.model}`);
+      } catch {
+        // Skip corrupt files
+      }
+    }
+  }
+
+  // Also scan old flat layout: {outputDir}/raw/*.json for backward compat
+  const flatRawDir = path.join(outputDir, "raw");
+  if (fs.existsSync(flatRawDir)) {
+    const files = fs.readdirSync(flatRawDir).filter((f) => f.endsWith(".json"));
+    for (const file of files) {
+      try {
+        const data = JSON.parse(
+          fs.readFileSync(path.join(flatRawDir, file), "utf-8")
+        ) as BenchmarkResult;
+        completed.add(`${data.theorem_id}::${data.model}`);
+      } catch {
+        // Skip corrupt files
+      }
     }
   }
 
@@ -253,12 +284,38 @@ async function validateProof(
 }
 
 function saveResult(result: BenchmarkResult, outputDir: string): void {
-  const rawDir = path.join(outputDir, "raw");
+  const rawDir = path.join(outputDir, result.model, "raw");
   fs.mkdirSync(rawDir, { recursive: true });
 
   const filename = `${result.theorem_id}_${result.model}_${Date.now()}.json`;
   const filepath = path.join(rawDir, filename);
   fs.writeFileSync(filepath, JSON.stringify(result, null, 2), "utf-8");
+}
+
+// ---------------------------------------------------------------------------
+// Concurrency helpers
+// ---------------------------------------------------------------------------
+
+interface WorkItem {
+  theoremIndex: number;  // index into benchTheorems array
+  adapterIndex: number;  // index into adapters array
+  itemNumber: number;    // 1-based sequential number for progress display
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  let index = 0;
+  async function worker(): Promise<void> {
+    while (index < items.length) {
+      const i = index++;
+      await fn(items[i]);
+    }
+  }
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+  await Promise.all(workers);
 }
 
 // ---------------------------------------------------------------------------
@@ -272,6 +329,7 @@ async function run(): Promise<void> {
   console.log(`Theorems: ${args.theorems}`);
   console.log(`Models:   ${args.models.join(", ")}`);
   console.log(`Output:   ${args.output}`);
+  console.log(`Workers:  ${args.workers}`);
   console.log();
 
   // Load theorems
@@ -316,119 +374,129 @@ async function run(): Promise<void> {
   let totalInvalid = 0;
   let totalErrors = 0;
 
-  // Main loop
+  // Build flat list of all work items
+  const workItems: WorkItem[] = [];
+  let itemNumber = 0;
   for (let ti = 0; ti < benchTheorems.length; ti++) {
-    const benchThm = benchTheorems[ti];
-    const theorem = toTheorem(benchThm);
-    const progress = `[${ti + 1}/${benchTheorems.length}]`;
-
-    for (const adapter of adapters) {
-      const key = resultKey(benchThm.id, adapter.name);
-
-      // Resume support: skip already-completed pairs
+    for (let ai = 0; ai < adapters.length; ai++) {
+      itemNumber++;
+      const key = resultKey(benchTheorems[ti].id, adapters[ai].name);
       if (state.completed.has(key)) {
         totalSkipped++;
         console.log(
-          `${progress} ${benchThm.id} x ${adapter.name} — SKIPPED (already done)`
+          `[${itemNumber}/${benchTheorems.length * adapters.length}] ${benchTheorems[ti].id} x ${adapters[ai].name} — SKIPPED (already done)`
         );
         continue;
       }
-
-      console.log(
-        `${progress} ${benchThm.id} x ${adapter.name} — running...`
-      );
-
-      const result: BenchmarkResult = {
-        theorem_id: benchThm.id,
-        model: adapter.name,
-        model_name: "",
-        raw_response: "",
-        parsed_proof: null,
-        parse_error: null,
-        validation_result: "error",
-        validation_errors: [],
-        line_count: null,
-        latency_ms: 0,
-        tokens_used: undefined,
-        timestamp: new Date().toISOString(),
-      };
-
-      const modelConfig: ModelConfig = {
-        model: "",
-        temperature: args.temperature,
-        maxTokens: args.maxTokens,
-      };
-
-      // Step 1: Build prompt
-      let prompt: string;
-      try {
-        prompt = promptForTheorem(theorem);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        result.validation_errors = [`Prompt build error: ${msg}`];
-        saveResult(result, args.output);
-        totalErrors++;
-        console.log(`  -> PROMPT ERROR: ${msg}`);
-        continue;
-      }
-
-      // Step 2: Call model API
-      let response: ModelResponse;
-      try {
-        response = await adapter.callModel(prompt, modelConfig);
-        result.raw_response = response.raw_response;
-        result.latency_ms = response.latency_ms;
-        result.model_name = response.model;
-        result.tokens_used = response.tokens_used;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        result.validation_errors = [`API error: ${msg}`];
-        saveResult(result, args.output);
-        totalErrors++;
-        console.log(`  -> API ERROR: ${msg}`);
-        continue;
-      }
-
-      // Step 3: Parse response
-      const { proof, error: parseError } = parseModelResponse(
-        response.raw_response,
-        theorem
-      );
-      if (parseError || !proof) {
-        result.parse_error = parseError;
-        result.validation_result = "error";
-        result.validation_errors = [parseError ?? "Unknown parse error"];
-        saveResult(result, args.output);
-        totalErrors++;
-        console.log(`  -> PARSE ERROR: ${parseError}`);
-        continue;
-      }
-      result.parsed_proof = proof;
-
-      // Step 4: Validate via CLI
-      const { valid, line_count, errors } = await validateProof(
-        benchThm,
-        proof,
-        args.propbenchBin
-      );
-      result.validation_result = valid ? "valid" : "invalid";
-      result.validation_errors = errors;
-      result.line_count = valid ? line_count : null;
-
-      saveResult(result, args.output);
-      totalRun++;
-
-      if (valid) {
-        totalValid++;
-        console.log(`  -> VALID (${proof.length} lines, ${result.latency_ms}ms)`);
-      } else {
-        totalInvalid++;
-        console.log(
-          `  -> INVALID: ${errors.slice(0, 2).join("; ")}${errors.length > 2 ? ` (+${errors.length - 2} more)` : ""}`
-        );
-      }
+      workItems.push({ theoremIndex: ti, adapterIndex: ai, itemNumber });
     }
   }
+
+  const totalItems = benchTheorems.length * adapters.length;
+
+  // Process work items with concurrency limiter
+  async function processWorkItem(item: WorkItem): Promise<void> {
+    const benchThm = benchTheorems[item.theoremIndex];
+    const adapter = adapters[item.adapterIndex];
+    const theorem = toTheorem(benchThm);
+    const progress = `[${item.itemNumber}/${totalItems}]`;
+
+    console.log(
+      `${progress} ${benchThm.id} x ${adapter.name} — running...`
+    );
+
+    const result: BenchmarkResult = {
+      theorem_id: benchThm.id,
+      model: adapter.name,
+      model_name: "",
+      raw_response: "",
+      parsed_proof: null,
+      parse_error: null,
+      validation_result: "error",
+      validation_errors: [],
+      line_count: null,
+      latency_ms: 0,
+      tokens_used: undefined,
+      timestamp: new Date().toISOString(),
+    };
+
+    const modelConfig: ModelConfig = {
+      model: "",
+      temperature: args.temperature,
+      maxTokens: args.maxTokens,
+    };
+
+    // Step 1: Build prompt
+    let prompt: string;
+    try {
+      prompt = promptForTheorem(theorem);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      result.validation_errors = [`Prompt build error: ${msg}`];
+      saveResult(result, args.output);
+      totalErrors++;
+      console.log(`  -> PROMPT ERROR: ${msg}`);
+      return;
+    }
+
+    // Step 2: Call model API
+    let response: ModelResponse;
+    try {
+      response = await adapter.callModel(prompt, modelConfig);
+      result.raw_response = response.raw_response;
+      result.latency_ms = response.latency_ms;
+      result.model_name = response.model;
+      result.tokens_used = response.tokens_used;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      result.validation_errors = [`API error: ${msg}`];
+      saveResult(result, args.output);
+      totalErrors++;
+      console.log(`  -> API ERROR: ${msg}`);
+      return;
+    }
+
+    // Step 3: Parse response
+    const { proof, error: parseError } = parseModelResponse(
+      response.raw_response,
+      theorem
+    );
+    if (parseError || !proof) {
+      result.parse_error = parseError;
+      result.validation_result = "error";
+      result.validation_errors = [parseError ?? "Unknown parse error"];
+      saveResult(result, args.output);
+      totalErrors++;
+      console.log(`  -> PARSE ERROR: ${parseError}`);
+      return;
+    }
+    result.parsed_proof = proof;
+
+    // Step 4: Validate via CLI
+    const { valid, line_count, errors } = await validateProof(
+      benchThm,
+      proof,
+      args.propbenchBin
+    );
+    result.validation_result = valid ? "valid" : "invalid";
+    result.validation_errors = errors;
+    result.line_count = valid ? line_count : null;
+
+    saveResult(result, args.output);
+    totalRun++;
+
+    if (valid) {
+      totalValid++;
+      console.log(`  -> VALID (${proof.length} lines, ${result.latency_ms}ms)`);
+    } else {
+      totalInvalid++;
+      console.log(
+        `  -> INVALID: ${errors.slice(0, 2).join("; ")}${errors.length > 2 ? ` (+${errors.length - 2} more)` : ""}`
+      );
+    }
+  }
+
+  await runWithConcurrency(workItems, args.workers, processWorkItem);
 
   // Summary
   console.log();
@@ -440,20 +508,96 @@ async function run(): Promise<void> {
   console.log(`Errors:  ${totalErrors}`);
   console.log();
 
-  // Write summary to output
-  const summary = {
-    timestamp: new Date().toISOString(),
-    theorems_file: args.theorems,
-    models: args.models,
-    total_run: totalRun,
-    total_skipped: totalSkipped,
-    total_valid: totalValid,
-    total_invalid: totalInvalid,
-    total_errors: totalErrors,
-  };
-  const summaryPath = path.join(args.output, "summary.json");
-  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2), "utf-8");
-  console.log(`Summary written to ${summaryPath}`);
+  // Write per-model summaries and reports
+  // Build a lookup map from theorem id -> BenchTheorem for difficulty info
+  const theoremMap = new Map<string, BenchTheorem>();
+  for (const bt of allBenchTheorems) {
+    theoremMap.set(bt.id, bt);
+  }
+
+  for (const adapter of adapters) {
+    const modelDir = path.join(args.output, adapter.name);
+    const rawDir = path.join(modelDir, "raw");
+
+    if (!fs.existsSync(rawDir)) continue;
+
+    // Collect all raw results for this model
+    const rawFiles = fs.readdirSync(rawDir).filter((f) => f.endsWith(".json"));
+    const rawResults: BenchmarkResult[] = [];
+    let modelValid = 0;
+    let modelInvalid = 0;
+    let modelErrors = 0;
+
+    for (const file of rawFiles) {
+      try {
+        const data = JSON.parse(
+          fs.readFileSync(path.join(rawDir, file), "utf-8")
+        ) as BenchmarkResult;
+        rawResults.push(data);
+        if (data.validation_result === "valid") modelValid++;
+        else if (data.validation_result === "invalid") modelInvalid++;
+        else modelErrors++;
+      } catch {
+        // Skip corrupt files
+      }
+    }
+
+    // Write per-model summary.json
+    const modelSummary = {
+      timestamp: new Date().toISOString(),
+      theorems_file: args.theorems,
+      models: [adapter.name],
+      total_run: rawResults.length,
+      total_skipped: 0,
+      total_valid: modelValid,
+      total_invalid: modelInvalid,
+      total_errors: modelErrors,
+    };
+    const modelSummaryPath = path.join(modelDir, "summary.json");
+    fs.writeFileSync(modelSummaryPath, JSON.stringify(modelSummary, null, 2), "utf-8");
+    console.log(`Model summary written to ${modelSummaryPath}`);
+
+    // Generate and write report.json using Scorer
+    try {
+      const scorer = new Scorer();
+      for (const raw of rawResults) {
+        const bt = theoremMap.get(raw.theorem_id);
+        const difficulty = (bt?.difficulty?.toLowerCase() ?? "medium") as DifficultyTier;
+        const difficultyValue = bt?.difficulty_value ?? 0;
+
+        let failureStage: "api_call" | "parse" | "validation" | undefined;
+        if (raw.validation_result !== "valid") {
+          if (raw.parse_error !== null) {
+            failureStage = "parse";
+          } else if (raw.validation_errors.some((e) => e.includes("API"))) {
+            failureStage = "api_call";
+          } else {
+            failureStage = "validation";
+          }
+        }
+
+        const theoremResult: TheoremResult = {
+          theoremId: raw.theorem_id,
+          valid: raw.validation_result === "valid",
+          parseSuccess: raw.parse_error === null,
+          lineCount: raw.line_count,
+          difficulty,
+          difficultyValue,
+          ...(failureStage !== undefined ? { failureStage } : {}),
+        };
+
+        scorer.recordResult(raw.theorem_id, adapter.name, theoremResult);
+      }
+
+      const report = scorer.generateReport();
+      const reportPath = path.join(modelDir, "report.json");
+      fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf-8");
+      console.log(`Model report written to ${reportPath}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`Failed to generate report for ${adapter.name}: ${msg}`);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -77,13 +77,29 @@ OUTPUT FORMAT
 Write each proof line as:
   N. FORMULA JUSTIFICATION
 
-Where JUSTIFICATION is one of:
+Where:
+  N              — line number
+  FORMULA        — a SINGLE propositional formula (the result you derived)
+  JUSTIFICATION  — the rule and line references used
+
+JUSTIFICATION is one of:
   Premise                    — for given premises
   Assumption (CP)            — opens a CP subproof
   Assumption (IP)            — opens an IP subproof
   RULE LINE_NUMBERS          — e.g. MP 1,2  or  Simp 3  or  DeM 5
   CP START-END               — closes a CP subproof (e.g. CP 3-7)
   IP START-END               — closes an IP subproof (e.g. IP 4-9)
+
+CRITICAL: The FORMULA field must contain ONLY the single formula you derived,
+NOT the premises you used to derive it.
+
+Example (CORRECT):
+  1. P > Q Premise
+  2. ~Q Premise
+  3. ~P MT 1,2          ← formula is just "~P", not "P > Q, ~Q"
+
+Example (WRONG):
+  3. P > Q, ~Q MT 1,2   ← DO NOT include premises in the formula field
 
 Indent lines inside subproofs with 2 extra spaces per nesting level.
 Minimize the total number of proof lines.`;

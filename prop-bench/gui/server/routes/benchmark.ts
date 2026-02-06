@@ -93,7 +93,7 @@ function parseHarnessLine(line: string, progress: RunProgress): void {
 /** POST /api/benchmark/start — spawn a harness run */
 router.post("/start", (req: Request, res: Response) => {
   try {
-    const { theoremSet, models, temperature, maxTokens, start, count } = req.body;
+    const { theoremSet, models, temperature, maxTokens, workers, start, count } = req.body;
 
     if (!theoremSet || !models || !Array.isArray(models) || models.length === 0) {
       res.status(400).json({ error: "Missing required fields: theoremSet, models (array)" });
@@ -109,6 +109,7 @@ router.post("/start", (req: Request, res: Response) => {
       models,
       temperature: temperature ?? 0.2,
       maxTokens: maxTokens ?? 4096,
+      workers,
       start,
       count,
     });

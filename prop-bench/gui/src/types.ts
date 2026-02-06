@@ -7,7 +7,11 @@ export type Difficulty =
   | "Hard"
   | "Expert"
   | "Nightmare"
-  | "Marathon";
+  | "Marathon"
+  | "Absurd"
+  | "Cosmic"
+  | "Mind"
+  | "Custom";
 
 export type DifficultyTier =
   | "easy"
@@ -15,7 +19,20 @@ export type DifficultyTier =
   | "hard"
   | "expert"
   | "nightmare"
-  | "marathon";
+  | "marathon"
+  | "absurd"
+  | "cosmic"
+  | "mind";
+
+export type BaseComplexity = "simple" | "complex";
+
+export interface DifficultySpec {
+  variables: number;
+  passes: number;
+  transforms_per_pass: number;
+  base_complexity: BaseComplexity;
+  substitution_depth: number;
+}
 
 export interface Theorem {
   id: string;
@@ -23,6 +40,7 @@ export interface Theorem {
   conclusion: string;
   difficulty: Difficulty;
   difficulty_value: number;
+  difficulty_spec?: DifficultySpec;
 }
 
 export interface ProofLine {
@@ -81,6 +99,16 @@ export interface HeadToHead {
   winner: string | "tie";
   modelALines: number | null;
   modelBLines: number | null;
+}
+
+/** Convert ASCII formula notation to standard logic display symbols */
+export function toDisplayNotation(formula: string): string {
+  return formula
+    .replace(/ <-> /g, " ≡ ")
+    .replace(/ -> /g, " ⊃ ")
+    .replace(/ & /g, " . ")
+    .replace(/ \| /g, " ∨ ")
+    .replace(/_\|_/g, "⊥");
 }
 
 export interface BenchmarkReport {

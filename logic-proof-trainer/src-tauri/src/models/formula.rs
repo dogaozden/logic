@@ -134,6 +134,67 @@ impl Formula {
         }
     }
 
+    /// ASCII string with alternating bracket hierarchy: () innermost, [] middle, {} outermost
+    /// Every binary subexpression operand is wrapped — no reliance on precedence
+    pub fn ascii_string_bracketed(&self) -> String {
+        self.ascii_bracketed_inner()
+    }
+
+    /// Recursive bracketed formatter using ASCII operators (& | -> <->)
+    fn ascii_bracketed_inner(&self) -> String {
+        match self {
+            Formula::Atom(name) => name.clone(),
+            Formula::Not(inner) => {
+                if inner.needs_parens_for_not() {
+                    let inner_str = inner.ascii_bracketed_inner();
+                    let local_depth = inner.bracket_depth();
+                    let (open, close) = Self::brackets_for_level(0, local_depth + 1);
+                    format!("~{}{}{}", open, inner_str, close)
+                } else {
+                    let inner_str = inner.ascii_bracketed_inner();
+                    format!("~{}", inner_str)
+                }
+            }
+            Formula::And(left, right) => {
+                let left_str = Self::wrap_if_compound_ascii(left);
+                let right_str = Self::wrap_if_compound_ascii(right);
+                format!("{} & {}", left_str, right_str)
+            }
+            Formula::Or(left, right) => {
+                let left_str = Self::wrap_if_compound_ascii(left);
+                let right_str = Self::wrap_if_compound_ascii(right);
+                format!("{} | {}", left_str, right_str)
+            }
+            Formula::Implies(left, right) => {
+                let left_str = Self::wrap_if_compound_ascii(left);
+                let right_str = Self::wrap_if_compound_ascii(right);
+                format!("{} -> {}", left_str, right_str)
+            }
+            Formula::Biconditional(left, right) => {
+                let left_str = Self::wrap_if_compound_ascii(left);
+                let right_str = Self::wrap_if_compound_ascii(right);
+                format!("{} <-> {}", left_str, right_str)
+            }
+            Formula::Contradiction => "_|_".to_string(),
+        }
+    }
+
+    /// Wrap in brackets if compound, using LOCAL bracket depth for bracket type selection (ASCII version)
+    fn wrap_if_compound_ascii(formula: &Formula) -> String {
+        match formula {
+            Formula::Atom(_) | Formula::Contradiction => formula.ascii_bracketed_inner(),
+            Formula::Not(inner) if matches!(inner.as_ref(), Formula::Atom(_)) => {
+                formula.ascii_bracketed_inner()
+            }
+            _ => {
+                let local_depth = formula.bracket_depth();
+                let (open, close) = Self::brackets_for_level(0, local_depth + 1);
+                let inner = formula.ascii_bracketed_inner();
+                format!("{}{}{}", open, inner, close)
+            }
+        }
+    }
+
     /// ASCII string for parsing/input
     pub fn ascii_string(&self) -> String {
         match self {
@@ -672,5 +733,86 @@ mod tests {
         let f = Formula::parse("(P | Q) & R").unwrap();
         let display = f.display_string();
         assert_eq!(display, "(P ∨ Q) . R");
+    }
+
+    // ── ascii_string_bracketed tests ──
+
+    #[test]
+    fn test_ascii_bracketed_atom() {
+        let f = Formula::parse("P").unwrap();
+        assert_eq!(f.ascii_string_bracketed(), "P");
+    }
+
+    #[test]
+    fn test_ascii_bracketed_negation_atom() {
+        // ~P should NOT get brackets around the atom
+        let f = Formula::parse("~P").unwrap();
+        assert_eq!(f.ascii_string_bracketed(), "~P");
+    }
+
+    #[test]
+    fn test_ascii_bracketed_negation_compound() {
+        // ~(P & Q) should bracket the compound
+        let f = Formula::parse("~(P & Q)").unwrap();
+        assert_eq!(f.ascii_string_bracketed(), "~(P & Q)");
+    }
+
+    #[test]
+    fn test_ascii_bracketed_simple_binary() {
+        // P & Q — outermost not wrapped
+        let f = Formula::parse("P & Q").unwrap();
+        assert_eq!(f.ascii_string_bracketed(), "P & Q");
+    }
+
+    #[test]
+    fn test_ascii_bracketed_nested_one_level() {
+        // (P | Q) & R — the Or is compound, local depth 0 → ()
+        let f = Formula::parse("(P | Q) & R").unwrap();
+        assert_eq!(f.ascii_string_bracketed(), "(P | Q) & R");
+    }
+
+    #[test]
+    fn test_ascii_bracketed_implies_with_and() {
+        // (P & Q) -> R — And is compound, local depth 0 → ()
+        let f = Formula::parse("(P & Q) -> R").unwrap();
+        assert_eq!(f.ascii_string_bracketed(), "(P & Q) -> R");
+    }
+
+    #[test]
+    fn test_ascii_bracketed_two_levels() {
+        // ((P | Q) & R) -> S
+        // Inner: P | Q wrapped in () (local depth 0)
+        // (P | Q) & R is a compound with local depth 1 → [] wrapping
+        let f = Formula::parse("((P | Q) & R) -> S").unwrap();
+        assert_eq!(f.ascii_string_bracketed(), "[(P | Q) & R] -> S");
+    }
+
+    #[test]
+    fn test_ascii_bracketed_contradiction() {
+        let f = Formula::parse("_|_").unwrap();
+        assert_eq!(f.ascii_string_bracketed(), "_|_");
+    }
+
+    #[test]
+    fn test_ascii_bracketed_biconditional() {
+        let f = Formula::parse("P <-> Q").unwrap();
+        assert_eq!(f.ascii_string_bracketed(), "P <-> Q");
+    }
+
+    #[test]
+    fn test_ascii_bracketed_local_depth_hierarchy() {
+        // (P | Q) & ((~R -> ~P) & R)
+        // P | Q: local depth 0 → ()
+        // (~R -> ~P) & R: local depth 1 → []
+        let f = Formula::parse("(P | Q) & ((~R -> ~P) & R)").unwrap();
+        let result = f.ascii_string_bracketed();
+        assert_eq!(result, "(P | Q) & [(~R -> ~P) & R]");
+    }
+
+    #[test]
+    fn test_ascii_bracketed_double_negation() {
+        // ~~P — no brackets needed around negation of negation of atom
+        let f = Formula::parse("~~P").unwrap();
+        assert_eq!(f.ascii_string_bracketed(), "~~P");
     }
 }

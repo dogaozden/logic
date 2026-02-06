@@ -8,6 +8,7 @@ export interface Theorem {
   conclusion: string;
   difficulty: Difficulty;
   difficulty_value: number; // 1-100
+  difficulty_spec?: DifficultySpec;
 }
 
 export type Difficulty =
@@ -16,7 +17,35 @@ export type Difficulty =
   | "Hard"
   | "Expert"
   | "Nightmare"
-  | "Marathon";
+  | "Marathon"
+  | "Absurd"
+  | "Cosmic"
+  | "Mind"
+  | "Custom";
+
+// ─── DifficultySpec types ─────────────────────────────────────────────────
+
+export type BaseComplexity = "simple" | "complex";
+
+export interface DifficultySpec {
+  variables: number;
+  passes: number;
+  transforms_per_pass: number;
+  base_complexity: BaseComplexity;
+  substitution_depth: number;
+}
+
+export const TIER_PRESETS: Record<string, DifficultySpec> = {
+  easy:      { variables: 2,  passes: 1,  transforms_per_pass: 2,  base_complexity: "simple",  substitution_depth: 0 },
+  medium:    { variables: 3,  passes: 1,  transforms_per_pass: 5,  base_complexity: "simple",  substitution_depth: 0 },
+  hard:      { variables: 4,  passes: 1,  transforms_per_pass: 10, base_complexity: "complex", substitution_depth: 0 },
+  expert:    { variables: 5,  passes: 1,  transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 2 },
+  nightmare: { variables: 5,  passes: 2,  transforms_per_pass: 12, base_complexity: "complex", substitution_depth: 3 },
+  marathon:  { variables: 5,  passes: 3,  transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 4 },
+  absurd:    { variables: 8,  passes: 5,  transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
+  cosmic:    { variables: 15, passes: 10, transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
+  mind:      { variables: 20, passes: 20, transforms_per_pass: 24, base_complexity: "complex", substitution_depth: 4 },
+};
 
 // ─── Proof types ────────────────────────────────────────────────────────────
 
@@ -151,5 +180,10 @@ export function difficultyRange(
       return { min: 86, max: 95 };
     case "Marathon":
       return { min: 96, max: 100 };
+    case "Absurd":
+    case "Cosmic":
+    case "Mind":
+    case "Custom":
+      return { min: 100, max: 100 };
   }
 }

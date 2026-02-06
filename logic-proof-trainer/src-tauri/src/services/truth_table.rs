@@ -1,10 +1,167 @@
 use crate::models::Formula;
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 // Constants
 const MASK_32: u32 = 0xFFFFFFFF;
 const TAUTOLOGY: u32 = 0xFFFFFFFF;
 const CONTRADICTION: u32 = 0x00000000;
+
+// ─── Dynamic truth table engine (supports >5 variables) ──────────────────────
+
+/// Dynamic truth table backed by a Vec<u64> bitvector.
+/// Supports up to 20 variables (2^20 = 1M rows, ~128 KB).
+#[derive(Debug, Clone)]
+pub struct DynTruthTable {
+    bits: Vec<u64>,
+    num_vars: u8,
+}
+
+impl DynTruthTable {
+    /// Number of u64 words needed for `n` variables (2^n bits / 64 bits per word).
+    fn words(num_vars: u8) -> usize {
+        let total_bits = 1u64 << num_vars as u64;
+        ((total_bits + 63) / 64) as usize
+    }
+
+    /// Build the truth table for variable at `index` among `num_vars` variables.
+    /// Variable 0 alternates in blocks of 2^(n-1), variable n-1 alternates every bit.
+    pub fn new_var(index: u8, num_vars: u8) -> Self {
+        let n_words = Self::words(num_vars);
+        let mut bits = vec![0u64; n_words];
+        // The block size for variable `index` is 2^(num_vars - 1 - index).
+        let block_size: u64 = 1u64 << (num_vars as u64 - 1 - index as u64);
+
+        let total_rows = 1u64 << num_vars as u64;
+        for row in 0..total_rows {
+            // Variable is true when (row / block_size) is even
+            if (row / block_size) % 2 == 0 {
+                let word_idx = (row / 64) as usize;
+                let bit_idx = row % 64;
+                bits[word_idx] |= 1u64 << bit_idx;
+            }
+        }
+        Self { bits, num_vars }
+    }
+
+    /// All-true (tautology) table.
+    pub fn tautology(num_vars: u8) -> Self {
+        let n_words = Self::words(num_vars);
+        let total_bits = 1u64 << num_vars as u64;
+        let mut bits = vec![!0u64; n_words];
+        // Mask the last word if total_bits is not a multiple of 64
+        let remainder = total_bits % 64;
+        if remainder != 0 && !bits.is_empty() {
+            let last = bits.len() - 1;
+            bits[last] = (1u64 << remainder) - 1;
+        }
+        Self { bits, num_vars }
+    }
+
+    /// All-false (contradiction) table.
+    pub fn contradiction(num_vars: u8) -> Self {
+        let n_words = Self::words(num_vars);
+        Self { bits: vec![0u64; n_words], num_vars }
+    }
+
+    pub fn not(&self) -> Self {
+        let total_bits = 1u64 << self.num_vars as u64;
+        let remainder = total_bits % 64;
+        let mut bits: Vec<u64> = self.bits.iter().map(|w| !w).collect();
+        if remainder != 0 && !bits.is_empty() {
+            let last = bits.len() - 1;
+            bits[last] &= (1u64 << remainder) - 1;
+        }
+        Self { bits, num_vars: self.num_vars }
+    }
+
+    pub fn and(&self, other: &Self) -> Self {
+        debug_assert_eq!(self.num_vars, other.num_vars);
+        let bits = self.bits.iter().zip(&other.bits).map(|(a, b)| a & b).collect();
+        Self { bits, num_vars: self.num_vars }
+    }
+
+    pub fn or(&self, other: &Self) -> Self {
+        debug_assert_eq!(self.num_vars, other.num_vars);
+        let bits = self.bits.iter().zip(&other.bits).map(|(a, b)| a | b).collect();
+        Self { bits, num_vars: self.num_vars }
+    }
+
+    pub fn implies(&self, other: &Self) -> Self {
+        self.not().or(other)
+    }
+
+    pub fn biconditional(&self, other: &Self) -> Self {
+        debug_assert_eq!(self.num_vars, other.num_vars);
+        let total_bits = 1u64 << self.num_vars as u64;
+        let remainder = total_bits % 64;
+        let mut bits: Vec<u64> = self.bits.iter().zip(&other.bits).map(|(a, b)| !(a ^ b)).collect();
+        if remainder != 0 && !bits.is_empty() {
+            let last = bits.len() - 1;
+            bits[last] &= (1u64 << remainder) - 1;
+        }
+        Self { bits, num_vars: self.num_vars }
+    }
+
+    pub fn is_tautology(&self) -> bool {
+        let taut = Self::tautology(self.num_vars);
+        self.bits == taut.bits
+    }
+
+    pub fn is_contradiction(&self) -> bool {
+        self.bits.iter().all(|w| *w == 0)
+    }
+
+    pub fn eq(&self, other: &Self) -> bool {
+        self.num_vars == other.num_vars && self.bits == other.bits
+    }
+}
+
+/// Collect atoms from a formula into a sorted Vec (alphabetical, deterministic).
+fn collect_sorted_atoms(formula: &Formula) -> Vec<String> {
+    let atoms: BTreeSet<String> = formula.atoms().into_iter().collect();
+    atoms.into_iter().collect()
+}
+
+/// Compute a dynamic truth table for any formula (supports >5 variables).
+pub fn compute_truth_table_dynamic(formula: &Formula) -> DynTruthTable {
+    let atoms = collect_sorted_atoms(formula);
+    let num_vars = atoms.len().max(1) as u8;
+    let var_map: std::collections::HashMap<&str, u8> = atoms.iter().enumerate()
+        .map(|(i, a)| (a.as_str(), i as u8))
+        .collect();
+    eval_dyn(formula, &var_map, num_vars)
+}
+
+fn eval_dyn(formula: &Formula, var_map: &std::collections::HashMap<&str, u8>, num_vars: u8) -> DynTruthTable {
+    match formula {
+        Formula::Atom(name) => {
+            if let Some(&idx) = var_map.get(name.as_str()) {
+                DynTruthTable::new_var(idx, num_vars)
+            } else {
+                DynTruthTable::tautology(num_vars)
+            }
+        }
+        Formula::Not(inner) => eval_dyn(inner, var_map, num_vars).not(),
+        Formula::And(l, r) => eval_dyn(l, var_map, num_vars).and(&eval_dyn(r, var_map, num_vars)),
+        Formula::Or(l, r) => eval_dyn(l, var_map, num_vars).or(&eval_dyn(r, var_map, num_vars)),
+        Formula::Implies(l, r) => eval_dyn(l, var_map, num_vars).implies(&eval_dyn(r, var_map, num_vars)),
+        Formula::Biconditional(l, r) => eval_dyn(l, var_map, num_vars).biconditional(&eval_dyn(r, var_map, num_vars)),
+        Formula::Contradiction => DynTruthTable::contradiction(num_vars),
+    }
+}
+
+/// Check if a formula is a tautology, auto-selecting the engine.
+/// Uses the fast u32 path for formulas with ≤5 standard atoms (P,Q,R,S,T),
+/// dynamic path otherwise.
+pub fn is_tautology_dynamic(formula: &Formula) -> bool {
+    let atoms = formula.atoms();
+    let standard = ["P", "Q", "R", "S", "T"];
+    if atoms.len() <= 5 && atoms.iter().all(|a| standard.contains(&a.as_str())) {
+        is_tautology(formula)
+    } else {
+        compute_truth_table_dynamic(formula).is_tautology()
+    }
+}
 
 /// Variable truth tables (standard row ordering PQRST from 11111 to 00000)
 fn var_truth_table(name: &str) -> u32 {
@@ -826,5 +983,75 @@ mod tests {
 
         // Also verify they are semantically equivalent
         assert!(are_equivalent(&biconditional, &expanded));
+    }
+
+    // === Dynamic Truth Table Tests ===
+
+    #[test]
+    fn test_dyn_tautology_simple() {
+        // P | ~P is a tautology
+        let lem = or(atom("P"), not(atom("P")));
+        assert!(is_tautology_dynamic(&lem));
+    }
+
+    #[test]
+    fn test_dyn_not_tautology() {
+        assert!(!is_tautology_dynamic(&atom("P")));
+    }
+
+    #[test]
+    fn test_dyn_agrees_with_u32() {
+        // Test that dynamic engine agrees with u32 for standard atoms
+        let formulas = vec![
+            implies(atom("P"), atom("P")),
+            implies(and(atom("P"), implies(atom("P"), atom("Q"))), atom("Q")),
+            or(atom("P"), not(atom("P"))),
+            and(atom("P"), not(atom("P"))),
+        ];
+        for f in &formulas {
+            assert_eq!(
+                is_tautology(f),
+                compute_truth_table_dynamic(f).is_tautology(),
+                "Disagreement on: {:?}",
+                f
+            );
+        }
+    }
+
+    #[test]
+    fn test_dyn_six_variables() {
+        // A | ~A with a non-standard atom name should work dynamically
+        let a = Formula::Atom("A".to_string());
+        let b = Formula::Atom("B".to_string());
+        let c = Formula::Atom("C".to_string());
+        let d = Formula::Atom("D".to_string());
+        let e = Formula::Atom("E".to_string());
+        let f = Formula::Atom("F".to_string());
+
+        // (A | ~A) is a tautology regardless of other atoms in a larger formula
+        let taut = or(a.clone(), not(a.clone()));
+        assert!(is_tautology_dynamic(&taut));
+
+        // A & B & C & D & E & F is NOT a tautology
+        let big_and = Formula::And(
+            Box::new(Formula::And(
+                Box::new(Formula::And(Box::new(a), Box::new(b))),
+                Box::new(Formula::And(Box::new(c), Box::new(d))),
+            )),
+            Box::new(Formula::And(Box::new(e), Box::new(f))),
+        );
+        assert!(!is_tautology_dynamic(&big_and));
+    }
+
+    #[test]
+    fn test_dyn_modus_ponens_wrapped() {
+        // (A & (A -> B)) -> B is a tautology for any atom names
+        let a = Formula::Atom("X".to_string());
+        let b = Formula::Atom("Y".to_string());
+        let wrapped = implies(
+            and(a.clone(), implies(a, b.clone())),
+            b,
+        );
+        assert!(is_tautology_dynamic(&wrapped));
     }
 }

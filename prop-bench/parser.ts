@@ -186,13 +186,18 @@ function normalizeFormula(formula: string): string {
     .replace(/⊃/g, ">")
     .replace(/=>/g, ">")
     .replace(/->/g, ">")
+    // Normalize contradiction (MUST come before | -> v)
+    .replace(/⊥/g, "#")
+    .replace(/_\|_/g, "#")
     // Normalize disjunction
     .replace(/∨/g, "v")
     .replace(/\|\|/g, "v")
+    .replace(/\|/g, "v")        // single | (AFTER || and _|_)
     // Normalize conjunction
     .replace(/·/g, ".")
     .replace(/∧/g, ".")
     .replace(/&&/g, ".")
+    .replace(/&/g, ".")         // single & (AFTER &&)
     .replace(/\u2227/g, ".") // ∧
     // Normalize negation
     .replace(/¬/g, "~")
@@ -202,9 +207,6 @@ function normalizeFormula(formula: string): string {
     .replace(/↔/g, "<>")
     .replace(/<=>/g, "<>")
     .replace(/<->/g, "<>")
-    // Normalize contradiction
-    .replace(/⊥/g, "#")
-    .replace(/_\|_/g, "#")
     // Normalize whitespace
     .replace(/\s+/g, " ")
     .trim();
@@ -280,7 +282,8 @@ function stripSubproofMarkers(
 
 // Patterns for justification at the end of a line:
 //   "Premise"
-//   "Assumption (CP)" or "Assumption (IP)" or "Assume (CP)" or "Assume CP"
+//   "Assume FORMULA (CP)" or "Assumption FORMULA (IP)" (keyword-first)
+//   "FORMULA Assumption (CP)" or "FORMULA Assume (IP)" or "FORMULA Assume CP"
 //   "MP 1,2" or "MP 1, 2" or "MP 1 2"
 //   "CP 3-7" or "IP 4-9" or "CP 3–7" (en-dash)
 
@@ -304,7 +307,21 @@ function parseJustification(text: string): ParsedJustification | null {
     };
   }
 
-  // Case 2: "Assumption (CP)" or "Assumption (IP)" or "Assume (CP)" etc.
+  // Case 2a: "Assume FORMULA (CP)" or "Assumption FORMULA (IP)" — keyword-first format
+  const assumeFirstMatch = trimmed.match(
+    /^(?:Assume|Assumption|Ass\.?)\s+(.+?)\s*\(?\s*(CP|IP)\s*\)?$/i
+  );
+  if (assumeFirstMatch) {
+    const tech = canonicalizeRule(assumeFirstMatch[2]);
+    if (tech) {
+      return {
+        justification: `Assumption (${tech.canonical})`,
+        formula: assumeFirstMatch[1].trim(),
+      };
+    }
+  }
+
+  // Case 2b: "FORMULA Assumption (CP)" or "FORMULA Assume (IP)" — formula-first format
   const assumptionMatch = trimmed.match(
     /^(.+?)\s+(?:Assumption|Assume|Ass\.?)\s*\(?\s*(CP|IP)\s*\)?$/i
   );
@@ -318,7 +335,21 @@ function parseJustification(text: string): ParsedJustification | null {
     }
   }
 
-  // Case 3: Subproof close: "CP 3-7" or "IP 4-9" at the end
+  // Case 3a: Bare subproof close with no formula: "CP 3-7" or "IP 4-9"
+  const bareSubproofCloseMatch = trimmed.match(
+    /^(CP|IP)\s+(\d+)\s*[-–]\s*(\d+)$/i
+  );
+  if (bareSubproofCloseMatch) {
+    const tech = canonicalizeRule(bareSubproofCloseMatch[1]);
+    if (tech) {
+      return {
+        justification: `${tech.canonical} ${bareSubproofCloseMatch[2]}-${bareSubproofCloseMatch[3]}`,
+        formula: "", // Empty — will be inferred in post-processing
+      };
+    }
+  }
+
+  // Case 3b: Subproof close: "CP 3-7" or "IP 4-9" at the end (with formula)
   const subproofCloseMatch = trimmed.match(
     /^(.+?)\s+(CP|IP)\s+(\d+)\s*[-–]\s*(\d+)$/i
   );
@@ -339,15 +370,21 @@ function parseJustification(text: string): ParsedJustification | null {
   // or line numbers followed by a rule name.
 
   // Pattern A: "FORMULA RULE N,N,N" (rule then lines at end)
-  const ruleFirstMatch = trimmed.match(
-    /^(.+?)\s+([A-Za-z~⊥][A-Za-z .']*?)\s+(\d[\d,\s]*\d|\d)$/
-  );
-  if (ruleFirstMatch) {
-    const formulaPart = ruleFirstMatch[1].trim();
-    const rulePart = ruleFirstMatch[2].trim();
-    const linesPart = ruleFirstMatch[3];
+  // Use a more precise approach: look for known rule names followed by line numbers
+  // This avoids ambiguity when formulas contain dots and spaces (e.g., "P . Q Conj 1,2")
+
+  // Try to find a known rule name followed by line numbers at the end
+  const ruleNamePattern = /\s+(\S+)\s+(\d[\d,\s]*\d|\d)$/;
+  const possibleRuleMatch = trimmed.match(ruleNamePattern);
+
+  if (possibleRuleMatch) {
+    const rulePart = possibleRuleMatch[1].trim();
+    const linesPart = possibleRuleMatch[2];
     const canon = canonicalizeRule(rulePart);
+
     if (canon && (canon.kind === "inference" || canon.kind === "equivalence")) {
+      // Extract the formula by removing the rule and line numbers from the end
+      const formulaPart = trimmed.slice(0, trimmed.length - possibleRuleMatch[0].length).trim();
       const lines = linesPart
         .split(/[\s,]+/)
         .map((s) => parseInt(s, 10))
@@ -360,15 +397,17 @@ function parseJustification(text: string): ParsedJustification | null {
   }
 
   // Pattern B: "FORMULA N,N RULE" (lines then rule at end)
-  const linesFirstMatch = trimmed.match(
-    /^(.+?)\s+(\d[\d,\s]*\d|\d)\s+([A-Za-z~⊥][A-Za-z .']*?)$/
-  );
+  const linesFirstPattern = /\s+(\d[\d,\s]*\d|\d)\s+(\S+)$/;
+  const linesFirstMatch = trimmed.match(linesFirstPattern);
+
   if (linesFirstMatch) {
-    const formulaPart = linesFirstMatch[1].trim();
-    const linesPart = linesFirstMatch[2];
-    const rulePart = linesFirstMatch[3].trim();
+    const linesPart = linesFirstMatch[1];
+    const rulePart = linesFirstMatch[2].trim();
     const canon = canonicalizeRule(rulePart);
+
     if (canon && (canon.kind === "inference" || canon.kind === "equivalence")) {
+      // Extract the formula by removing the lines and rule from the end
+      const formulaPart = trimmed.slice(0, trimmed.length - linesFirstMatch[0].length).trim();
       const lines = linesPart
         .split(/[\s,]+/)
         .map((s) => parseInt(s, 10))
@@ -381,15 +420,17 @@ function parseJustification(text: string): ParsedJustification | null {
   }
 
   // Pattern C: Just "RULE N" at end (common for equivalence rules on one line)
-  const singleLineMatch = trimmed.match(
-    /^(.+?)\s+([A-Za-z~⊥][A-Za-z .']*?)\s+(\d+)$/
-  );
+  const singleLinePattern = /\s+(\S+)\s+(\d+)$/;
+  const singleLineMatch = trimmed.match(singleLinePattern);
+
   if (singleLineMatch) {
-    const formulaPart = singleLineMatch[1].trim();
-    const rulePart = singleLineMatch[2].trim();
-    const lineNum = singleLineMatch[3];
+    const rulePart = singleLineMatch[1].trim();
+    const lineNum = singleLineMatch[2];
     const canon = canonicalizeRule(rulePart);
+
     if (canon && (canon.kind === "inference" || canon.kind === "equivalence")) {
+      // Extract the formula by removing the rule and line number from the end
+      const formulaPart = trimmed.slice(0, trimmed.length - singleLineMatch[0].length).trim();
       return {
         justification: `${canon.canonical} ${lineNum}`,
         formula: formulaPart,
@@ -518,6 +559,34 @@ export function parseProof(rawOutput: string, theorem: Theorem): ParseResult {
         message: `Could not parse justification from: "${afterLineNum.trim()}"`,
       });
       autoLineNumber = (lineNumber ?? autoLineNumber) + 1;
+    }
+  }
+
+  // ── Post-processing: infer formulas for bare CP/IP lines ──
+  // Process in order so earlier inferred formulas are available for later ones
+  // (handles nested bare CP/IP).
+  for (const line of lines) {
+    if (line.formula !== "") continue;
+
+    const cpMatch = line.justification.match(/^CP\s+(\d+)-(\d+)$/);
+    const ipMatch = line.justification.match(/^IP\s+(\d+)-(\d+)$/);
+
+    if (cpMatch) {
+      const startNum = parseInt(cpMatch[1], 10);
+      const endNum = parseInt(cpMatch[2], 10);
+      const assumptionLine = lines.find((l) => l.line_number === startNum);
+      const lastLine = lines.find((l) => l.line_number === endNum);
+      if (assumptionLine && lastLine) {
+        line.formula = normalizeFormula(
+          `(${assumptionLine.formula}) > (${lastLine.formula})`
+        );
+      }
+    } else if (ipMatch) {
+      const startNum = parseInt(ipMatch[1], 10);
+      const assumptionLine = lines.find((l) => l.line_number === startNum);
+      if (assumptionLine) {
+        line.formula = normalizeFormula(`~(${assumptionLine.formula})`);
+      }
     }
   }
 

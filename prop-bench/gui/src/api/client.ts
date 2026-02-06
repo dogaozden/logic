@@ -1,7 +1,7 @@
 // PropBench GUI — API client
 // Typed wrapper around the backend API endpoints.
 
-import type { Theorem, ProofLine } from "../types";
+import type { Theorem, ProofLine, DifficultySpec } from "../types";
 
 const BASE = "/api";
 
@@ -20,8 +20,10 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
 
 export interface GenerateOpts {
   count: number;
-  distribution: string;
   name: string;
+  distribution?: string;   // legacy distribution mode
+  tier?: string;            // tier preset mode
+  spec?: DifficultySpec;    // custom spec mode
 }
 
 export interface GenerateResult {
@@ -47,6 +49,7 @@ export interface StartBenchmarkOpts {
   models: string[];
   temperature: number;
   maxTokens: number;
+  workers?: number;
   start?: number;
   count?: number;
 }

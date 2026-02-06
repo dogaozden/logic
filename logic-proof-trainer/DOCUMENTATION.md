@@ -235,8 +235,9 @@ pub type SharedFormula = Arc<Formula>;   // Shared ownership via Arc
 
 Key methods:
 - `parse(input: &str) -> Result<Formula, ParseError>` — Parser with safety limits
-- `display_string()` — Bracket hierarchy: `()` → `[]` → `{}`
-- `ascii_string()` — ASCII representation for round-tripping
+- `display_string()` — Logic notation (`. ∨ ⊃ ≡`) with bracket hierarchy: `()` → `[]` → `{}`
+- `ascii_string()` — ASCII representation (`& | -> <->`) with precedence-based brackets
+- `ascii_string_bracketed()` — ASCII operators with alternating bracket hierarchy (used by PropBench for LLM-facing output; every binary subexpression explicitly bracketed, no precedence reliance)
 - `atoms() -> HashSet<String>` — All atomic propositions
 - `depth() -> usize` — Nesting level
 - `main_connective() -> Option<&'static str>` — Top-level connective
@@ -267,6 +268,25 @@ pub struct Theorem {
 ```
 
 Default difficulty midpoints: Easy=13, Medium=35, Hard=58, Expert=85. 13 classic theorems provided via `get_classic_theorems()`.
+
+**DifficultySpec** (`models/theorem.rs` — used by PropBench CLI):
+```rust
+pub enum BaseComplexity { Simple, Complex }
+
+pub struct DifficultySpec {
+    pub variables: u8,              // 2-20
+    pub passes: u8,                 // 1-20
+    pub transforms_per_pass: u8,    // 1-24
+    pub base_complexity: BaseComplexity,
+    pub substitution_depth: u8,     // 0-4
+}
+
+pub enum DifficultyTier {
+    Easy, Medium, Hard, Expert, Nightmare, Marathon, Absurd, Cosmic, Mind,
+}
+```
+
+DifficultySpec provides fine-grained control over theorem generation parameters. `DifficultySpec::from_tier()` maps each of 9 tiers to preset parameters. `DifficultySpec::from_difficulty_value()` bridges the legacy 1-100 scale. These types do NOT modify the existing `Difficulty` enum used by the Tauri app.
 
 **Proof** (`models/proof.rs`):
 ```rust
@@ -365,12 +385,20 @@ Key methods:
 - `fragments_for_goal(formula)` — Returns applicable fragments based on formula shape (always includes MP, DS, Simp, IP, CaseSplit as universally applicable)
 
 **TruthTable** (`services/truth_table.rs`):
-- 32-bit truth table computation for 5 variables (P, Q, R, S, T)
+- **u32 engine** (≤5 variables): 32-bit truth table computation for variables P, Q, R, S, T
 - Core: `compute_truth_table()`, `is_tautology()`, `is_contradiction()`, `are_equivalent()`
 - Semantic: `entails()`, `premises_consistent()`, `single_premise_entails()`, `all_premises_necessary()`, `has_redundant_premises()`
 - Forcing functions: `forces_cp()` (conclusion is A⊃B and premises don't entail B), `forces_case_split()` (disjunction without negation of disjuncts), `forces_ip()` (atomic/negation conclusions)
 - Degenerate checks: `conclusion_negation_available()`, `conditional_trivial_via_explosion()`
 - `validate_theorem()` / `validate_theorem_with_difficulty()` — Combined validation
+- **DynTruthTable engine** (2-20 variables): `Vec<u64>` bitvector-based truth tables for formulas with more than 5 variables
+  - `DynTruthTable::new_var(index, num_vars)` — Alternating bit pattern for variable at index
+  - `DynTruthTable::tautology(num_vars)` / `::contradiction(num_vars)` — Constant tables
+  - Bitwise ops: `not()`, `and()`, `or()`, `implies()`, `biconditional()`
+  - `is_tautology()`, `is_contradiction()`, `eq()` — Semantic checks
+  - `collect_sorted_atoms()` — BTreeSet-based alphabetical atom collection
+  - `compute_truth_table_dynamic()` — Recursive evaluation with atom-to-index mapping
+  - `is_tautology_dynamic()` — Auto-dispatches: uses fast u32 path for ≤5 standard atoms (P,Q,R,S,T), dynamic path otherwise
 
 **ProofSearch** (`services/proof_search.rs`):
 - `prove_backward(premises, goal, max_depth, visited)` — Backward proof search with cycle detection (truth table hashing)
@@ -389,6 +417,13 @@ Key methods:
 - **Gnarly combos** (difficulty ≥85): Forces hard patterns like Contraposition+DeMorgan chains, Implication+Distribution combos
 - Simplification pass collapses excessive negations (~~~~P → P)
 - Tautology protection: only allows contraction (P∨P → P), not expansion
+- **Multi-pass spec-based generation** (`generate_with_spec()`):
+  - `ObfuscateConfig::from_spec()` maps DifficultySpec fields to config
+  - `build_atom_pool(n)` creates variable pools for >5 variables (P,Q,R,S,T + A,B,C,D,E,F,G,H...)
+  - Multi-pass pipeline: generate base → substitute → wrap as tautology → (transform + re-wrap) × N passes
+  - `check_tautology()` auto-dispatches between u32 and dynamic truth table engines
+  - Safety bounds: `MAX_FORMULA_DEPTH=100`, `MAX_FORMULA_NODES=10,000` prevent blowup
+  - `base_complexity`: Simple uses standard base forms only; Complex includes ConstructiveDilemmaFull, NestedCP, Chain4
 
 **Dependency** (`services/dependency.rs`):
 - Bidirectional dependency graph (dependencies + dependents for O(1) lookups)
@@ -719,9 +754,9 @@ cd src-tauri && cargo test
 # - storage.rs: 21 tests (security/path traversal, CRUD, export/import, length limits)
 # - generator.rs: 15 tests (config, difficulty mapping, theorem generation)
 # - proof_tree.rs: 17 tests (tree structure, validation, pretty printing)
-# - truth_table.rs: 43 tests (semantic checks, forcing conditions)
+# - truth_table.rs: 48 tests (semantic checks, forcing conditions, dynamic bitvector engine)
 # - proof_search.rs: 27 tests (backward search, difficulty requirements, subproof detection)
-# - obfuscate_gen.rs: 21 tests (config scaling, tautology preservation, substitution layers)
+# - obfuscate_gen.rs: 25 tests (config scaling, tautology preservation, substitution layers, spec-based generation)
 # - dependency.rs: 4 tests (cascade invalidation, cycle detection, topological order)
 # - commands.rs: 3 tests (classic theorems, generation, proof completion)
 # - tree_gen/builder.rs: 6 tests (generation per difficulty, premises, multiple)
@@ -839,3 +874,103 @@ All storage operations validate IDs to prevent path traversal attacks:
 - Delete operations return an error if the target entry doesn't exist, preventing silent failures
 - All storage operations provide meaningful error messages for debugging
 - Verifier provides case-sensitivity hints when equivalence rule validation fails due to atom casing
+
+---
+
+## PropBench: LLM Benchmark Tool
+
+PropBench is a companion project in the `prop-bench/` directory that uses the Logic Proof Trainer's Rust backend to benchmark LLMs on proof generation tasks. It measures models on proof efficiency (fewest lines) rather than just correctness.
+
+### Architecture
+
+PropBench consists of:
+- **TypeScript harness** (`harness.ts`) — Orchestrates benchmark runs, calls LLM APIs, parses outputs
+- **Rust CLI** (`src/main.rs`) — Wraps the Logic Proof Trainer backend for validation
+- **Web GUI** (`gui/`) — React frontend + Express backend for running benchmarks visually
+- **Model adapters** (`models/`) — API clients for Gemini, Anthropic (Claude), and OpenAI (GPT)
+
+### Key Components
+
+**Prompt Builder** (`prompt.ts`):
+- Generates complete LLM prompts with all 19 rules, CP/IP techniques, and output format specs
+- v2.5: Added CRITICAL section clarifying that FORMULA field must be only the derived result, not premises
+- Prevents common LLM errors where models include premise formulas in derived results
+
+**Parser** (`parser.ts`):
+- Parses raw LLM text into structured proof lines
+- Handles 80+ rule name aliases, 7 line number formats, subproof depth detection
+- v2.5: Fixed formula parsing using known-rule-name matching instead of ambiguous regex
+- Result: Improved accuracy from 50% to 100% on first 10 theorems
+
+**Model Adapters**:
+- Gemini (`models/gemini.ts`): v2.5 migrated to `@google/genai` SDK, default model `gemini-2.5-flash-lite-preview-09-2025`
+- Anthropic (`models/anthropic.ts`): Uses Claude Sonnet 4.5
+- OpenAI (`models/openai.ts`): Uses GPT-4o
+- All adapters include retry logic with exponential backoff for rate limits
+
+**Environment Configuration**:
+- v2.5: Added `.env` file support via `dotenv` package
+- Both harness and GUI load `.env` from prop-bench root with `override: true`
+- API keys: `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
+
+### Web GUI (v2.5 Improvements)
+
+**Backend Fixes** (`gui/server/`):
+- `cli.ts`: Uses local `node_modules/.bin/ts-node` instead of npx to avoid resolution issues
+- `cli.ts`: Explicitly reads `.env` and injects vars into child process environment
+- `cli.ts`: Pre-spawn validation (checks theorems file, propbench binary, harness entry point exist)
+- `benchmark.ts`: Rewrote SSE handler with structured progress events (completed, total, validCount, invalidCount, errorCount, skippedCount)
+- `benchmark.ts`: Fixed error event format to send `{type:"error", error:"..."}` not `{type:"error", data:"..."}`
+- `results.ts`: Fixed to use RESULTS_DIR instead of BENCHMARKS_DIR
+- `index.ts`: Loads dotenv with override from prop-bench root
+
+**Frontend Fixes** (`gui/src/`):
+- `BenchmarkRunner.tsx`: Fixed stale closure bug in SSE onerror handler using `useRef` instead of stale state
+- `ProofViewer.tsx`: Added collapsible "Show Raw Model Response" section showing full model output
+- `ProofViewer.tsx`: Added latency display in milliseconds
+- `TheoremDetail.tsx`: Passes rawResponse and latencyMs to ProofViewer
+- `theorems.css`: Added styles for raw response viewer
+- `vite.config.ts`: Added SSE proxy buffering fix (cache-control, x-accel-buffering headers)
+
+### Results
+
+After parser and prompt fixes in v2.5:
+- Benchmark accuracy improved from 50% valid to 100% valid on first 10 theorems
+- Models now correctly format proof lines with only derived formulas in FORMULA field
+- Formulas containing dots, spaces, and special characters parse correctly
+
+### Relationship to Logic Proof Trainer
+
+PropBench depends on the Logic Proof Trainer backend via a Cargo path dependency:
+
+```toml
+[dependencies]
+logic-proof-trainer = { path = "../logic-proof-trainer/src-tauri" }
+```
+
+This means:
+- Theorem generation uses the exact same difficulty engine as the app
+- Proof verification uses identical rule checking logic
+- All 19 rules (9 inference, 10 equivalence) + CP/IP are validated identically
+- Any improvements to the verifier automatically benefit both projects
+
+### Running PropBench
+
+```bash
+# 1. Create .env file in prop-bench root
+echo "GEMINI_API_KEY=your-key" > prop-bench/.env
+
+# 2. Build Rust CLI
+cd prop-bench
+cargo build --release
+
+# 3. Run benchmark
+npx ts-node harness.ts --theorems benchmarks/v1/theorems.json --models gemini
+
+# 4. Or use GUI
+cd gui
+npm install
+npm run dev  # Opens http://localhost:3000
+```
+
+See `prop-bench/DOCUMENTATION.md`, `prop-bench/ARCHITECTURE.md`, and `prop-bench/COMMANDS.md` for complete PropBench documentation.

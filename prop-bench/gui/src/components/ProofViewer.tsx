@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ProofLine, ProofResult } from "../types";
 
 interface ProofViewerProps {
@@ -5,17 +6,18 @@ interface ProofViewerProps {
   lines: ProofLine[];
   result: ProofResult;
   parseErrors?: string[];
+  rawResponse?: string;
+  latencyMs?: number;
 }
 
 /** Render logic symbols in Unicode. */
 function renderFormula(raw: string): string {
   return raw
-    .replace(/->/g, "\u2283")
-    .replace(/<->/g, "\u2261")
-    .replace(/\|/g, " \u2228 ")
-    .replace(/&/g, " \u00B7 ")
-    .replace(/~/g, "\u007E")
-    .replace(/_\|_/g, "\u22A5");
+    .replace(/_\|_/g, "⊥")
+    .replace(/ <-> /g, " ≡ ")
+    .replace(/ -> /g, " ⊃ ")
+    .replace(/ & /g, " · ")
+    .replace(/ \| /g, " ∨ ");
 }
 
 export default function ProofViewer({
@@ -23,7 +25,10 @@ export default function ProofViewer({
   lines,
   result,
   parseErrors,
+  rawResponse,
+  latencyMs,
 }: ProofViewerProps) {
+  const [showRaw, setShowRaw] = useState(false);
   const hasErrors =
     result.errors.length > 0 || (parseErrors && parseErrors.length > 0);
 
@@ -74,6 +79,26 @@ export default function ProofViewer({
               <li key={`p-${i}`}>{err}</li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {latencyMs !== undefined && (
+        <div className="proof-latency">
+          <span className="meta-label">Latency:</span> {latencyMs}ms
+        </div>
+      )}
+
+      {rawResponse !== undefined && (
+        <div className="proof-raw">
+          <button
+            className="proof-raw-toggle"
+            onClick={() => setShowRaw(!showRaw)}
+          >
+            {showRaw ? "Hide" : "Show"} Raw Model Response
+          </button>
+          {showRaw && (
+            <pre className="proof-raw-content">{rawResponse}</pre>
+          )}
         </div>
       )}
     </div>

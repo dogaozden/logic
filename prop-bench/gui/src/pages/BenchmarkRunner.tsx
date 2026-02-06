@@ -16,6 +16,7 @@ function BenchmarkRunner() {
     theoremSet: "v1",
     temperature: 0.2,
     maxTokens: 4096,
+    workers: 1,
     startIndex: 0,
     count: "",
   });
@@ -124,6 +125,7 @@ function BenchmarkRunner() {
         theoremSet: config.theoremSet,
         temperature: config.temperature,
         maxTokens: config.maxTokens,
+        workers: config.workers > 1 ? config.workers : undefined,
         start: config.startIndex > 0 ? config.startIndex : undefined,
         count: Number.isFinite(countNum) ? countNum : undefined,
       });

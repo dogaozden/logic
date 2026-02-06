@@ -23,12 +23,11 @@ const DIFFICULTIES: (Difficulty | "All")[] = [
 /** Render a formula string with Unicode logic symbols for list display. */
 function renderFormula(raw: string): string {
   return raw
-    .replace(/->/g, "\u2283")
-    .replace(/<->/g, "\u2261")
-    .replace(/\|/g, " \u2228 ")
-    .replace(/&/g, " \u00B7 ")
-    .replace(/~/g, "\u007E")
-    .replace(/_\|_/g, "\u22A5");
+    .replace(/_\|_/g, "⊥")
+    .replace(/ <-> /g, " ≡ ")
+    .replace(/ -> /g, " ⊃ ")
+    .replace(/ & /g, " · ")
+    .replace(/ \| /g, " ∨ ");
 }
 
 export default function TheoremList({

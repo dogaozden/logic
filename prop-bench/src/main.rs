@@ -1,10 +1,10 @@
 use clap::{Parser, Subcommand};
 use logic_proof_trainer_lib::models::{
     Formula, Proof, Justification,
-    theorem::{Difficulty, Theorem},
+    theorem::{BaseComplexity, Difficulty, DifficultySpec, DifficultyTier, Theorem},
     rules::{InferenceRule, EquivalenceRule, ProofTechnique},
 };
-use logic_proof_trainer_lib::services::{TheoremGenerator, ProofVerifier};
+use logic_proof_trainer_lib::services::{TheoremGenerator, ProofVerifier, ObfuscateGenerator};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -30,8 +30,32 @@ enum Commands {
 
         /// Difficulty distribution as "N:tier,N:tier,..."
         /// e.g. "30:easy,30:medium,20:hard,15:expert,5:nightmare"
-        #[arg(short, long, default_value = "30:easy,30:medium,20:hard,15:expert,5:nightmare")]
-        difficulty_distribution: String,
+        #[arg(short, long)]
+        difficulty_distribution: Option<String>,
+
+        /// Preset difficulty tier (easy/medium/hard/expert/nightmare/marathon/absurd/cosmic/mind)
+        #[arg(long)]
+        tier: Option<String>,
+
+        /// Number of variables (2-20) for custom spec
+        #[arg(long)]
+        variables: Option<u8>,
+
+        /// Number of passes (1-20) for custom spec
+        #[arg(long)]
+        passes: Option<u8>,
+
+        /// Transforms per pass (1-24) for custom spec
+        #[arg(long)]
+        transforms: Option<u8>,
+
+        /// Base complexity (simple/complex) for custom spec
+        #[arg(long)]
+        base: Option<String>,
+
+        /// Substitution depth (0-4) for custom spec
+        #[arg(long)]
+        substitution: Option<u8>,
 
         /// Output file path
         #[arg(short, long, default_value = "theorems.json")]
@@ -59,16 +83,19 @@ struct BenchTheorem {
     conclusion: String,
     difficulty: String,
     difficulty_value: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    difficulty_spec: Option<DifficultySpec>,
 }
 
 impl From<&Theorem> for BenchTheorem {
     fn from(t: &Theorem) -> Self {
         BenchTheorem {
             id: t.id.clone(),
-            premises: t.premises.iter().map(|f| f.ascii_string()).collect(),
-            conclusion: t.conclusion.ascii_string(),
+            premises: t.premises.iter().map(|f| f.ascii_string_bracketed()).collect(),
+            conclusion: t.conclusion.ascii_string_bracketed(),
             difficulty: difficulty_label(t.difficulty_value),
             difficulty_value: t.difficulty_value,
+            difficulty_spec: None,
         }
     }
 }
@@ -101,9 +128,34 @@ fn difficulty_label(value: u8) -> String {
     }
 }
 
-fn parse_difficulty_distribution(spec: &str) -> Result<Vec<(usize, u8, u8)>, String> {
-    // Parse "30:easy,30:medium,20:hard,15:expert,5:nightmare"
-    // Returns Vec of (count, min_difficulty, max_difficulty)
+/// Extended tier range that supports all 9 tiers.
+/// For tiers beyond Marathon (absurd/cosmic/mind), maps to difficulty value 100
+/// since spec-based generation handles actual parameters.
+fn tier_range_extended(name: &str) -> Result<(u8, u8), String> {
+    match name {
+        "easy" => Ok((1, 25)),
+        "medium" => Ok((26, 45)),
+        "hard" => Ok((46, 70)),
+        "expert" => Ok((71, 85)),
+        "nightmare" => Ok((86, 95)),
+        "marathon" => Ok((96, 100)),
+        "absurd" | "cosmic" | "mind" => Ok((100, 100)),
+        other => Err(format!(
+            "Unknown difficulty tier: '{}'. Use easy/medium/hard/expert/nightmare/marathon/absurd/cosmic/mind.",
+            other
+        )),
+    }
+}
+
+#[derive(Debug)]
+enum DistributionEntry {
+    /// Legacy mode: generate with random difficulty value in range
+    Range { count: usize, min_val: u8, max_val: u8, tier_name: String },
+    /// Spec mode: generate with a DifficultySpec
+    Spec { count: usize, spec: DifficultySpec, tier_name: String },
+}
+
+fn parse_difficulty_distribution(spec: &str) -> Result<Vec<DistributionEntry>, String> {
     let mut result = Vec::new();
     for part in spec.split(',') {
         let parts: Vec<&str> = part.trim().split(':').collect();
@@ -112,51 +164,171 @@ fn parse_difficulty_distribution(spec: &str) -> Result<Vec<(usize, u8, u8)>, Str
         }
         let count: usize = parts[0].trim().parse()
             .map_err(|_| format!("Invalid count: '{}'", parts[0]))?;
-        let (min, max) = match parts[1].trim().to_lowercase().as_str() {
-            "easy" => (1u8, 25u8),
-            "medium" => (26, 45),
-            "hard" => (46, 70),
-            "expert" => (71, 85),
-            "nightmare" => (86, 95),
-            "marathon" => (96, 100),
-            other => return Err(format!("Unknown difficulty tier: '{}'. Use easy/medium/hard/expert/nightmare/marathon.", other)),
-        };
-        result.push((count, min, max));
+        let tier_name = parts[1].trim().to_lowercase();
+
+        // Check if it's one of the extended tiers that need spec-based generation
+        if let Some(dt) = DifficultyTier::from_str(&tier_name) {
+            match dt {
+                DifficultyTier::Absurd | DifficultyTier::Cosmic | DifficultyTier::Mind => {
+                    result.push(DistributionEntry::Spec {
+                        count,
+                        spec: DifficultySpec::from_tier(dt),
+                        tier_name: dt.label().to_string(),
+                    });
+                    continue;
+                }
+                _ => {}
+            }
+        }
+
+        let (min, max) = tier_range_extended(&tier_name)?;
+        result.push(DistributionEntry::Range {
+            count,
+            min_val: min,
+            max_val: max,
+            tier_name,
+        });
     }
     Ok(result)
 }
 
 // ─── Generate command ───────────────────────────────────────────────────────
 
-fn cmd_generate(count: usize, distribution_spec: &str, output: &PathBuf) -> Result<(), String> {
-    let distribution = parse_difficulty_distribution(distribution_spec)?;
+/// Determine the generation mode from CLI flags.
+enum GenerateMode {
+    /// --tier <name>: all theorems use one tier preset
+    Tier(DifficultySpec, String),
+    /// --variables/--passes/... custom spec
+    CustomSpec(DifficultySpec),
+    /// --difficulty-distribution or default
+    Distribution(String),
+}
 
-    // Validate that distribution sums to count
-    let total: usize = distribution.iter().map(|(c, _, _)| c).sum();
-    if total != count {
-        return Err(format!(
-            "Distribution sums to {} but --count is {}. They must match.",
-            total, count
-        ));
+fn resolve_generate_mode(
+    tier: &Option<String>,
+    variables: &Option<u8>,
+    passes: &Option<u8>,
+    transforms: &Option<u8>,
+    base: &Option<String>,
+    substitution: &Option<u8>,
+    distribution: &Option<String>,
+) -> Result<GenerateMode, String> {
+    // Mode 1: --tier
+    if let Some(tier_name) = tier {
+        let dt = DifficultyTier::from_str(tier_name)
+            .ok_or_else(|| format!("Unknown tier: '{}'. Use easy/medium/hard/expert/nightmare/marathon/absurd/cosmic/mind.", tier_name))?;
+        return Ok(GenerateMode::Tier(DifficultySpec::from_tier(dt), dt.label().to_string()));
     }
+
+    // Mode 2: any custom spec flag
+    if variables.is_some() || passes.is_some() || transforms.is_some() || base.is_some() || substitution.is_some() {
+        let spec = DifficultySpec {
+            variables: variables.unwrap_or(3).clamp(2, 20),
+            passes: passes.unwrap_or(1).clamp(1, 20),
+            transforms_per_pass: transforms.unwrap_or(5).clamp(1, 24),
+            base_complexity: match base.as_deref() {
+                Some("complex") => BaseComplexity::Complex,
+                _ => BaseComplexity::Simple,
+            },
+            substitution_depth: substitution.unwrap_or(0).clamp(0, 4),
+        };
+        return Ok(GenerateMode::CustomSpec(spec));
+    }
+
+    // Mode 3: --difficulty-distribution or default
+    let dist_str = distribution.clone()
+        .unwrap_or_else(|| "30:easy,30:medium,20:hard,15:expert,5:nightmare".to_string());
+    Ok(GenerateMode::Distribution(dist_str))
+}
+
+fn cmd_generate(
+    count: usize,
+    distribution: &Option<String>,
+    tier: &Option<String>,
+    variables: &Option<u8>,
+    passes: &Option<u8>,
+    transforms: &Option<u8>,
+    base: &Option<String>,
+    substitution: &Option<u8>,
+    output: &PathBuf,
+) -> Result<(), String> {
+    let mode = resolve_generate_mode(tier, variables, passes, transforms, base, substitution, distribution)?;
 
     let mut rng = rand::thread_rng();
     let mut theorems: Vec<BenchTheorem> = Vec::with_capacity(count);
     let mut theorem_id = 1usize;
 
-    for (tier_count, min_val, max_val) in &distribution {
-        let tier_name = difficulty_label(*min_val);
-        eprintln!("Generating {} {} theorems (difficulty {}-{})...", tier_count, tier_name, min_val, max_val);
+    match mode {
+        GenerateMode::Tier(spec, tier_name) => {
+            eprintln!("Generating {} {} theorems via tier spec...", count, tier_name);
+            for _ in 0..count {
+                let theorem = ObfuscateGenerator::generate_with_spec(&spec, &mut rng);
+                let mut bench = BenchTheorem::from(&theorem);
+                bench.id = format!("v1-{:03}", theorem_id);
+                bench.difficulty = tier_name.clone();
+                bench.difficulty_spec = Some(spec.clone());
+                theorems.push(bench);
+                theorem_id += 1;
+            }
+        }
 
-        for _ in 0..*tier_count {
-            let difficulty_value = rng.gen_range(*min_val..=*max_val);
-            let generator = TheoremGenerator::with_difficulty_value(difficulty_value);
-            let theorem = generator.generate_with_value(difficulty_value);
+        GenerateMode::CustomSpec(spec) => {
+            eprintln!(
+                "Generating {} theorems with custom spec (vars={}, passes={}, transforms={}, base={:?}, sub={})...",
+                count, spec.variables, spec.passes, spec.transforms_per_pass, spec.base_complexity, spec.substitution_depth
+            );
+            for _ in 0..count {
+                let theorem = ObfuscateGenerator::generate_with_spec(&spec, &mut rng);
+                let mut bench = BenchTheorem::from(&theorem);
+                bench.id = format!("v1-{:03}", theorem_id);
+                bench.difficulty = "Custom".to_string();
+                bench.difficulty_spec = Some(spec.clone());
+                theorems.push(bench);
+                theorem_id += 1;
+            }
+        }
 
-            let mut bench = BenchTheorem::from(&theorem);
-            bench.id = format!("v1-{:03}", theorem_id);
-            theorems.push(bench);
-            theorem_id += 1;
+        GenerateMode::Distribution(dist_str) => {
+            let entries = parse_difficulty_distribution(&dist_str)?;
+            let total: usize = entries.iter().map(|e| match e {
+                DistributionEntry::Range { count, .. } => *count,
+                DistributionEntry::Spec { count, .. } => *count,
+            }).sum();
+            if total != count {
+                return Err(format!(
+                    "Distribution sums to {} but --count is {}. They must match.",
+                    total, count
+                ));
+            }
+
+            for entry in &entries {
+                match entry {
+                    DistributionEntry::Range { count: tier_count, min_val, max_val, tier_name } => {
+                        eprintln!("Generating {} {} theorems (difficulty {}-{})...", tier_count, tier_name, min_val, max_val);
+                        for _ in 0..*tier_count {
+                            let difficulty_value = rng.gen_range(*min_val..=*max_val);
+                            let generator = TheoremGenerator::with_difficulty_value(difficulty_value);
+                            let theorem = generator.generate_with_value(difficulty_value);
+                            let mut bench = BenchTheorem::from(&theorem);
+                            bench.id = format!("v1-{:03}", theorem_id);
+                            theorems.push(bench);
+                            theorem_id += 1;
+                        }
+                    }
+                    DistributionEntry::Spec { count: tier_count, spec, tier_name } => {
+                        eprintln!("Generating {} {} theorems via spec...", tier_count, tier_name);
+                        for _ in 0..*tier_count {
+                            let theorem = ObfuscateGenerator::generate_with_spec(spec, &mut rng);
+                            let mut bench = BenchTheorem::from(&theorem);
+                            bench.id = format!("v1-{:03}", theorem_id);
+                            bench.difficulty = tier_name.clone();
+                            bench.difficulty_spec = Some(spec.clone());
+                            theorems.push(bench);
+                            theorem_id += 1;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -275,6 +447,42 @@ fn cmd_validate(theorem_path: &PathBuf, proof_path: &PathBuf) -> Result<(), Stri
 
     // Check completeness
     proof.check_complete();
+
+    // If proof is incomplete, add diagnostic error messages explaining why
+    if !proof.is_complete {
+        // Condition 1: open scopes remain
+        if proof.scope_manager.has_open_scopes() {
+            let open_count = proof.scope_manager.current_depth();
+            errors.push(format!(
+                "Proof incomplete: {} subproof scope(s) still open (unclosed)",
+                open_count
+            ));
+        }
+
+        // Condition 2: conclusion not derived at depth 0
+        let conclusion = &proof.theorem.conclusion;
+        let has_conclusion_at_depth_0 = proof.lines.iter().any(|l| {
+            l.depth == 0 && l.formula == *conclusion && l.is_valid
+        });
+        if !has_conclusion_at_depth_0 {
+            errors.push(
+                "Proof incomplete: conclusion not established at depth 0".to_string()
+            );
+        }
+
+        // Condition 3: invalid lines present
+        let invalid_lines: Vec<usize> = proof.lines.iter()
+            .filter(|l| !l.is_valid)
+            .map(|l| l.line_number)
+            .collect();
+        if !invalid_lines.is_empty() {
+            let line_list: Vec<String> = invalid_lines.iter().map(|n| n.to_string()).collect();
+            errors.push(format!(
+                "Proof incomplete: invalid lines: [{}]",
+                line_list.join(", ")
+            ));
+        }
+    }
 
     let non_premise_lines = proof.lines.len().saturating_sub(proof.theorem.premises.len());
     let output = ValidateOutput {
@@ -423,8 +631,28 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Generate { count, difficulty_distribution, output } => {
-            cmd_generate(count, &difficulty_distribution, &output)
+        Commands::Generate {
+            count,
+            difficulty_distribution,
+            tier,
+            variables,
+            passes,
+            transforms,
+            base,
+            substitution,
+            output,
+        } => {
+            cmd_generate(
+                count,
+                &difficulty_distribution,
+                &tier,
+                &variables,
+                &passes,
+                &transforms,
+                &base,
+                &substitution,
+                &output,
+            )
         }
         Commands::Validate { theorem, proof } => {
             cmd_validate(&theorem, &proof)

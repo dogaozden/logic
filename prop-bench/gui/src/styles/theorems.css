@@ -42,6 +42,124 @@
   color: #ff4444;
 }
 
+.difficulty-badge--absurd {
+  background: rgba(236, 72, 153, 0.15);
+  color: #ec4899;
+}
+
+.difficulty-badge--cosmic {
+  background: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
+}
+
+.difficulty-badge--mind {
+  background: rgba(14, 165, 233, 0.15);
+  color: #0ea5e9;
+}
+
+.difficulty-badge--custom {
+  background: rgba(156, 163, 175, 0.15);
+  color: #9ca3af;
+}
+
+/* ─── Generate mode tabs ────────────────────────────────────────────────── */
+
+.generate-mode-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.generate-mode-tab {
+  flex: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.generate-mode-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.generate-mode-tab--active {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+  background: var(--bg-secondary);
+}
+
+/* ─── Spec preview (read-only tier info) ────────────────────────────────── */
+
+.generate-spec-preview {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.generate-spec-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.generate-spec-label {
+  color: var(--text-muted);
+}
+
+.generate-spec-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ─── Custom spec grid ──────────────────────────────────────────────────── */
+
+.generate-spec-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.generate-spec-input-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.generate-spec-input-item .generate-spec-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.generate-radio-group {
+  display: flex;
+  gap: 16px;
+  padding: 4px 0;
+}
+
+.generate-radio-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.generate-radio-item input[type="radio"] {
+  accent-color: var(--accent);
+}
+
 /* ─── Theorem Explorer layout ───────────────────────────────────────────── */
 
 .theorem-explorer {
@@ -521,6 +639,57 @@
   color: var(--text-muted);
   font-size: 12px;
   margin-left: 8px;
+}
+
+/* ─── Raw response viewer ──────────────────────────────────────────────── */
+
+.proof-latency {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.proof-latency .meta-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.proof-raw {
+  margin-top: 12px;
+}
+
+.proof-raw-toggle {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+
+.proof-raw-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.proof-raw-content {
+  margin-top: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 500px;
+  overflow-y: auto;
 }
 
 /* ─── No selection state ────────────────────────────────────────────────── */

@@ -5,12 +5,12 @@ const router = Router();
 
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const { count, distribution, name } = req.body;
+    const { count, distribution, tier, spec, name } = req.body;
 
-    console.log(`[generate] POST / - Generating ${count} theorems for set '${name}' with distribution '${distribution}'`);
+    console.log(`[generate] POST / - Generating ${count} theorems for set '${name}' (mode: ${tier ? "tier" : spec ? "spec" : "distribution"})`);
 
-    if (!count || !distribution || !name) {
-      res.status(400).json({ error: "Missing required fields: count, distribution, name" });
+    if (!count || !name) {
+      res.status(400).json({ error: "Missing required fields: count, name" });
       return;
     }
 
@@ -19,17 +19,23 @@ router.post("/", async (req: Request, res: Response) => {
       return;
     }
 
-    if (typeof distribution !== "string") {
-      res.status(400).json({ error: "distribution must be a string like '30:easy,30:medium,...'" });
-      return;
-    }
-
     if (typeof name !== "string" || !name.match(/^[a-zA-Z0-9_-]+$/)) {
       res.status(400).json({ error: "name must be alphanumeric (with dashes/underscores)" });
       return;
     }
 
-    const result = await generate({ count, distribution, name });
+    // At least one generation mode must be specified (or none for default)
+    if (distribution && typeof distribution !== "string") {
+      res.status(400).json({ error: "distribution must be a string like '30:easy,30:medium,...'" });
+      return;
+    }
+
+    if (tier && typeof tier !== "string") {
+      res.status(400).json({ error: "tier must be a string like 'easy', 'expert', etc." });
+      return;
+    }
+
+    const result = await generate({ count, name, distribution, tier, spec });
     console.log(`[generate] Successfully generated ${result.theorems.length} theorems at ${result.path}`);
     res.json({ success: true, path: result.path, theorems: result.theorems });
   } catch (err) {

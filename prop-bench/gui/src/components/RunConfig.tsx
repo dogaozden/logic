@@ -7,6 +7,7 @@ export interface RunConfigValues {
   theoremSet: string;
   temperature: number;
   maxTokens: number;
+  workers: number;
   startIndex: number;
   count: string;
 }
@@ -30,6 +31,9 @@ function buildCommand(cfg: RunConfigValues): string {
   parts.push(`--models ${cfg.models.join(",")}`);
   parts.push(`--temperature ${cfg.temperature}`);
   parts.push(`--max-tokens ${cfg.maxTokens}`);
+  if (cfg.workers > 1) {
+    parts.push(`--workers ${cfg.workers}`);
+  }
   if (cfg.startIndex > 0) {
     parts.push(`--start ${cfg.startIndex}`);
   }
@@ -161,6 +165,28 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
             onChange({
               ...config,
               maxTokens: parseInt(e.target.value, 10) || 4096,
+            })
+          }
+          disabled={running}
+        />
+      </div>
+
+      {/* Parallel workers */}
+      <div className="config-section">
+        <label className="config-label" htmlFor="cfg-workers">
+          Parallel workers
+        </label>
+        <input
+          id="cfg-workers"
+          className="config-input config-input--sm"
+          type="number"
+          min={1}
+          max={10}
+          value={config.workers}
+          onChange={(e) =>
+            onChange({
+              ...config,
+              workers: parseInt(e.target.value, 10) || 1,
             })
           }
           disabled={running}

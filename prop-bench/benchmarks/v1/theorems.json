@@ -2,12 +2,12 @@
   {
     "id": "v1-001",
     "premises": [
-      "P | Q",
-      "~P"
+      "Q",
+      "Q"
     ],
-    "conclusion": "Q",
+    "conclusion": "Q & Q",
     "difficulty": "Easy",
-    "difficulty_value": 8
+    "difficulty_value": 13
   },
   {
     "id": "v1-002",
@@ -17,170 +17,130 @@
     ],
     "conclusion": "P",
     "difficulty": "Easy",
-    "difficulty_value": 21
+    "difficulty_value": 10
   },
   {
     "id": "v1-003",
     "premises": [
-      "Q -> P",
-      "Q"
+      "Q",
+      "P"
     ],
-    "conclusion": "P",
+    "conclusion": "Q & P",
     "difficulty": "Easy",
-    "difficulty_value": 14
+    "difficulty_value": 17
   },
   {
     "id": "v1-004",
     "premises": [
       "P -> Q",
-      "~Q"
+      "P"
     ],
-    "conclusion": "~P",
+    "conclusion": "Q",
     "difficulty": "Easy",
-    "difficulty_value": 25
+    "difficulty_value": 9
   },
   {
     "id": "v1-005",
     "premises": [
-      "P",
+      "Q -> Q",
       "Q"
-    ],
-    "conclusion": "P & Q",
-    "difficulty": "Easy",
-    "difficulty_value": 23
-  },
-  {
-    "id": "v1-006",
-    "premises": [
-      "P | Q",
-      "~P"
     ],
     "conclusion": "Q",
     "difficulty": "Easy",
-    "difficulty_value": 3
+    "difficulty_value": 13
   },
   {
-    "id": "v1-007",
-    "premises": [
-      "P -> P",
-      "P"
-    ],
-    "conclusion": "P",
-    "difficulty": "Easy",
-    "difficulty_value": 15
-  },
-  {
-    "id": "v1-008",
-    "premises": [
-      "P | P",
-      "~P"
-    ],
-    "conclusion": "P",
-    "difficulty": "Easy",
-    "difficulty_value": 21
-  },
-  {
-    "id": "v1-009",
-    "premises": [
-      "Q -> P",
-      "Q"
-    ],
-    "conclusion": "P",
-    "difficulty": "Easy",
-    "difficulty_value": 12
-  },
-  {
-    "id": "v1-010",
-    "premises": [
-      "P",
-      "Q"
-    ],
-    "conclusion": "P & Q",
-    "difficulty": "Easy",
-    "difficulty_value": 15
-  },
-  {
-    "id": "v1-011",
-    "premises": [
-      "P -> P",
-      "P"
-    ],
-    "conclusion": "P",
-    "difficulty": "Easy",
-    "difficulty_value": 7
-  },
-  {
-    "id": "v1-012",
-    "premises": [
-      "P -> P",
-      "P"
-    ],
-    "conclusion": "P",
-    "difficulty": "Easy",
-    "difficulty_value": 7
-  },
-  {
-    "id": "v1-013",
-    "premises": [
-      "Q -> P",
-      "~P"
-    ],
-    "conclusion": "~Q",
-    "difficulty": "Easy",
-    "difficulty_value": 10
-  },
-  {
-    "id": "v1-014",
-    "premises": [
-      "P -> P",
-      "~P"
-    ],
-    "conclusion": "~P",
-    "difficulty": "Easy",
-    "difficulty_value": 17
-  },
-  {
-    "id": "v1-015",
+    "id": "v1-006",
     "premises": [
       "P -> Q",
       "~Q"
     ],
     "conclusion": "~P",
     "difficulty": "Easy",
-    "difficulty_value": 23
+    "difficulty_value": 4
   },
   {
-    "id": "v1-016",
-    "premises": [
-      "Q | P",
-      "~Q"
-    ],
-    "conclusion": "P",
-    "difficulty": "Easy",
-    "difficulty_value": 19
-  },
-  {
-    "id": "v1-017",
+    "id": "v1-007",
     "premises": [
       "P",
       "P"
     ],
     "conclusion": "P & P",
     "difficulty": "Easy",
+    "difficulty_value": 25
+  },
+  {
+    "id": "v1-008",
+    "premises": [
+      "P | Q",
+      "~P"
+    ],
+    "conclusion": "Q",
+    "difficulty": "Easy",
+    "difficulty_value": 14
+  },
+  {
+    "id": "v1-009",
+    "premises": [
+      "P -> Q",
+      "~Q"
+    ],
+    "conclusion": "~P",
+    "difficulty": "Easy",
     "difficulty_value": 24
   },
   {
-    "id": "v1-018",
+    "id": "v1-010",
+    "premises": [
+      "Q -> P",
+      "Q"
+    ],
+    "conclusion": "P",
+    "difficulty": "Easy",
+    "difficulty_value": 17
+  },
+  {
+    "id": "v1-011",
+    "premises": [
+      "P -> P",
+      "~P"
+    ],
+    "conclusion": "~P",
+    "difficulty": "Easy",
+    "difficulty_value": 12
+  },
+  {
+    "id": "v1-012",
+    "premises": [
+      "P -> P",
+      "~P"
+    ],
+    "conclusion": "~P",
+    "difficulty": "Easy",
+    "difficulty_value": 2
+  },
+  {
+    "id": "v1-013",
     "premises": [
       "Q -> Q",
-      "~Q"
+      "Q"
+    ],
+    "conclusion": "Q",
+    "difficulty": "Easy",
+    "difficulty_value": 13
+  },
+  {
+    "id": "v1-014",
+    "premises": [
+      "Q -> P",
+      "~P"
     ],
     "conclusion": "~Q",
     "difficulty": "Easy",
-    "difficulty_value": 3
+    "difficulty_value": 24
   },
   {
-    "id": "v1-019",
+    "id": "v1-015",
     "premises": [
       "Q | P",
       "~Q"
@@ -190,107 +150,17 @@
     "difficulty_value": 16
   },
   {
-    "id": "v1-020",
+    "id": "v1-016",
     "premises": [
-      "P | P",
+      "P | Q",
       "~P"
     ],
-    "conclusion": "P",
-    "difficulty": "Easy",
-    "difficulty_value": 25
-  },
-  {
-    "id": "v1-021",
-    "premises": [
-      "Q | Q",
-      "~Q"
-    ],
     "conclusion": "Q",
-    "difficulty": "Easy",
-    "difficulty_value": 17
-  },
-  {
-    "id": "v1-022",
-    "premises": [
-      "P",
-      "P"
-    ],
-    "conclusion": "P & P",
-    "difficulty": "Easy",
-    "difficulty_value": 5
-  },
-  {
-    "id": "v1-023",
-    "premises": [
-      "P",
-      "P"
-    ],
-    "conclusion": "P & P",
     "difficulty": "Easy",
     "difficulty_value": 11
   },
   {
-    "id": "v1-024",
-    "premises": [
-      "Q -> Q",
-      "Q"
-    ],
-    "conclusion": "Q",
-    "difficulty": "Easy",
-    "difficulty_value": 17
-  },
-  {
-    "id": "v1-025",
-    "premises": [
-      "Q -> Q",
-      "~Q"
-    ],
-    "conclusion": "~Q",
-    "difficulty": "Easy",
-    "difficulty_value": 17
-  },
-  {
-    "id": "v1-026",
-    "premises": [
-      "Q",
-      "Q"
-    ],
-    "conclusion": "Q & Q",
-    "difficulty": "Easy",
-    "difficulty_value": 8
-  },
-  {
-    "id": "v1-027",
-    "premises": [
-      "P -> P",
-      "~P"
-    ],
-    "conclusion": "~P",
-    "difficulty": "Easy",
-    "difficulty_value": 15
-  },
-  {
-    "id": "v1-028",
-    "premises": [
-      "Q -> P",
-      "~P"
-    ],
-    "conclusion": "~Q",
-    "difficulty": "Easy",
-    "difficulty_value": 22
-  },
-  {
-    "id": "v1-029",
-    "premises": [
-      "Q -> P",
-      "Q"
-    ],
-    "conclusion": "P",
-    "difficulty": "Easy",
-    "difficulty_value": 3
-  },
-  {
-    "id": "v1-030",
+    "id": "v1-017",
     "premises": [
       "Q",
       "Q"
@@ -300,493 +170,623 @@
     "difficulty_value": 24
   },
   {
+    "id": "v1-018",
+    "premises": [
+      "P | Q",
+      "~P"
+    ],
+    "conclusion": "Q",
+    "difficulty": "Easy",
+    "difficulty_value": 25
+  },
+  {
+    "id": "v1-019",
+    "premises": [
+      "P -> P",
+      "~P"
+    ],
+    "conclusion": "~P",
+    "difficulty": "Easy",
+    "difficulty_value": 1
+  },
+  {
+    "id": "v1-020",
+    "premises": [
+      "P | Q",
+      "~P"
+    ],
+    "conclusion": "Q",
+    "difficulty": "Easy",
+    "difficulty_value": 7
+  },
+  {
+    "id": "v1-021",
+    "premises": [
+      "P -> Q",
+      "P"
+    ],
+    "conclusion": "Q",
+    "difficulty": "Easy",
+    "difficulty_value": 24
+  },
+  {
+    "id": "v1-022",
+    "premises": [
+      "Q -> Q",
+      "Q"
+    ],
+    "conclusion": "Q",
+    "difficulty": "Easy",
+    "difficulty_value": 7
+  },
+  {
+    "id": "v1-023",
+    "premises": [
+      "Q | Q",
+      "~Q"
+    ],
+    "conclusion": "Q",
+    "difficulty": "Easy",
+    "difficulty_value": 16
+  },
+  {
+    "id": "v1-024",
+    "premises": [
+      "Q -> Q",
+      "Q"
+    ],
+    "conclusion": "Q",
+    "difficulty": "Easy",
+    "difficulty_value": 22
+  },
+  {
+    "id": "v1-025",
+    "premises": [
+      "P -> Q",
+      "~Q"
+    ],
+    "conclusion": "~P",
+    "difficulty": "Easy",
+    "difficulty_value": 12
+  },
+  {
+    "id": "v1-026",
+    "premises": [
+      "Q -> Q",
+      "Q"
+    ],
+    "conclusion": "Q",
+    "difficulty": "Easy",
+    "difficulty_value": 12
+  },
+  {
+    "id": "v1-027",
+    "premises": [
+      "P",
+      "Q"
+    ],
+    "conclusion": "P & Q",
+    "difficulty": "Easy",
+    "difficulty_value": 9
+  },
+  {
+    "id": "v1-028",
+    "premises": [
+      "P -> Q",
+      "P"
+    ],
+    "conclusion": "Q",
+    "difficulty": "Easy",
+    "difficulty_value": 10
+  },
+  {
+    "id": "v1-029",
+    "premises": [
+      "Q",
+      "P"
+    ],
+    "conclusion": "Q & P",
+    "difficulty": "Easy",
+    "difficulty_value": 14
+  },
+  {
+    "id": "v1-030",
+    "premises": [
+      "P",
+      "P"
+    ],
+    "conclusion": "P & P",
+    "difficulty": "Easy",
+    "difficulty_value": 8
+  },
+  {
     "id": "v1-031",
     "premises": [],
-    "conclusion": "(P | Q) & ~P -> Q",
-    "difficulty": "Medium",
-    "difficulty_value": 41
-  },
-  {
-    "id": "v1-032",
-    "premises": [],
-    "conclusion": "~(~P & P | ~P & Q) | Q",
-    "difficulty": "Medium",
-    "difficulty_value": 30
-  },
-  {
-    "id": "v1-033",
-    "premises": [],
-    "conclusion": "P & Q -> P",
-    "difficulty": "Medium",
-    "difficulty_value": 28
-  },
-  {
-    "id": "v1-034",
-    "premises": [],
-    "conclusion": "(~Q -> ~P) & ~Q -> ~P",
-    "difficulty": "Medium",
-    "difficulty_value": 34
-  },
-  {
-    "id": "v1-035",
-    "premises": [],
-    "conclusion": "(P -> Q) & ~Q -> ~P",
-    "difficulty": "Medium",
-    "difficulty_value": 31
-  },
-  {
-    "id": "v1-036",
-    "premises": [],
-    "conclusion": "~P & (P | Q) -> Q",
-    "difficulty": "Medium",
-    "difficulty_value": 37
-  },
-  {
-    "id": "v1-037",
-    "premises": [],
-    "conclusion": "P & (P -> Q) -> Q",
-    "difficulty": "Medium",
-    "difficulty_value": 35
-  },
-  {
-    "id": "v1-038",
-    "premises": [],
-    "conclusion": "(Q | P) & ~P -> Q",
-    "difficulty": "Medium",
-    "difficulty_value": 37
-  },
-  {
-    "id": "v1-039",
-    "premises": [],
-    "conclusion": "P & (~P | Q) -> Q",
-    "difficulty": "Medium",
-    "difficulty_value": 28
-  },
-  {
-    "id": "v1-040",
-    "premises": [],
-    "conclusion": "(P -> Q) & (Q -> R) -> (P -> R)",
-    "difficulty": "Medium",
-    "difficulty_value": 44
-  },
-  {
-    "id": "v1-041",
-    "premises": [],
-    "conclusion": "~(Q & P) | P",
-    "difficulty": "Medium",
-    "difficulty_value": 40
-  },
-  {
-    "id": "v1-042",
-    "premises": [],
-    "conclusion": "~(~Q & (P -> Q)) | ~P",
-    "difficulty": "Medium",
-    "difficulty_value": 31
-  },
-  {
-    "id": "v1-043",
-    "premises": [],
-    "conclusion": "P | ~(P & Q)",
-    "difficulty": "Medium",
-    "difficulty_value": 28
-  },
-  {
-    "id": "v1-044",
-    "premises": [],
-    "conclusion": "P | Q -> (~P -> Q)",
-    "difficulty": "Medium",
-    "difficulty_value": 32
-  },
-  {
-    "id": "v1-045",
-    "premises": [],
-    "conclusion": "Q & P -> Q & P",
-    "difficulty": "Medium",
-    "difficulty_value": 43
-  },
-  {
-    "id": "v1-046",
-    "premises": [],
-    "conclusion": "(P -> Q) & ~Q -> ~P",
-    "difficulty": "Medium",
-    "difficulty_value": 40
-  },
-  {
-    "id": "v1-047",
-    "premises": [],
-    "conclusion": "P -> Q -> (~Q -> ~P)",
-    "difficulty": "Medium",
-    "difficulty_value": 30
-  },
-  {
-    "id": "v1-048",
-    "premises": [],
-    "conclusion": "P & Q -> P",
-    "difficulty": "Medium",
-    "difficulty_value": 43
-  },
-  {
-    "id": "v1-049",
-    "premises": [],
-    "conclusion": "P & (~Q -> ~P) -> Q",
+    "conclusion": "[~P & (P | Q)] -> Q",
     "difficulty": "Medium",
     "difficulty_value": 39
   },
   {
-    "id": "v1-050",
+    "id": "v1-032",
     "premises": [],
-    "conclusion": "(P -> Q) & P -> Q",
+    "conclusion": "[(P -> Q) & ~Q] -> ~P",
     "difficulty": "Medium",
-    "difficulty_value": 28
+    "difficulty_value": 35
   },
   {
-    "id": "v1-051",
+    "id": "v1-033",
     "premises": [],
-    "conclusion": "(P | Q) & ~P -> Q",
+    "conclusion": "(P & Q) -> (P & Q)",
     "difficulty": "Medium",
-    "difficulty_value": 42
+    "difficulty_value": 39
   },
   {
-    "id": "v1-052",
+    "id": "v1-034",
     "premises": [],
-    "conclusion": "(P -> Q) & ~Q -> ~P",
-    "difficulty": "Medium",
-    "difficulty_value": 28
-  },
-  {
-    "id": "v1-053",
-    "premises": [],
-    "conclusion": "(P -> Q) & ~Q -> ~P",
-    "difficulty": "Medium",
-    "difficulty_value": 31
-  },
-  {
-    "id": "v1-054",
-    "premises": [],
-    "conclusion": "P & Q -> P",
-    "difficulty": "Medium",
-    "difficulty_value": 42
-  },
-  {
-    "id": "v1-055",
-    "premises": [],
-    "conclusion": "P & Q -> P",
+    "conclusion": "[(P -> Q) & ~Q] -> ~P",
     "difficulty": "Medium",
     "difficulty_value": 30
   },
   {
-    "id": "v1-056",
+    "id": "v1-035",
     "premises": [],
-    "conclusion": "P & Q -> P",
+    "conclusion": "[(P -> Q) & ~Q] -> ~P",
+    "difficulty": "Medium",
+    "difficulty_value": 41
+  },
+  {
+    "id": "v1-036",
+    "premises": [],
+    "conclusion": "[~(~P | ~Q)] -> [~(~P | ~Q)]",
+    "difficulty": "Medium",
+    "difficulty_value": 34
+  },
+  {
+    "id": "v1-037",
+    "premises": [],
+    "conclusion": "[(P | Q) & ~P] -> Q",
+    "difficulty": "Medium",
+    "difficulty_value": 34
+  },
+  {
+    "id": "v1-038",
+    "premises": [],
+    "conclusion": "[(P -> Q) & ~Q] -> ~P",
     "difficulty": "Medium",
     "difficulty_value": 42
   },
   {
-    "id": "v1-057",
+    "id": "v1-039",
     "premises": [],
-    "conclusion": "P & (~P | Q) -> Q",
+    "conclusion": "[P & (~Q -> ~P)] -> Q",
     "difficulty": "Medium",
-    "difficulty_value": 31
+    "difficulty_value": 44
   },
   {
-    "id": "v1-058",
+    "id": "v1-040",
     "premises": [],
-    "conclusion": "P & Q -> P & Q",
+    "conclusion": "[P & (P -> Q)] -> Q",
     "difficulty": "Medium",
     "difficulty_value": 37
   },
   {
-    "id": "v1-059",
+    "id": "v1-041",
     "premises": [],
-    "conclusion": "~P & (P | Q) -> Q",
+    "conclusion": "[(P | Q) & ~P] -> Q",
     "difficulty": "Medium",
-    "difficulty_value": 42
+    "difficulty_value": 31
   },
   {
-    "id": "v1-060",
+    "id": "v1-042",
     "premises": [],
-    "conclusion": "P & Q -> P",
+    "conclusion": "P -> (Q -> P)",
+    "difficulty": "Medium",
+    "difficulty_value": 27
+  },
+  {
+    "id": "v1-043",
+    "premises": [],
+    "conclusion": "[(P | Q) & ~P] -> Q",
+    "difficulty": "Medium",
+    "difficulty_value": 33
+  },
+  {
+    "id": "v1-044",
+    "premises": [],
+    "conclusion": "(P & Q) -> (P & Q)",
+    "difficulty": "Medium",
+    "difficulty_value": 45
+  },
+  {
+    "id": "v1-045",
+    "premises": [],
+    "conclusion": "[(~Q -> ~P) & ~Q] -> ~P",
     "difficulty": "Medium",
     "difficulty_value": 30
   },
   {
+    "id": "v1-046",
+    "premises": [],
+    "conclusion": "~P | {[~(P -> Q)] | Q}",
+    "difficulty": "Medium",
+    "difficulty_value": 45
+  },
+  {
+    "id": "v1-047",
+    "premises": [],
+    "conclusion": "(P & Q) -> (P & Q)",
+    "difficulty": "Medium",
+    "difficulty_value": 32
+  },
+  {
+    "id": "v1-048",
+    "premises": [],
+    "conclusion": "{~[(P -> Q) & ~Q]} | ~P",
+    "difficulty": "Medium",
+    "difficulty_value": 44
+  },
+  {
+    "id": "v1-049",
+    "premises": [],
+    "conclusion": "(P & Q) -> (P & Q)",
+    "difficulty": "Medium",
+    "difficulty_value": 28
+  },
+  {
+    "id": "v1-050",
+    "premises": [],
+    "conclusion": "~Q -> {~[(P | Q) & ~P]}",
+    "difficulty": "Medium",
+    "difficulty_value": 40
+  },
+  {
+    "id": "v1-051",
+    "premises": [],
+    "conclusion": "[~P & (P | Q)] -> Q",
+    "difficulty": "Medium",
+    "difficulty_value": 32
+  },
+  {
+    "id": "v1-052",
+    "premises": [],
+    "conclusion": "(Q & P) -> P",
+    "difficulty": "Medium",
+    "difficulty_value": 36
+  },
+  {
+    "id": "v1-053",
+    "premises": [],
+    "conclusion": "P -> {~[(P -> Q) & ~Q]}",
+    "difficulty": "Medium",
+    "difficulty_value": 32
+  },
+  {
+    "id": "v1-054",
+    "premises": [],
+    "conclusion": "[(P -> Q) & ~Q] -> ~P",
+    "difficulty": "Medium",
+    "difficulty_value": 33
+  },
+  {
+    "id": "v1-055",
+    "premises": [],
+    "conclusion": "(P & Q) -> (P & Q)",
+    "difficulty": "Medium",
+    "difficulty_value": 44
+  },
+  {
+    "id": "v1-056",
+    "premises": [],
+    "conclusion": "~P | [(P -> Q) -> Q]",
+    "difficulty": "Medium",
+    "difficulty_value": 45
+  },
+  {
+    "id": "v1-057",
+    "premises": [],
+    "conclusion": "[(P -> Q) & (Q -> R)] -> (~P | R)",
+    "difficulty": "Medium",
+    "difficulty_value": 43
+  },
+  {
+    "id": "v1-058",
+    "premises": [],
+    "conclusion": "[(P -> Q) & ~Q] -> ~P",
+    "difficulty": "Medium",
+    "difficulty_value": 39
+  },
+  {
+    "id": "v1-059",
+    "premises": [],
+    "conclusion": "[~(Q -> P)] -> ~P",
+    "difficulty": "Medium",
+    "difficulty_value": 33
+  },
+  {
+    "id": "v1-060",
+    "premises": [],
+    "conclusion": "{~[(Q -> R) & (P -> Q)]} | (~P | R)",
+    "difficulty": "Medium",
+    "difficulty_value": 44
+  },
+  {
     "id": "v1-061",
     "premises": [],
-    "conclusion": "P & (P -> Q) -> Q",
+    "conclusion": "{~{[~(A | B)] & [(D & C) | (A | B)]}} | (D & C)",
     "difficulty": "Hard",
-    "difficulty_value": 63
+    "difficulty_value": 70
   },
   {
     "id": "v1-062",
     "premises": [],
-    "conclusion": "(P -> Q) & (R -> Q) & (P | R) -> Q | Q",
-    "difficulty": "Hard",
-    "difficulty_value": 55
-  },
-  {
-    "id": "v1-063",
-    "premises": [],
-    "conclusion": "(~Q -> ~P) & (~R | Q) & (R | P) -> Q | Q",
-    "difficulty": "Hard",
-    "difficulty_value": 60
-  },
-  {
-    "id": "v1-064",
-    "premises": [],
-    "conclusion": "~Q & (P -> Q) -> ~P",
-    "difficulty": "Hard",
-    "difficulty_value": 64
-  },
-  {
-    "id": "v1-065",
-    "premises": [],
-    "conclusion": "(~Q -> ~P) & ~Q -> ~P",
-    "difficulty": "Hard",
-    "difficulty_value": 60
-  },
-  {
-    "id": "v1-066",
-    "premises": [],
-    "conclusion": "~Q & (P -> Q) -> ~P",
-    "difficulty": "Hard",
-    "difficulty_value": 58
-  },
-  {
-    "id": "v1-067",
-    "premises": [],
-    "conclusion": "(~P | Q) & (R -> S) & (P | R) -> Q | S",
-    "difficulty": "Hard",
-    "difficulty_value": 64
-  },
-  {
-    "id": "v1-068",
-    "premises": [],
-    "conclusion": "P & Q -> P & Q",
-    "difficulty": "Hard",
-    "difficulty_value": 64
-  },
-  {
-    "id": "v1-069",
-    "premises": [],
-    "conclusion": "~((P -> Q) & ~Q & P)",
-    "difficulty": "Hard",
-    "difficulty_value": 67
-  },
-  {
-    "id": "v1-070",
-    "premises": [],
-    "conclusion": "P & Q -> P & Q",
-    "difficulty": "Hard",
-    "difficulty_value": 55
-  },
-  {
-    "id": "v1-071",
-    "premises": [],
-    "conclusion": "P | ~(P & Q)",
-    "difficulty": "Hard",
-    "difficulty_value": 53
-  },
-  {
-    "id": "v1-072",
-    "premises": [],
-    "conclusion": "P & (~P | Q) -> Q",
-    "difficulty": "Hard",
-    "difficulty_value": 50
-  },
-  {
-    "id": "v1-073",
-    "premises": [],
-    "conclusion": "P & Q -> P & Q",
-    "difficulty": "Hard",
-    "difficulty_value": 52
-  },
-  {
-    "id": "v1-074",
-    "premises": [],
-    "conclusion": "(Q | P) & ~P -> Q",
-    "difficulty": "Hard",
-    "difficulty_value": 60
-  },
-  {
-    "id": "v1-075",
-    "premises": [],
-    "conclusion": "P & (P -> Q) -> Q",
-    "difficulty": "Hard",
-    "difficulty_value": 47
-  },
-  {
-    "id": "v1-076",
-    "premises": [],
-    "conclusion": "P & Q -> P",
+    "conclusion": "[(P -> Q) & P] -> Q",
     "difficulty": "Hard",
     "difficulty_value": 49
   },
   {
-    "id": "v1-077",
+    "id": "v1-063",
     "premises": [],
-    "conclusion": "(P -> Q) & (~Q | R) -> ~P | R",
+    "conclusion": "[(P | Q) & ~P] -> Q",
     "difficulty": "Hard",
-    "difficulty_value": 51
+    "difficulty_value": 48
   },
   {
-    "id": "v1-078",
+    "id": "v1-064",
     "premises": [],
-    "conclusion": "P & Q -> P & Q",
-    "difficulty": "Hard",
-    "difficulty_value": 65
-  },
-  {
-    "id": "v1-079",
-    "premises": [],
-    "conclusion": "(P -> Q) & (R -> S) & (P | R) -> (~Q -> S)",
+    "conclusion": "{[(P & ~P) | P] & [(P & ~P) | Q]} -> Q",
     "difficulty": "Hard",
     "difficulty_value": 67
   },
   {
-    "id": "v1-080",
+    "id": "v1-065",
     "premises": [],
-    "conclusion": "~Q -> (P -> Q -> ~P)",
+    "conclusion": "[P & (~P | Q)] -> Q",
+    "difficulty": "Hard",
+    "difficulty_value": 58
+  },
+  {
+    "id": "v1-066",
+    "premises": [],
+    "conclusion": "[~(P & Q)] | P",
+    "difficulty": "Hard",
+    "difficulty_value": 68
+  },
+  {
+    "id": "v1-067",
+    "premises": [],
+    "conclusion": "[(P -> Q) & ~Q] -> ~P",
+    "difficulty": "Hard",
+    "difficulty_value": 51
+  },
+  {
+    "id": "v1-068",
+    "premises": [],
+    "conclusion": "P -> {~[(~P | Q) & ~Q]}",
+    "difficulty": "Hard",
+    "difficulty_value": 53
+  },
+  {
+    "id": "v1-069",
+    "premises": [],
+    "conclusion": "{[(P -> Q) & (~R | Q)] & (P | R)} -> (Q | Q)",
+    "difficulty": "Hard",
+    "difficulty_value": 57
+  },
+  {
+    "id": "v1-070",
+    "premises": [],
+    "conclusion": "[~(P -> R)] -> {~{[~(P & ~Q)] & (Q -> R)}}",
+    "difficulty": "Hard",
+    "difficulty_value": 66
+  },
+  {
+    "id": "v1-071",
+    "premises": [],
+    "conclusion": "{[(P -> Q) & (R -> Q)] & (P | R)} -> (Q | Q)",
+    "difficulty": "Hard",
+    "difficulty_value": 56
+  },
+  {
+    "id": "v1-072",
+    "premises": [],
+    "conclusion": "(P | Q) -> (~P -> Q)",
+    "difficulty": "Hard",
+    "difficulty_value": 61
+  },
+  {
+    "id": "v1-073",
+    "premises": [],
+    "conclusion": "[~(P & Q)] | P",
     "difficulty": "Hard",
     "difficulty_value": 55
   },
   {
+    "id": "v1-074",
+    "premises": [],
+    "conclusion": "P -> (Q -> P)",
+    "difficulty": "Hard",
+    "difficulty_value": 69
+  },
+  {
+    "id": "v1-075",
+    "premises": [],
+    "conclusion": "~P -> [~(Q & P)]",
+    "difficulty": "Hard",
+    "difficulty_value": 50
+  },
+  {
+    "id": "v1-076",
+    "premises": [],
+    "conclusion": "{~{(A | B) & [(A | B) -> ~D]}} | ~D",
+    "difficulty": "Hard",
+    "difficulty_value": 70
+  },
+  {
+    "id": "v1-077",
+    "premises": [],
+    "conclusion": "(P & Q) -> P",
+    "difficulty": "Hard",
+    "difficulty_value": 47
+  },
+  {
+    "id": "v1-078",
+    "premises": [],
+    "conclusion": "{[(~R | S) & (P -> Q)] & (P | R)} -> (S | Q)",
+    "difficulty": "Hard",
+    "difficulty_value": 67
+  },
+  {
+    "id": "v1-079",
+    "premises": [],
+    "conclusion": "[~(S | Q)] -> {~{(P | R) & [(~P | Q) & (R -> S)]}}",
+    "difficulty": "Hard",
+    "difficulty_value": 66
+  },
+  {
+    "id": "v1-080",
+    "premises": [],
+    "conclusion": "[(P | Q) & ~P] -> Q",
+    "difficulty": "Hard",
+    "difficulty_value": 52
+  },
+  {
     "id": "v1-081",
     "premises": [],
-    "conclusion": "~(~A | C) -> ~(~A | C)",
+    "conclusion": "[(~B -> D) & ~D] -> B",
     "difficulty": "Expert",
-    "difficulty_value": 84
+    "difficulty_value": 74
   },
   {
     "id": "v1-082",
     "premises": [],
-    "conclusion": "~(~(A | B) | C) -> A | B",
-    "difficulty": "Expert",
-    "difficulty_value": 81
-  },
-  {
-    "id": "v1-083",
-    "premises": [],
-    "conclusion": "(B -> (~D -> ~D -> ~E)) & B -> (~D -> ~D -> ~E)",
-    "difficulty": "Expert",
-    "difficulty_value": 72
-  },
-  {
-    "id": "v1-084",
-    "premises": [],
-    "conclusion": "(B & B -> E & F) & (D & C | B & B) & (D & C -> E & F) -> E & F",
-    "difficulty": "Expert",
-    "difficulty_value": 82
-  },
-  {
-    "id": "v1-085",
-    "premises": [],
-    "conclusion": "(F -> ~(~G | ~H)) & (~A -> C | D) & (C | D -> F) & ~A -> ~(~G | ~H)",
-    "difficulty": "Expert",
-    "difficulty_value": 82
-  },
-  {
-    "id": "v1-086",
-    "premises": [],
-    "conclusion": "(~(~D | C) -> ~A & ~B) & (~D | C -> F & F) -> ~A & ~B | F & F",
+    "conclusion": "[~A & (~A -> C)] -> C",
     "difficulty": "Expert",
     "difficulty_value": 79
   },
   {
+    "id": "v1-083",
+    "premises": [],
+    "conclusion": "{{{{F | [~(D | C)]} & [A -> (D | C)]} & (~F | ~H)} & A} -> ~H",
+    "difficulty": "Expert",
+    "difficulty_value": 80
+  },
+  {
+    "id": "v1-084",
+    "premises": [],
+    "conclusion": "{{~{A & [~(D | D)]}} & A} -> (D | D)",
+    "difficulty": "Expert",
+    "difficulty_value": 76
+  },
+  {
+    "id": "v1-085",
+    "premises": [],
+    "conclusion": "[(B | C) & ~B] -> C",
+    "difficulty": "Expert",
+    "difficulty_value": 78
+  },
+  {
+    "id": "v1-086",
+    "premises": [],
+    "conclusion": "{~[(A -> B) -> (F | E)]} -> {~{[(C & D) -> (F | E)] & {[~(A -> B)] | (C & D)}}}",
+    "difficulty": "Expert",
+    "difficulty_value": 72
+  },
+  {
     "id": "v1-087",
     "premises": [],
-    "conclusion": "(~B -> (~C -> ~C -> ~E | E)) & ~B & (~C -> ~C) -> ~E | E",
+    "conclusion": "[(A & B) & (C & D)] -> [(A & B) & (C & D)]",
     "difficulty": "Expert",
-    "difficulty_value": 83
+    "difficulty_value": 81
   },
   {
     "id": "v1-088",
     "premises": [],
-    "conclusion": "(B & B -> (C -> D)) & (C -> D -> E) & (E -> ~H) & B & B -> ~H",
+    "conclusion": "{{[(A | B) -> (D & C)] & [(F & F) -> H]} & {~{[~(A | B)] & [~(F & F)]}}} -> [(D & C) | H]",
     "difficulty": "Expert",
     "difficulty_value": 74
   },
   {
     "id": "v1-089",
     "premises": [],
-    "conclusion": "(B | ~A) & ~C -> (B | ~A) & ~C",
-    "difficulty": "Expert",
-    "difficulty_value": 79
-  },
-  {
-    "id": "v1-090",
-    "premises": [],
-    "conclusion": "(C -> (~E -> F)) & (A | C) & (A -> (~E -> F)) -> (~E -> F)",
-    "difficulty": "Expert",
-    "difficulty_value": 78
-  },
-  {
-    "id": "v1-091",
-    "premises": [],
-    "conclusion": "(B & B | ~C | C) & (B -> (B -> E & F)) & (~C | C -> E & F) -> E & F",
-    "difficulty": "Expert",
-    "difficulty_value": 72
-  },
-  {
-    "id": "v1-092",
-    "premises": [],
-    "conclusion": "A & (A -> (~D -> ~D)) -> (~D -> ~D)",
+    "conclusion": "{~{{[~(B | A)] | C} & (B | A)}} | C",
     "difficulty": "Expert",
     "difficulty_value": 81
   },
   {
+    "id": "v1-090",
+    "premises": [],
+    "conclusion": "{~[(D -> C) | (~G -> G)]} -> {~{{{[~(D -> C)] -> B} & {[~(~G -> G)] -> ~F}} & (B -> F)}}",
+    "difficulty": "Expert",
+    "difficulty_value": 74
+  },
+  {
+    "id": "v1-091",
+    "premises": [],
+    "conclusion": "[(~C -> ~C) & (A & B)] -> [(~C -> ~C) & (A & B)]",
+    "difficulty": "Expert",
+    "difficulty_value": 79
+  },
+  {
+    "id": "v1-092",
+    "premises": [],
+    "conclusion": "{{{(A | A) -> {C -> [C -> (E | F)]}} & (A | A)} & (C & C)} -> (E | F)",
+    "difficulty": "Expert",
+    "difficulty_value": 72
+  },
+  {
     "id": "v1-093",
     "premises": [],
-    "conclusion": "(A & A | C) & (A & A -> E & E) & (~C | E & E) -> E & E",
+    "conclusion": "{{[A | (D -> C)] & ~A} & D} -> C",
     "difficulty": "Expert",
-    "difficulty_value": 83
+    "difficulty_value": 84
   },
   {
     "id": "v1-094",
     "premises": [],
-    "conclusion": "D -> ~A -> (D -> ~A)",
+    "conclusion": "~D -> {~[~A & (A | D)]}",
     "difficulty": "Expert",
-    "difficulty_value": 83
+    "difficulty_value": 79
   },
   {
     "id": "v1-095",
     "premises": [],
-    "conclusion": "~D & (B | A -> D) -> ~B & ~A",
+    "conclusion": "{[~(~C -> ~C)] & [(~A | B) -> (~C -> ~C)]} -> [~(~A | B)]",
     "difficulty": "Expert",
-    "difficulty_value": 83
+    "difficulty_value": 72
   },
   {
     "id": "v1-096",
     "premises": [],
-    "conclusion": "(C | C | D -> F) & (~B | ~A -> C | C | D) & (~B | ~A) -> F",
+    "conclusion": "{{{A & [~(C -> ~D)]} -> ~D} & {{[~(C -> ~D)] -> ~D} -> F}} -> (~F -> ~A)",
     "difficulty": "Nightmare",
-    "difficulty_value": 86
+    "difficulty_value": 88
   },
   {
     "id": "v1-097",
     "premises": [],
-    "conclusion": "~(A & (A -> D) & (F -> G) | F & (A -> D) & (F -> G)) | D | G",
+    "conclusion": "{{{~B -> {[(C | D) -> C] -> [~F -> (E -> F)]}} & ~B} & [(C | D) -> C]} -> [~F -> (E -> F)]",
     "difficulty": "Nightmare",
-    "difficulty_value": 86
+    "difficulty_value": 92
   },
   {
     "id": "v1-098",
     "premises": [],
-    "conclusion": "(~(A -> ~B) | ~D | ~D) & D & D -> ~(A -> ~B)",
-    "difficulty": "Nightmare",
-    "difficulty_value": 95
-  },
-  {
-    "id": "v1-099",
-    "premises": [],
-    "conclusion": "A -> A & ~(C & D) | C & D",
+    "conclusion": "{{[(~C & D) | (~B -> A)] & [(~B -> A) -> (E | ~F)]} & {~C -> [D -> (E | ~F)]}} -> (E | ~F)",
     "difficulty": "Nightmare",
     "difficulty_value": 90
   },
   {
+    "id": "v1-099",
+    "premises": [],
+    "conclusion": "(B & B) -> {[~(~C -> C)] | {B & [B & (~C -> C)]}}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 87
+  },
+  {
     "id": "v1-100",
     "premises": [],
-    "conclusion": "~(D & D -> ~(~D & ~D)) -> ~(((B | B) & (A -> A) | (D & D -> ~(~D & ~D))) & ~((B | B) & (A -> A)))",
+    "conclusion": "{{~{{[~(B | A)] -> ~B} -> [(C | C) | (D -> D)]}} | [(C | C) | (D -> D)]} | {~{[~(B | A)] -> ~B}}",
     "difficulty": "Nightmare",
-    "difficulty_value": 86
+    "difficulty_value": 90
   }
 ]
