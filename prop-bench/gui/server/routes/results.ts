@@ -1,39 +1,38 @@
 import { Router, Request, Response } from "express";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { BENCHMARKS_DIR } from "../cli";
+import { RESULTS_DIR } from "../cli";
 
 const router = Router();
 
-/** Find all result directories — they live under benchmarks/{set}/results/ */
+/** Find all result directories — they live under results/{set}/ */
 function findResultDirs(): { runId: string; dir: string; summaryPath: string }[] {
   const found: { runId: string; dir: string; summaryPath: string }[] = [];
 
-  if (!fs.existsSync(BENCHMARKS_DIR)) return found;
+  if (!fs.existsSync(RESULTS_DIR)) return found;
 
-  const sets = fs.readdirSync(BENCHMARKS_DIR, { withFileTypes: true });
+  const sets = fs.readdirSync(RESULTS_DIR, { withFileTypes: true });
   for (const set of sets) {
     if (!set.isDirectory()) continue;
 
-    const resultsDir = path.join(BENCHMARKS_DIR, set.name, "results");
-    if (!fs.existsSync(resultsDir)) continue;
+    const setDir = path.join(RESULTS_DIR, set.name);
 
-    // Check if results dir itself has a summary.json (flat layout)
-    const flatSummary = path.join(resultsDir, "summary.json");
+    // Check if this set dir has a summary.json (flat layout from harness)
+    const flatSummary = path.join(setDir, "summary.json");
     if (fs.existsSync(flatSummary)) {
-      found.push({ runId: set.name, dir: resultsDir, summaryPath: flatSummary });
+      found.push({ runId: set.name, dir: setDir, summaryPath: flatSummary });
       continue;
     }
 
     // Otherwise check subdirectories (nested runs)
-    const subDirs = fs.readdirSync(resultsDir, { withFileTypes: true });
+    const subDirs = fs.readdirSync(setDir, { withFileTypes: true });
     for (const sub of subDirs) {
       if (!sub.isDirectory()) continue;
-      const summaryPath = path.join(resultsDir, sub.name, "summary.json");
+      const summaryPath = path.join(setDir, sub.name, "summary.json");
       if (fs.existsSync(summaryPath)) {
         found.push({
           runId: `${set.name}/${sub.name}`,
-          dir: path.join(resultsDir, sub.name),
+          dir: path.join(setDir, sub.name),
           summaryPath,
         });
       }
@@ -46,7 +45,7 @@ function findResultDirs(): { runId: string; dir: string; summaryPath: string }[]
 /** GET /api/runs — list all benchmark runs */
 router.get("/", (_req: Request, res: Response) => {
   try {
-    console.log("[runs] GET / - BENCHMARKS_DIR:", BENCHMARKS_DIR);
+    console.log("[runs] GET / - RESULTS_DIR:", RESULTS_DIR);
     const dirs = findResultDirs();
     console.log(`[runs] Found ${dirs.length} result directories`);
 

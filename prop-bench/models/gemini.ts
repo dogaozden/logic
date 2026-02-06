@@ -1,7 +1,7 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import type { ModelAdapter, ModelConfig, ModelResponse } from "./index";
 
-const DEFAULT_MODEL = "gemini-2.0-flash";
+const DEFAULT_MODEL = "gemini-2.5-flash-lite-preview-09-2025";
 const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 1000;
 
@@ -17,25 +17,35 @@ export class GeminiAdapter implements ModelAdapter {
     }
 
     const modelName = config.model || DEFAULT_MODEL;
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: modelName,
-      generationConfig: {
-        temperature: config.temperature ?? 0.2,
-        maxOutputTokens: config.maxTokens ?? 4096,
-      },
-    });
+    const client = new GoogleGenAI({ apiKey });
 
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const start = performance.now();
-        const result = await model.generateContent(prompt);
+        const response = await client.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            temperature: config.temperature ?? 0.2,
+            maxOutputTokens: config.maxTokens ?? 4096,
+          },
+        });
         const latency_ms = Math.round(performance.now() - start);
 
-        const response = result.response;
-        const text = response.text();
+        // Extract text from response
+        let text = response.text ?? "";
+        if (!text && response.candidates) {
+          for (const candidate of response.candidates) {
+            for (const part of candidate.content?.parts ?? []) {
+              if (part.text) {
+                text += part.text;
+              }
+            }
+          }
+        }
+
         const usage = response.usageMetadata;
 
         return {

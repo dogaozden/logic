@@ -1,5 +1,7 @@
 #!/usr/bin/env npx ts-node
 
+import * as dotenv from "dotenv";
+dotenv.config({ override: true });
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import * as fs from "node:fs";

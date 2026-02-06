@@ -19,3 +19,10 @@ After implementing any new feature or fix, always build and install the release 
 ## Update Documentation
 
 After implementing any new feature or fix, always update documentation.md in /logic-proof-trainer
+
+## PropBench: Keep GUI in sync with CLI
+
+When changing model names, default parameters, CLI arguments, or any configuration in the PropBench CLI or harness (`prop-bench/models/`, `prop-bench/harness.ts`, `prop-bench/config.ts`), always update the corresponding GUI code to match:
+- Model names/defaults → `prop-bench/gui/src/components/RunConfig.tsx` (MODEL_OPTIONS)
+- CLI arguments → `prop-bench/gui/server/cli.ts` (spawnHarness)
+- Documentation → `prop-bench/COMMANDS.md` (Model Aliases table)

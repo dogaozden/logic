@@ -12,7 +12,7 @@ export interface RunConfigValues {
 }
 
 const MODEL_OPTIONS = [
-  { key: "gemini", label: "Gemini", envVar: "GEMINI_API_KEY", model: "gemini-2.0-flash" },
+  { key: "gemini", label: "Gemini", envVar: "GEMINI_API_KEY", model: "gemini-2.5-flash-lite-preview-09-2025" },
   { key: "claude", label: "Claude", envVar: "ANTHROPIC_API_KEY", model: "claude-sonnet-4-5-20250929" },
   { key: "gpt", label: "GPT", envVar: "OPENAI_API_KEY", model: "gpt-4o" },
 ] as const;

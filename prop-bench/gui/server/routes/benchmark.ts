@@ -132,36 +132,45 @@ router.post("/start", (req: Request, res: Response) => {
 
     activeRuns.set(runId, run);
 
+    console.log(`[benchmark:${runId}] child.pid=${child.pid}, stdout=${!!child.stdout}, stderr=${!!child.stderr}`);
+
     child.stdout?.on("data", (data: Buffer) => {
-      const lines = data.toString().split("\n").filter(Boolean);
+      const raw = data.toString();
+      console.log(`[benchmark:${runId}:stdout] RAW (${raw.length} bytes): ${raw.trimEnd()}`);
+      const lines = raw.split("\n").filter(Boolean);
       for (const line of lines) {
         run.output.push(line);
         parseHarnessLine(line, run.progress);
+        console.log(`[benchmark:${runId}:progress] after parsing line: completed=${run.progress.completed}, total=${run.progress.total}, valid=${run.progress.validCount}, invalid=${run.progress.invalidCount}, errors=${run.progress.errorCount}, skipped=${run.progress.skippedCount}`);
       }
     });
 
     child.stderr?.on("data", (data: Buffer) => {
-      const lines = data.toString().split("\n").filter(Boolean);
+      const raw = data.toString();
+      console.log(`[benchmark:${runId}:stderr] RAW (${raw.length} bytes): ${raw.trimEnd()}`);
+      const lines = raw.split("\n").filter(Boolean);
       for (const line of lines) {
         run.output.push(line);
-        console.log(`[benchmark:${runId}:stderr]`, line);
       }
     });
 
-    child.on("close", (code) => {
+    child.on("close", (code, signal) => {
+      console.log(`[benchmark:${runId}:close] code=${code}, signal=${signal}, output lines=${run.output.length}`);
       run.done = true;
       if (code !== 0 && code !== null) {
         // Collect last few output lines for context
         const tail = run.output.slice(-5).join("\n");
         run.error = `Process exited with code ${code}.\n${tail}`;
+        console.log(`[benchmark:${runId}:close] ERROR tail: ${tail}`);
       }
       console.log(`[benchmark] Run ${runId} finished with code ${code}`);
     });
 
     child.on("error", (err) => {
+      console.error(`[benchmark:${runId}:error] spawn error: ${err.message}`);
+      console.error(`[benchmark:${runId}:error] stack: ${err.stack}`);
       run.done = true;
       run.error = err.message;
-      console.error(`[benchmark] Run ${runId} spawn error:`, err.message);
     });
 
     console.log(`[benchmark] Run ${runId} spawned successfully`);

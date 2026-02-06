@@ -144,7 +144,7 @@ export OPENAI_API_KEY="your-key-here"
 
 | Alias | Provider | Default Model |
 |-------|----------|---------------|
-| `gemini`, `gemini-flash` | Google | `gemini-2.0-flash` |
+| `gemini`, `gemini-flash` | Google | `gemini-2.5-flash-lite-preview-09-2025` |
 | `claude`, `anthropic` | Anthropic | `claude-sonnet-4-5-20250929` |
 | `gpt`, `openai` | OpenAI | `gpt-4o` |
 

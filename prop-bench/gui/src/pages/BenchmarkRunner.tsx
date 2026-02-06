@@ -31,6 +31,7 @@ function BenchmarkRunner() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
+  const runningRef = useRef(false);
 
   // Cleanup SSE + timer on unmount
   useEffect(() => {
@@ -74,6 +75,7 @@ function BenchmarkRunner() {
               setLogs((prev) => [...prev, data.message!]);
             }
           } else if (data.type === "complete") {
+            runningRef.current = false;
             setIsRunning(false);
             setProgress(data);
             stopTimer();
@@ -81,6 +83,7 @@ function BenchmarkRunner() {
             eventSourceRef.current = null;
             setHistoryRefresh((v) => v + 1);
           } else if (data.type === "error") {
+            runningRef.current = false;
             setError(data.error ?? "Unknown error during benchmark");
             setIsRunning(false);
             stopTimer();
@@ -93,14 +96,14 @@ function BenchmarkRunner() {
       };
 
       es.onerror = () => {
-        // EventSource reconnects automatically; close only if done
-        if (!isRunning) {
+        // EventSource reconnects automatically; only close if run is finished
+        if (!runningRef.current) {
           es.close();
           eventSourceRef.current = null;
         }
       };
     },
-    [isRunning, stopTimer],
+    [stopTimer],
   );
 
   const handleStart = useCallback(async () => {
@@ -110,6 +113,7 @@ function BenchmarkRunner() {
     setElapsedMs(0);
 
     try {
+      runningRef.current = true;
       setIsRunning(true);
       const countNum = config.count.trim()
         ? parseInt(config.count.trim(), 10)
@@ -127,6 +131,7 @@ function BenchmarkRunner() {
       startTimer();
       connectSSE(id);
     } catch (err) {
+      runningRef.current = false;
       setIsRunning(false);
       setError(
         err instanceof Error ? err.message : "Failed to start benchmark",
@@ -136,6 +141,7 @@ function BenchmarkRunner() {
 
   const handleStop = useCallback(async () => {
     if (!runId) return;
+    runningRef.current = false;
     try {
       await api.stopBenchmark(runId);
     } catch {

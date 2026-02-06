@@ -19,6 +19,12 @@ const PROPBENCH_BIN = path.join(PROJECT_ROOT, "target", "release", "propbench");
 /** Path to the harness entry point */
 const HARNESS_PATH = path.join(PROJECT_ROOT, "harness.ts");
 
+/** Path to the local ts-node binary (avoids npx resolution issues) */
+const TS_NODE_BIN = path.join(PROJECT_ROOT, "node_modules", ".bin", "ts-node");
+
+/** Path to the .env file in the project root */
+const DOT_ENV_PATH = path.join(PROJECT_ROOT, ".env");
+
 /** Benchmarks directory */
 export const BENCHMARKS_DIR = path.join(PROJECT_ROOT, "benchmarks");
 
@@ -115,8 +121,18 @@ export interface HarnessOpts {
 export function spawnHarness(opts: HarnessOpts): ChildProcess {
   const theoremsPath = path.join(BENCHMARKS_DIR, opts.theoremSet, "theorems.json");
 
+  // Validate that required files exist before spawning
+  if (!fs.existsSync(theoremsPath)) {
+    throw new Error(`Theorems file not found: ${theoremsPath}`);
+  }
+  if (!fs.existsSync(PROPBENCH_BIN)) {
+    throw new Error(`propbench binary not found: ${PROPBENCH_BIN}`);
+  }
+  if (!fs.existsSync(HARNESS_PATH)) {
+    throw new Error(`Harness entry point not found: ${HARNESS_PATH}`);
+  }
+
   const args = [
-    "ts-node",
     HARNESS_PATH,
     "--theorems", theoremsPath,
     "--models", opts.models.join(","),
@@ -133,10 +149,43 @@ export function spawnHarness(opts: HarnessOpts): ChildProcess {
     args.push("--count", String(opts.count));
   }
 
-  const child = spawn("npx", args, {
+  // Build child env: inherit process.env and also load .env from project root
+  // to ensure API keys are available even if the server's dotenv didn't load them.
+  const childEnv = { ...process.env };
+  if (fs.existsSync(DOT_ENV_PATH)) {
+    const envContent = fs.readFileSync(DOT_ENV_PATH, "utf-8");
+    for (const line of envContent.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx === -1) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      let val = trimmed.slice(eqIdx + 1).trim();
+      // Strip surrounding quotes
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      childEnv[key] = val;
+    }
+  }
+
+  // Use local ts-node binary directly — avoids npx resolution issues (npx may
+  // prompt for install, fail to locate the package, or add startup latency).
+  // ts-node is a devDependency of the root prop-bench package and its binary
+  // lives at node_modules/.bin/ts-node.
+  const bin = TS_NODE_BIN;
+  if (!fs.existsSync(bin)) {
+    throw new Error(`ts-node binary not found at ${bin}. Run 'npm install' in ${PROJECT_ROOT}`);
+  }
+
+  console.log(`[spawnHarness] bin: ${bin}`);
+  console.log(`[spawnHarness] cwd: ${PROJECT_ROOT}`);
+  console.log(`[spawnHarness] theorems: ${theoremsPath}`);
+
+  const child = spawn(bin, args, {
     cwd: PROJECT_ROOT,
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env },
+    env: childEnv,
   });
 
   return child;
