@@ -7,3 +7,4 @@ results/
 *.js
 *.js.map
 *.d.ts
+.env

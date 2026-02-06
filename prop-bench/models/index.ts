@@ -1,6 +1,6 @@
-import { GeminiAdapter } from "./gemini.js";
-import { AnthropicAdapter } from "./anthropic.js";
-import { OpenAIAdapter } from "./openai.js";
+import { GeminiAdapter } from "./gemini";
+import { AnthropicAdapter } from "./anthropic";
+import { OpenAIAdapter } from "./openai";
 
 export interface ModelConfig {
   model: string;

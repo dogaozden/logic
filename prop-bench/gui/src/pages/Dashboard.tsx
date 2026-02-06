@@ -1,19 +1,72 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { BenchmarkReport } from "../types";
+import { api, type RunInfo } from "../api/client";
 import RankingsTable from "../components/RankingsTable";
 import DifficultyBreakdown from "../components/DifficultyBreakdown";
 import EloChart from "../components/EloChart";
 
 function Dashboard() {
   const [report, setReport] = useState<BenchmarkReport | null>(null);
-  const [fileName, setFileName] = useState<string>("");
+  const [runs, setRuns] = useState<RunInfo[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string>("");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
 
+  // Load available runs on mount
+  useEffect(() => {
+    loadRuns();
+  }, []);
+
+  const loadRuns = async () => {
+    try {
+      const data = await api.getRuns();
+      setRuns(data);
+      // Auto-select the most recent run
+      if (data.length > 0 && !selectedRunId) {
+        const mostRecent = data[0];
+        setSelectedRunId(mostRecent.runId);
+        loadRunResults(mostRecent.runId);
+      }
+    } catch (err) {
+      // Silently fail — the user can still use the file picker
+    }
+  };
+
+  const loadRunResults = async (runId: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      const detail = await api.getRun(runId);
+      const data = detail.summary as unknown as BenchmarkReport;
+      if (!data.rankings || !data.models) {
+        setError("Invalid report format: missing rankings or models.");
+        setReport(null);
+        return;
+      }
+      setReport(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setReport(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRunChange = (runId: string) => {
+    setSelectedRunId(runId);
+    if (runId) {
+      loadRunResults(runId);
+    } else {
+      setReport(null);
+    }
+  };
+
+  // Fallback file picker
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setFileName(file.name);
+    setSelectedRunId("");
     setError("");
 
     const reader = new FileReader();
@@ -50,31 +103,66 @@ function Dashboard() {
     <div>
       <div className="dashboard-header">
         <h2>Dashboard</h2>
-        <p>Load a PropBench results file to view benchmark data.</p>
+        <p>View benchmark results from past runs or load a results file.</p>
       </div>
 
-      <div className="file-picker">
-        <label>
-          Load results.json
-          <input
-            type="file"
-            accept=".json"
-            onChange={handleFileChange}
-          />
-        </label>
-        {fileName && <span className="file-name">{fileName}</span>}
+      <div className="dashboard-controls">
+        {runs.length > 0 && (
+          <div className="run-picker">
+            <label className="run-picker-label">Select Run</label>
+            <select
+              className="difficulty-filter"
+              value={selectedRunId}
+              onChange={(e) => handleRunChange(e.target.value)}
+            >
+              <option value="">-- Select a run --</option>
+              {runs.map((r) => (
+                <option key={r.runId} value={r.runId}>
+                  {r.runId}
+                  {r.timestamp
+                    ? ` (${new Date(r.timestamp).toLocaleDateString()})`
+                    : ""}
+                  {r.models.length > 0 ? ` — ${r.models.join(", ")}` : ""}
+                </option>
+              ))}
+            </select>
+            <button
+              className="generate-btn generate-btn--secondary"
+              onClick={loadRuns}
+              style={{ marginLeft: 8 }}
+            >
+              Refresh
+            </button>
+          </div>
+        )}
+
+        <div className="file-picker">
+          <label>
+            Or load results.json
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleFileChange}
+            />
+          </label>
+        </div>
       </div>
+
+      {loading && (
+        <p style={{ color: "var(--text-muted)", marginBottom: 24 }}>Loading run data...</p>
+      )}
 
       {error && (
         <p style={{ color: "var(--error)", marginBottom: 24 }}>{error}</p>
       )}
 
-      {!report && !error && (
+      {!report && !error && !loading && (
         <div className="empty-state">
           <h3>No Report Loaded</h3>
           <p>
-            Select a PropBench results JSON file to display rankings, stats,
-            and per-difficulty breakdowns.
+            {runs.length > 0
+              ? "Select a run above or load a PropBench results JSON file."
+              : "No benchmark runs found. Load a PropBench results JSON file or run a benchmark first."}
           </p>
         </div>
       )}

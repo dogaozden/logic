@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ModelAdapter, ModelConfig, ModelResponse } from "./index.js";
+import type { ModelAdapter, ModelConfig, ModelResponse } from "./index";
 
 const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
 const MAX_RETRIES = 5;

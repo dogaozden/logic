@@ -173,7 +173,15 @@ npm install
 ```bash
 cd ~/Documents/AI_Projects/logic/prop-bench/gui
 npm run dev
-# Opens at http://localhost:3000
+# Runs both Vite frontend (http://localhost:3000) and Express backend (http://localhost:3001) concurrently
+```
+
+### Run backend only
+
+```bash
+cd ~/Documents/AI_Projects/logic/prop-bench/gui
+npm run server
+# Starts Express backend on http://localhost:3001
 ```
 
 ### Production build

@@ -1,138 +1,158 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import RunConfig from "../components/RunConfig";
 import type { RunConfigValues } from "../components/RunConfig";
 import RunProgress from "../components/RunProgress";
+import type { SSEProgressEvent } from "../components/RunProgress";
 import RunHistory from "../components/RunHistory";
-import type { RunRecord } from "../components/RunHistory";
-import type { BenchmarkResult } from "../types";
+import { api } from "../api/client";
 import "../styles/runner.css";
 
-const STORAGE_KEY = "propbench-run-history";
-
-function loadHistory(): RunRecord[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as RunRecord[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveHistory(runs: RunRecord[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(runs));
-}
-
-function buildCommand(cfg: RunConfigValues): string {
-  const parts: string[] = ["npx ts-node harness.ts"];
-  parts.push(`--theorems ${cfg.theoremsPath}`);
-  parts.push(`--models ${cfg.models.join(",")}`);
-  parts.push(`--output ${cfg.outputDir}`);
-  parts.push(`--propbench-bin ${cfg.propbenchBin}`);
-  parts.push(`--temperature ${cfg.temperature}`);
-  parts.push(`--max-tokens ${cfg.maxTokens}`);
-  if (cfg.startIndex > 0) {
-    parts.push(`--start ${cfg.startIndex}`);
-  }
-  if (cfg.count.trim() !== "") {
-    parts.push(`--count ${cfg.count.trim()}`);
-  }
-  return parts.join(" \\\n  ");
-}
-
 function BenchmarkRunner() {
+  const navigate = useNavigate();
+
   const [config, setConfig] = useState<RunConfigValues>({
     models: [],
-    theoremsPath: "benchmarks/v1/theorems.json",
+    theoremSet: "v1",
     temperature: 0.2,
     maxTokens: 4096,
     startIndex: 0,
     count: "",
-    propbenchBin: "./target/release/propbench",
-    outputDir: "results/",
   });
 
-  const [command, setCommand] = useState<string | null>(null);
-  const [results, setResults] = useState<BenchmarkResult[]>([]);
-  const [history, setHistory] = useState<RunRecord[]>(loadHistory);
-  const [loadError, setLoadError] = useState("");
+  const [isRunning, setIsRunning] = useState(false);
+  const [runId, setRunId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<SSEProgressEvent | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [error, setError] = useState("");
+  const [historyRefresh, setHistoryRefresh] = useState(0);
 
-  const handleStart = useCallback(() => {
-    const cmd = buildCommand(config);
-    setCommand(cmd);
-    setResults([]);
-    setLoadError("");
-  }, [config]);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef<number>(0);
 
-  const handleLoadResults = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      setLoadError("");
-
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const data = JSON.parse(evt.target?.result as string);
-
-          // Accept either an array of BenchmarkResult or a summary.json
-          let loaded: BenchmarkResult[];
-          if (Array.isArray(data)) {
-            loaded = data as BenchmarkResult[];
-          } else if (data.results && Array.isArray(data.results)) {
-            loaded = data.results as BenchmarkResult[];
-          } else {
-            setLoadError("Unrecognized results format. Expected an array of BenchmarkResult objects.");
-            return;
-          }
-
-          setResults(loaded);
-
-          // Build history record
-          const models = [...new Set(loaded.map((r) => r.model))];
-          const theoremIds = new Set(loaded.map((r) => r.theorem_id));
-          const validCount = loaded.filter((r) => r.result.valid).length;
-          const errorCount = loaded.filter((r) => r.result.errors.length > 0 && !r.result.valid).length;
-          const invalidCount = loaded.length - validCount - errorCount;
-
-          const record: RunRecord = {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            timestamp: loaded[0]?.timestamp ?? new Date().toISOString(),
-            models,
-            theoremCount: theoremIds.size,
-            validCount,
-            invalidCount,
-            errorCount,
-            fileName: file.name,
-          };
-
-          const updated = [record, ...history];
-          setHistory(updated);
-          saveHistory(updated);
-        } catch {
-          setLoadError("Failed to parse results JSON file.");
-        }
-      };
-      reader.readAsText(file);
-
-      // Reset so same file can be re-selected
-      e.target.value = "";
-    },
-    [history]
-  );
-
-  const handleLoadRun = useCallback((_run: RunRecord) => {
-    // In a static app we cannot reload the file contents from a record.
-    // Show a hint to re-load the file.
-    setLoadError("Re-select the results file using the file picker above.");
+  // Cleanup SSE + timer on unmount
+  useEffect(() => {
+    return () => {
+      eventSourceRef.current?.close();
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, []);
 
-  const handleDeleteRun = useCallback(
+  const startTimer = useCallback(() => {
+    startTimeRef.current = Date.now();
+    setElapsedMs(0);
+    timerRef.current = setInterval(() => {
+      setElapsedMs(Date.now() - startTimeRef.current);
+    }, 1000);
+  }, []);
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (startTimeRef.current > 0) {
+      setElapsedMs(Date.now() - startTimeRef.current);
+    }
+  }, []);
+
+  const connectSSE = useCallback(
     (id: string) => {
-      const updated = history.filter((r) => r.id !== id);
-      setHistory(updated);
-      saveHistory(updated);
+      const es = api.getBenchmarkStatus(id);
+      eventSourceRef.current = es;
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as SSEProgressEvent;
+
+          if (data.type === "progress") {
+            setProgress(data);
+          } else if (data.type === "log") {
+            if (data.message) {
+              setLogs((prev) => [...prev, data.message!]);
+            }
+          } else if (data.type === "complete") {
+            setIsRunning(false);
+            setProgress(data);
+            stopTimer();
+            es.close();
+            eventSourceRef.current = null;
+            setHistoryRefresh((v) => v + 1);
+          } else if (data.type === "error") {
+            setError(data.error ?? "Unknown error during benchmark");
+            setIsRunning(false);
+            stopTimer();
+            es.close();
+            eventSourceRef.current = null;
+          }
+        } catch {
+          setLogs((prev) => [...prev, event.data]);
+        }
+      };
+
+      es.onerror = () => {
+        // EventSource reconnects automatically; close only if done
+        if (!isRunning) {
+          es.close();
+          eventSourceRef.current = null;
+        }
+      };
     },
-    [history]
+    [isRunning, stopTimer],
+  );
+
+  const handleStart = useCallback(async () => {
+    setError("");
+    setProgress(null);
+    setLogs([]);
+    setElapsedMs(0);
+
+    try {
+      setIsRunning(true);
+      const countNum = config.count.trim()
+        ? parseInt(config.count.trim(), 10)
+        : undefined;
+
+      const { runId: id } = await api.startBenchmark({
+        models: config.models,
+        theoremSet: config.theoremSet,
+        temperature: config.temperature,
+        maxTokens: config.maxTokens,
+        start: config.startIndex > 0 ? config.startIndex : undefined,
+        count: Number.isFinite(countNum) ? countNum : undefined,
+      });
+      setRunId(id);
+      startTimer();
+      connectSSE(id);
+    } catch (err) {
+      setIsRunning(false);
+      setError(
+        err instanceof Error ? err.message : "Failed to start benchmark",
+      );
+    }
+  }, [config, startTimer, connectSSE]);
+
+  const handleStop = useCallback(async () => {
+    if (!runId) return;
+    try {
+      await api.stopBenchmark(runId);
+    } catch {
+      // Best-effort stop
+    }
+    eventSourceRef.current?.close();
+    eventSourceRef.current = null;
+    setIsRunning(false);
+    stopTimer();
+    setHistoryRefresh((v) => v + 1);
+  }, [runId, stopTimer]);
+
+  const handleViewResults = useCallback(
+    (id: string) => {
+      navigate(`/?runId=${encodeURIComponent(id)}`);
+    },
+    [navigate],
   );
 
   return (
@@ -142,13 +162,22 @@ function BenchmarkRunner() {
         <p>Configure and launch PropBench benchmark runs.</p>
       </div>
 
+      {error && (
+        <div className="runner-error">
+          <span>{error}</span>
+          <button className="btn-sm" onClick={() => setError("")}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div className="runner-layout">
         {/* Left column: config */}
         <div className="runner-left">
           <RunConfig
             config={config}
             onChange={setConfig}
-            running={false}
+            running={isRunning}
             onStart={handleStart}
           />
         </div>
@@ -156,33 +185,16 @@ function BenchmarkRunner() {
         {/* Right column: progress + history */}
         <div className="runner-right">
           <RunProgress
-            command={command}
-            results={results}
-            totalExpected={null}
+            isRunning={isRunning}
+            progress={progress}
+            logs={logs}
+            elapsedMs={elapsedMs}
+            onStop={handleStop}
           />
 
-          {/* File picker for loading results */}
-          <div className="results-loader">
-            <h3 className="results-loader-title">Load Results</h3>
-            <div className="file-picker">
-              <label>
-                Load results JSON
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleLoadResults}
-                />
-              </label>
-            </div>
-            {loadError && (
-              <p className="results-loader-error">{loadError}</p>
-            )}
-          </div>
-
           <RunHistory
-            runs={history}
-            onLoad={handleLoadRun}
-            onDelete={handleDeleteRun}
+            refreshTrigger={historyRefresh}
+            onViewResults={handleViewResults}
           />
         </div>
       </div>

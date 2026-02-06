@@ -1,14 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { api } from "../api/client";
+import type { TheoremSetInfo } from "../api/client";
 
 export interface RunConfigValues {
   models: string[];
-  theoremsPath: string;
+  theoremSet: string;
   temperature: number;
   maxTokens: number;
   startIndex: number;
   count: string;
-  propbenchBin: string;
-  outputDir: string;
 }
 
 const MODEL_OPTIONS = [
@@ -24,12 +24,40 @@ interface RunConfigProps {
   onStart: () => void;
 }
 
+function buildCommand(cfg: RunConfigValues): string {
+  const parts: string[] = ["npx ts-node harness.ts"];
+  parts.push(`--theorems ${cfg.theoremSet}`);
+  parts.push(`--models ${cfg.models.join(",")}`);
+  parts.push(`--temperature ${cfg.temperature}`);
+  parts.push(`--max-tokens ${cfg.maxTokens}`);
+  if (cfg.startIndex > 0) {
+    parts.push(`--start ${cfg.startIndex}`);
+  }
+  if (cfg.count.trim() !== "") {
+    parts.push(`--count ${cfg.count.trim()}`);
+  }
+  return parts.join(" \\\n  ");
+}
+
 function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
-  const [apiKeyStatus] = useState<Record<string, boolean>>(() => {
-    // In a browser environment we cannot read env vars.
-    // This is a placeholder; status is unknown.
-    return { gemini: false, claude: false, gpt: false };
-  });
+  const [theoremSets, setTheoremSets] = useState<TheoremSetInfo[]>([]);
+  const [showCommand, setShowCommand] = useState(false);
+
+  useEffect(() => {
+    api
+      .getTheoremSets()
+      .then((sets) => {
+        setTheoremSets(sets);
+        if (sets.length > 0 && !config.theoremSet) {
+          onChange({ ...config, theoremSet: sets[0].name });
+        }
+      })
+      .catch(() => {
+        /* server not available yet */
+      });
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleModel = (key: string) => {
     const next = config.models.includes(key)
@@ -57,25 +85,44 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
               <span className="model-checkbox-name">{m.label}</span>
               <span className="model-checkbox-detail">{m.model}</span>
               <span
-                className={`api-dot ${apiKeyStatus[m.key] ? "api-dot--ok" : "api-dot--missing"}`}
-                title={`${m.envVar}: ${apiKeyStatus[m.key] ? "set" : "not detected (check terminal env)"}`}
+                className="api-dot api-dot--missing"
+                title={`${m.envVar}: check server env`}
               />
             </label>
           ))}
         </div>
       </div>
 
-      {/* Theorem file */}
+      {/* Theorem set picker */}
       <div className="config-section">
-        <label className="config-label" htmlFor="cfg-theorems">Theorem file</label>
-        <input
-          id="cfg-theorems"
-          className="config-input"
-          type="text"
-          value={config.theoremsPath}
-          onChange={(e) => onChange({ ...config, theoremsPath: e.target.value })}
-          disabled={running}
-        />
+        <label className="config-label" htmlFor="cfg-theorem-set">
+          Theorem set
+        </label>
+        {theoremSets.length > 0 ? (
+          <select
+            id="cfg-theorem-set"
+            className="config-input"
+            value={config.theoremSet}
+            onChange={(e) => onChange({ ...config, theoremSet: e.target.value })}
+            disabled={running}
+          >
+            {theoremSets.map((s) => (
+              <option key={s.name} value={s.name}>
+                {s.name} ({s.count} theorems)
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            id="cfg-theorem-set"
+            className="config-input"
+            type="text"
+            value={config.theoremSet}
+            onChange={(e) => onChange({ ...config, theoremSet: e.target.value })}
+            disabled={running}
+            placeholder="v1"
+          />
+        )}
       </div>
 
       {/* Temperature */}
@@ -91,14 +138,18 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
           max={1}
           step={0.05}
           value={config.temperature}
-          onChange={(e) => onChange({ ...config, temperature: parseFloat(e.target.value) })}
+          onChange={(e) =>
+            onChange({ ...config, temperature: parseFloat(e.target.value) })
+          }
           disabled={running}
         />
       </div>
 
       {/* Max tokens */}
       <div className="config-section">
-        <label className="config-label" htmlFor="cfg-tokens">Max tokens</label>
+        <label className="config-label" htmlFor="cfg-tokens">
+          Max tokens
+        </label>
         <input
           id="cfg-tokens"
           className="config-input config-input--sm"
@@ -106,7 +157,12 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
           min={256}
           max={32768}
           value={config.maxTokens}
-          onChange={(e) => onChange({ ...config, maxTokens: parseInt(e.target.value, 10) || 4096 })}
+          onChange={(e) =>
+            onChange({
+              ...config,
+              maxTokens: parseInt(e.target.value, 10) || 4096,
+            })
+          }
           disabled={running}
         />
       </div>
@@ -114,19 +170,28 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
       {/* Theorem range */}
       <div className="config-section config-section--row">
         <div>
-          <label className="config-label" htmlFor="cfg-start">Start index</label>
+          <label className="config-label" htmlFor="cfg-start">
+            Start index
+          </label>
           <input
             id="cfg-start"
             className="config-input config-input--sm"
             type="number"
             min={0}
             value={config.startIndex}
-            onChange={(e) => onChange({ ...config, startIndex: parseInt(e.target.value, 10) || 0 })}
+            onChange={(e) =>
+              onChange({
+                ...config,
+                startIndex: parseInt(e.target.value, 10) || 0,
+              })
+            }
             disabled={running}
           />
         </div>
         <div>
-          <label className="config-label" htmlFor="cfg-count">Count (blank = all)</label>
+          <label className="config-label" htmlFor="cfg-count">
+            Count (blank = all)
+          </label>
           <input
             id="cfg-count"
             className="config-input config-input--sm"
@@ -139,40 +204,38 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
         </div>
       </div>
 
-      {/* PropBench binary */}
-      <div className="config-section">
-        <label className="config-label" htmlFor="cfg-bin">PropBench binary</label>
-        <input
-          id="cfg-bin"
-          className="config-input"
-          type="text"
-          value={config.propbenchBin}
-          onChange={(e) => onChange({ ...config, propbenchBin: e.target.value })}
-          disabled={running}
-        />
-      </div>
-
-      {/* Output dir */}
-      <div className="config-section">
-        <label className="config-label" htmlFor="cfg-output">Output directory</label>
-        <input
-          id="cfg-output"
-          className="config-input"
-          type="text"
-          value={config.outputDir}
-          onChange={(e) => onChange({ ...config, outputDir: e.target.value })}
-          disabled={running}
-        />
-      </div>
-
       {/* Start button */}
       <button
         className="btn-start"
         disabled={running || config.models.length === 0}
         onClick={onStart}
       >
-        {running ? "Running..." : "Generate Command"}
+        {running ? "Running..." : "Start Benchmark"}
       </button>
+
+      {/* CLI command reference (collapsible) */}
+      <button
+        className="btn-toggle-command"
+        onClick={() => setShowCommand((v) => !v)}
+      >
+        {showCommand ? "Hide" : "Show"} CLI command
+      </button>
+      {showCommand && (
+        <div className="command-block">
+          <div className="command-block-header">
+            <span>CLI Command</span>
+            <button
+              className="btn-copy"
+              onClick={() =>
+                navigator.clipboard.writeText(buildCommand(config))
+              }
+            >
+              Copy
+            </button>
+          </div>
+          <pre className="command-text">{buildCommand(config)}</pre>
+        </div>
+      )}
     </div>
   );
 }

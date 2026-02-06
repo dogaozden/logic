@@ -1,14 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Theorem, Difficulty, BenchmarkResult } from "../types";
+import { api } from "../api/client";
 import TheoremList from "../components/TheoremList";
 import TheoremDetail from "../components/TheoremDetail";
+import TheoremSetPicker from "../components/TheoremSetPicker";
+import GenerateTheorems from "../components/GenerateTheorems";
 import "../styles/theorems.css";
 
-// Import theorems JSON statically (Vite handles JSON imports)
-import theoremsData from "../../../benchmarks/v1/theorems.json";
-
 export default function TheoremExplorer() {
-  const theorems = theoremsData as Theorem[];
+  const [theorems, setTheorems] = useState<Theorem[]>([]);
+  const [selectedSet, setSelectedSet] = useState<string>("v1");
+  const [loadingTheorems, setLoadingTheorems] = useState(false);
+  const [theoremsError, setTheoremsError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [showGenerate, setShowGenerate] = useState(false);
 
   // Benchmark results state (optional, loaded from file)
   const [benchmarkResults, setBenchmarkResults] = useState<
@@ -22,6 +27,26 @@ export default function TheoremExplorer() {
   const [difficultyFilter, setDifficultyFilter] = useState<Difficulty | "All">(
     "All"
   );
+
+  // Load theorems when the selected set changes
+  useEffect(() => {
+    if (!selectedSet) return;
+
+    setLoadingTheorems(true);
+    setTheoremsError("");
+    setSelectedTheorem(null);
+
+    api
+      .getTheorems(selectedSet)
+      .then((data) => {
+        setTheorems(data);
+      })
+      .catch((err) => {
+        setTheoremsError(err.message);
+        setTheorems([]);
+      })
+      .finally(() => setLoadingTheorems(false));
+  }, [selectedSet]);
 
   // Handle loading benchmark results file
   const handleResultsFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -39,7 +64,7 @@ export default function TheoremExplorer() {
         } else if (data.results && Array.isArray(data.results)) {
           setBenchmarkResults(data.results as BenchmarkResult[]);
         } else if (data.models && Array.isArray(data.models)) {
-          // BenchmarkReport format — collect results from all model summaries
+          // BenchmarkReport format -- collect results from all model summaries
           const allResults: BenchmarkResult[] = [];
           for (const modelSummary of data.models) {
             if (modelSummary.results && Array.isArray(modelSummary.results)) {
@@ -71,13 +96,33 @@ export default function TheoremExplorer() {
     return Object.keys(map).length > 0 ? map : undefined;
   };
 
+  const handleGenerated = (setName: string) => {
+    setShowGenerate(false);
+    setRefreshKey((k) => k + 1);
+    setSelectedSet(setName);
+  };
+
   return (
     <div className="theorem-explorer">
       <div className="theorem-explorer-header">
         <h2>Theorem Explorer</h2>
         <p>
-          Browse all {theorems.length} theorems from the PropBench v1 suite.
+          Browse theorems from the PropBench suite.
         </p>
+      </div>
+
+      <div className="theorem-explorer-toolbar">
+        <TheoremSetPicker
+          selectedSet={selectedSet}
+          onSelect={setSelectedSet}
+          refreshKey={refreshKey}
+        />
+        <button
+          className="generate-btn generate-btn--primary"
+          onClick={() => setShowGenerate(true)}
+        >
+          Generate New Set
+        </button>
       </div>
 
       <div className="file-picker">
@@ -95,32 +140,60 @@ export default function TheoremExplorer() {
         )}
       </div>
 
-      <div className="theorem-explorer-body">
-        <div className="theorem-explorer-list">
-          <TheoremList
-            theorems={theorems}
-            selectedId={selectedTheorem?.id ?? null}
-            onSelect={setSelectedTheorem}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            difficultyFilter={difficultyFilter}
-            onDifficultyChange={setDifficultyFilter}
-          />
-        </div>
+      {loadingTheorems && (
+        <p style={{ color: "var(--text-muted)" }}>Loading theorems...</p>
+      )}
 
-        <div className="theorem-explorer-detail">
-          {selectedTheorem ? (
-            <TheoremDetail
-              theorem={selectedTheorem}
-              resultsByModel={getResultsForTheorem(selectedTheorem.id)}
+      {theoremsError && (
+        <p style={{ color: "var(--error)" }}>
+          Failed to load theorems: {theoremsError}
+        </p>
+      )}
+
+      {!loadingTheorems && !theoremsError && theorems.length > 0 && (
+        <div className="theorem-explorer-body">
+          <div className="theorem-explorer-list">
+            <TheoremList
+              theorems={theorems}
+              selectedId={selectedTheorem?.id ?? null}
+              onSelect={setSelectedTheorem}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              difficultyFilter={difficultyFilter}
+              onDifficultyChange={setDifficultyFilter}
             />
-          ) : (
-            <div className="theorem-detail-empty">
-              Select a theorem from the list to view details.
-            </div>
-          )}
+          </div>
+
+          <div className="theorem-explorer-detail">
+            {selectedTheorem ? (
+              <TheoremDetail
+                theorem={selectedTheorem}
+                resultsByModel={getResultsForTheorem(selectedTheorem.id)}
+              />
+            ) : (
+              <div className="theorem-detail-empty">
+                Select a theorem from the list to view details.
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {!loadingTheorems && !theoremsError && theorems.length === 0 && (
+        <div className="empty-state">
+          <h3>No Theorems</h3>
+          <p>
+            Select a theorem set or generate a new one.
+          </p>
+        </div>
+      )}
+
+      {showGenerate && (
+        <GenerateTheorems
+          onClose={() => setShowGenerate(false)}
+          onGenerated={handleGenerated}
+        />
+      )}
     </div>
   );
 }

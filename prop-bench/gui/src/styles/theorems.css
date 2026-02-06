@@ -61,6 +61,13 @@
   font-size: 13px;
 }
 
+.theorem-explorer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
 .theorem-explorer-body {
   display: flex;
   gap: 24px;

@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { ModelAdapter, ModelConfig, ModelResponse } from "./index.js";
+import type { ModelAdapter, ModelConfig, ModelResponse } from "./index";
 
 const DEFAULT_MODEL = "gpt-4o";
 const MAX_RETRIES = 5;

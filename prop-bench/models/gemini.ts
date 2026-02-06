@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import type { ModelAdapter, ModelConfig, ModelResponse } from "./index.js";
+import type { ModelAdapter, ModelConfig, ModelResponse } from "./index";
 
 const DEFAULT_MODEL = "gemini-2.0-flash";
 const MAX_RETRIES = 5;
