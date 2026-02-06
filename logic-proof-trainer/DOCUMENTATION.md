@@ -973,4 +973,6 @@ npm install
 npm run dev  # Opens http://localhost:3000
 ```
 
+**SQLite Storage:** PropBench now uses SQLite (`propbench.db`) as its primary storage layer for benchmark results, replacing filesystem scanning in the GUI server. The harness dual-writes to both JSON files and SQLite during the transition. Existing JSON results can be migrated via `npm run migrate`. The database uses WAL mode for concurrent access and includes four tables: `theorem_sets`, `theorems`, `results`, and `reports_cache`.
+
 See `prop-bench/DOCUMENTATION.md`, `prop-bench/ARCHITECTURE.md`, and `prop-bench/COMMANDS.md` for complete PropBench documentation.

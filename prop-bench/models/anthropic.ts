@@ -7,6 +7,7 @@ const BASE_DELAY_MS = 1000;
 
 export class AnthropicAdapter implements ModelAdapter {
   name = "anthropic";
+  displayName = "Claude Sonnet 4.5";
 
   async callModel(prompt: string, config: ModelConfig): Promise<ModelResponse> {
     const apiKey = config.apiKey || process.env.ANTHROPIC_API_KEY;

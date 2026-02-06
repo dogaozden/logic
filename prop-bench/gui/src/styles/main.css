@@ -276,6 +276,28 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* ─── Difficulty breakdown cells ──────────────────────────────────────────── */
+
+.difficulty-valid {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.difficulty-sep {
+  color: var(--text-muted);
+  margin: 0 1px;
+}
+
+.difficulty-attempted {
+  color: var(--text-muted);
+}
+
+.difficulty-pct {
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
 /* ─── Elo Chart ──────────────────────────────────────────────────────────── */
 
 .elo-chart {

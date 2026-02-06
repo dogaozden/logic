@@ -12,6 +12,7 @@ import type { ModelConfig, ModelResponse } from "./models/index";
 import type { Theorem, ProofLine } from "./config";
 import { Scorer } from "./scorer";
 import type { TheoremResult, DifficultyTier } from "./scorer";
+import * as db from "./db";
 
 const execFileAsync = promisify(execFile);
 
@@ -355,6 +356,28 @@ async function run(): Promise<void> {
   // Ensure output directory
   fs.mkdirSync(args.output, { recursive: true });
 
+  // Initialize SQLite DB
+  let setName = "";
+  let setId = 0;
+  try {
+    db.initSchema();
+    setName = path.basename(path.dirname(args.theorems));
+    setId = db.upsertTheoremSet(setName, args.theorems);
+    for (const bt of allBenchTheorems) {
+      db.upsertTheorem(setId, {
+        id: bt.id,
+        premises: bt.premises,
+        conclusion: bt.conclusion,
+        difficulty: bt.difficulty,
+        difficulty_value: bt.difficulty_value,
+      });
+    }
+    console.log(`SQLite DB initialized (set: ${setName}, id: ${setId})`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`SQLite init warning (continuing with file-only mode): ${msg}`);
+  }
+
   // Initialize model adapters
   const adapters = args.models.map((name) => {
     try {
@@ -402,7 +425,7 @@ async function run(): Promise<void> {
     const progress = `[${item.itemNumber}/${totalItems}]`;
 
     console.log(
-      `${progress} ${benchThm.id} x ${adapter.name} — running...`
+      `${progress} ${benchThm.id} x ${adapter.displayName} — running...`
     );
 
     const result: BenchmarkResult = {
@@ -434,6 +457,10 @@ async function run(): Promise<void> {
       const msg = err instanceof Error ? err.message : String(err);
       result.validation_errors = [`Prompt build error: ${msg}`];
       saveResult(result, args.output);
+      // DB dual-write
+      if (setName) {
+        try { db.insertResult(setName, result); } catch {}
+      }
       totalErrors++;
       console.log(`  -> PROMPT ERROR: ${msg}`);
       return;
@@ -451,6 +478,10 @@ async function run(): Promise<void> {
       const msg = err instanceof Error ? err.message : String(err);
       result.validation_errors = [`API error: ${msg}`];
       saveResult(result, args.output);
+      // DB dual-write
+      if (setName) {
+        try { db.insertResult(setName, result); } catch {}
+      }
       totalErrors++;
       console.log(`  -> API ERROR: ${msg}`);
       return;
@@ -466,6 +497,10 @@ async function run(): Promise<void> {
       result.validation_result = "error";
       result.validation_errors = [parseError ?? "Unknown parse error"];
       saveResult(result, args.output);
+      // DB dual-write
+      if (setName) {
+        try { db.insertResult(setName, result); } catch {}
+      }
       totalErrors++;
       console.log(`  -> PARSE ERROR: ${parseError}`);
       return;
@@ -483,6 +518,10 @@ async function run(): Promise<void> {
     result.line_count = valid ? line_count : null;
 
     saveResult(result, args.output);
+    // DB dual-write
+    if (setName) {
+      try { db.insertResult(setName, result); } catch {}
+    }
     totalRun++;
 
     if (valid) {
@@ -546,7 +585,7 @@ async function run(): Promise<void> {
     const modelSummary = {
       timestamp: new Date().toISOString(),
       theorems_file: args.theorems,
-      models: [adapter.name],
+      models: [adapter.displayName],
       total_run: rawResults.length,
       total_skipped: 0,
       total_valid: modelValid,
@@ -586,7 +625,7 @@ async function run(): Promise<void> {
           ...(failureStage !== undefined ? { failureStage } : {}),
         };
 
-        scorer.recordResult(raw.theorem_id, adapter.name, theoremResult);
+        scorer.recordResult(raw.theorem_id, adapter.displayName, theoremResult);
       }
 
       const report = scorer.generateReport();
@@ -595,8 +634,122 @@ async function run(): Promise<void> {
       console.log(`Model report written to ${reportPath}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`Failed to generate report for ${adapter.name}: ${msg}`);
+      console.error(`Failed to generate report for ${adapter.displayName}: ${msg}`);
     }
+  }
+
+  // Generate combined cross-model report at the set level (for Elo comparison)
+  // Scans ALL model subdirectories, not just current run's adapters
+  try {
+    const combinedScorer = new Scorer();
+    const allModelNames: string[] = [];
+    let combinedValid = 0;
+    let combinedInvalid = 0;
+    let combinedErrors = 0;
+
+    // Build display-name lookup from current adapters
+    const displayNameMap = new Map<string, string>();
+    for (const adapter of adapters) {
+      displayNameMap.set(adapter.name, adapter.displayName);
+    }
+
+    // Scan all model subdirectories in the output dir
+    const allSubDirs = fs.readdirSync(args.output, { withFileTypes: true })
+      .filter((d) => d.isDirectory());
+
+    for (const subDir of allSubDirs) {
+      const rawDir = path.join(args.output, subDir.name, "raw");
+      if (!fs.existsSync(rawDir)) continue;
+
+      // Resolve display name: adapter lookup → per-model summary → dir name
+      let displayName = displayNameMap.get(subDir.name);
+      if (!displayName) {
+        const modelSummaryPath = path.join(args.output, subDir.name, "summary.json");
+        if (fs.existsSync(modelSummaryPath)) {
+          try {
+            const ms = JSON.parse(fs.readFileSync(modelSummaryPath, "utf-8"));
+            displayName = ms.models?.[0] ?? subDir.name;
+          } catch {
+            displayName = subDir.name;
+          }
+        } else {
+          displayName = subDir.name;
+        }
+      }
+      allModelNames.push(displayName);
+
+      const rawFiles = fs.readdirSync(rawDir).filter((f) => f.endsWith(".json"));
+      for (const file of rawFiles) {
+        try {
+          const raw = JSON.parse(
+            fs.readFileSync(path.join(rawDir, file), "utf-8")
+          ) as BenchmarkResult;
+          const bt = theoremMap.get(raw.theorem_id);
+          const difficulty = (bt?.difficulty?.toLowerCase() ?? "medium") as DifficultyTier;
+          const difficultyValue = bt?.difficulty_value ?? 0;
+
+          const valid = raw.validation_result === "valid";
+          if (valid) combinedValid++;
+          else if (raw.validation_result === "invalid") combinedInvalid++;
+          else combinedErrors++;
+
+          let failureStage: "api_call" | "parse" | "validation" | undefined;
+          if (!valid) {
+            if (raw.parse_error !== null) failureStage = "parse";
+            else if (raw.validation_errors.some((e) => e.includes("API"))) failureStage = "api_call";
+            else failureStage = "validation";
+          }
+
+          combinedScorer.recordResult(raw.theorem_id, displayName, {
+            theoremId: raw.theorem_id,
+            valid,
+            parseSuccess: raw.parse_error === null,
+            lineCount: raw.line_count,
+            difficulty,
+            difficultyValue,
+            ...(failureStage !== undefined ? { failureStage } : {}),
+          });
+        } catch {
+          // Skip corrupt files
+        }
+      }
+    }
+
+    if (allModelNames.length > 0) {
+      const combinedReport = combinedScorer.generateReport();
+      const combinedSummary = {
+        timestamp: new Date().toISOString(),
+        theorems_file: args.theorems,
+        models: allModelNames,
+        total_run: combinedValid + combinedInvalid + combinedErrors,
+        total_skipped: 0,
+        total_valid: combinedValid,
+        total_invalid: combinedInvalid,
+        total_errors: combinedErrors,
+      };
+
+      fs.writeFileSync(
+        path.join(args.output, "report.json"),
+        JSON.stringify(combinedReport, null, 2),
+        "utf-8"
+      );
+      fs.writeFileSync(
+        path.join(args.output, "summary.json"),
+        JSON.stringify(combinedSummary, null, 2),
+        "utf-8"
+      );
+      console.log(`Combined report written to ${path.join(args.output, "report.json")}`);
+
+      combinedScorer.printSummary(combinedReport);
+    }
+
+    // Invalidate DB report cache so next server query recomputes
+    if (setId) {
+      try { db.invalidateReportCache(setId); } catch {}
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`Failed to generate combined report: ${msg}`);
   }
 }
 

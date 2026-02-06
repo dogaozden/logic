@@ -234,7 +234,38 @@ results/
 │   ├── v1-001_anthropic_1738800001.json
 │   └── ...
 └── summary.json                   # Run summary (counts, models used)
+propbench.db                       # SQLite database (all data)
 ```
+
+## Database (SQLite)
+
+PropBench uses SQLite (`propbench.db`) for storing benchmark results alongside the traditional JSON filesystem. The database uses WAL mode for safe concurrent access.
+
+### Migration
+
+To migrate existing JSON results into the database:
+
+```bash
+cd ~/Documents/AI_Projects/logic/prop-bench
+npm run migrate
+```
+
+This scans `benchmarks/` and `results/` directories and populates the SQLite database. The migration is idempotent — running it multiple times is safe.
+
+### Database location
+
+The database file `propbench.db` is created in the `prop-bench/` root directory.
+
+### Dual-write mode
+
+The harness writes results to both JSON files and SQLite simultaneously. The GUI server queries SQLite when available and falls back to filesystem scanning if the database is missing.
+
+### Schema
+
+- `theorem_sets` — Benchmark theorem set metadata
+- `theorems` — Individual theorems with difficulty ratings
+- `results` — Model benchmark results (one row per theorem × model)
+- `reports_cache` — Cached Elo reports for fast serving
 
 ## GUI
 

@@ -34,7 +34,14 @@ export interface ModelStats {
   invalidCount: number;
   totalAttempted: number;
   avgLinesPerValidProof: number | null;
-  linesByDifficulty: Record<DifficultyTier, { total: number; count: number; avg: number | null }>;
+  linesByDifficulty: Record<DifficultyTier, {
+    total: number;
+    count: number;
+    avg: number | null;
+    attempted: number;
+    valid: number;
+    invalid: number;
+  }>;
   eloRating: number;
 }
 
@@ -289,14 +296,14 @@ export class Scorer {
 
       const byDifficulty: Record<
         DifficultyTier,
-        { total: number; count: number }
+        { total: number; count: number; attempted: number; valid: number; invalid: number }
       > = {
-        easy: { total: 0, count: 0 },
-        medium: { total: 0, count: 0 },
-        hard: { total: 0, count: 0 },
-        expert: { total: 0, count: 0 },
-        nightmare: { total: 0, count: 0 },
-        marathon: { total: 0, count: 0 },
+        easy: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
+        medium: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
+        hard: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
+        expert: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
+        nightmare: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
+        marathon: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
       };
 
       for (const [, modelMap] of this.results) {
@@ -304,14 +311,20 @@ export class Scorer {
         if (!result) continue;
 
         totalAttempted++;
+        const d = byDifficulty[result.difficulty];
+        if (d) d.attempted++;
+
         if (result.valid && result.lineCount !== null) {
           validCount++;
           totalLines += result.lineCount;
-          const d = byDifficulty[result.difficulty];
-          d.total += result.lineCount;
-          d.count++;
+          if (d) {
+            d.total += result.lineCount;
+            d.count++;
+            d.valid++;
+          }
         } else {
           invalidCount++;
+          if (d) d.invalid++;
         }
       }
 
@@ -322,6 +335,9 @@ export class Scorer {
           total: d.total,
           count: d.count,
           avg: d.count > 0 ? d.total / d.count : null,
+          attempted: d.attempted,
+          valid: d.valid,
+          invalid: d.invalid,
         };
       }
 

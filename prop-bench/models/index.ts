@@ -18,14 +18,15 @@ export interface ModelResponse {
 
 export interface ModelAdapter {
   name: string;
+  displayName: string;
   callModel(prompt: string, config: ModelConfig): Promise<ModelResponse>;
 }
 
 const ADAPTER_ALIASES: Record<string, () => ModelAdapter> = {
   gemini: () => new GeminiAdapter(),
   "gemini-flash": () => new GeminiAdapter(),
-  "gemini-3-flash": () => new GeminiAdapter("gemini-3-flash", "gemini-3-flash-preview"),
-  "gemini-3-pro": () => new GeminiAdapter("gemini-3-pro", "gemini-3-pro-preview"),
+  "gemini-3-flash": () => new GeminiAdapter("gemini-3-flash", "Gemini 3 Flash", "gemini-3-flash-preview"),
+  "gemini-3-pro": () => new GeminiAdapter("gemini-3-pro", "Gemini 3 Pro", "gemini-3-pro-preview"),
   claude: () => new AnthropicAdapter(),
   anthropic: () => new AnthropicAdapter(),
   gpt: () => new OpenAIAdapter(),

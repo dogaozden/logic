@@ -199,7 +199,7 @@ function Dashboard() {
           </div>
 
           <div className="dashboard-section">
-            <h3>Avg Lines by Difficulty Tier</h3>
+            <h3>Results by Difficulty</h3>
             <DifficultyBreakdown report={report} />
           </div>
 

@@ -9,6 +9,8 @@ import { RESULTS_DIR, BENCHMARKS_DIR } from "../cli";
 const require_ = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ScorerModule: any = require_("../../../scorer");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const dbModule: any = require_("../../../db");
 
 type DifficultyTier =
   | "easy" | "medium" | "hard" | "expert" | "nightmare" | "marathon";
@@ -22,6 +24,15 @@ interface TheoremResult {
   difficultyValue: number;
   failureStage?: "api_call" | "parse" | "validation";
 }
+
+/** Map adapter slug to human-readable display name */
+const DISPLAY_NAMES: Record<string, string> = {
+  gemini: "Gemini 2.5 Flash Lite",
+  "gemini-3-flash": "Gemini 3 Flash",
+  "gemini-3-pro": "Gemini 3 Pro",
+  anthropic: "Claude Sonnet 4.5",
+  openai: "GPT-4o",
+};
 
 const router = Router();
 
@@ -37,13 +48,12 @@ function findResultDirs(): { runId: string; dir: string; summaryPath: string }[]
 
     const setDir = path.join(RESULTS_DIR, set.name);
 
-    // New layout: check model subdirectories {set}/{model}/summary.json
+    // Check for model subdirectories {set}/{model}/summary.json
     const subDirs = fs.readdirSync(setDir, { withFileTypes: true });
     let foundModelSubdirs = false;
 
     for (const sub of subDirs) {
       if (!sub.isDirectory()) continue;
-      // Skip "raw" dir — that belongs to old flat layout
       if (sub.name === "raw") continue;
 
       const summaryPath = path.join(setDir, sub.name, "summary.json");
@@ -53,6 +63,18 @@ function findResultDirs(): { runId: string; dir: string; summaryPath: string }[]
           runId: `${set.name}/${sub.name}`,
           dir: path.join(setDir, sub.name),
           summaryPath,
+        });
+      }
+    }
+
+    // Combined set-level report (cross-model comparison with Elo)
+    if (foundModelSubdirs) {
+      const combinedSummary = path.join(setDir, "summary.json");
+      if (fs.existsSync(combinedSummary)) {
+        found.push({
+          runId: set.name,
+          dir: setDir,
+          summaryPath: combinedSummary,
         });
       }
     }
@@ -73,6 +95,20 @@ function findResultDirs(): { runId: string; dir: string; summaryPath: string }[]
 router.get("/", (_req: Request, res: Response) => {
   try {
     console.log("[runs] GET / - RESULTS_DIR:", RESULTS_DIR);
+
+    // Try SQLite first
+    if (dbModule.dbExists()) {
+      try {
+        const runs = dbModule.getRunsList();
+        console.log(`[runs] Returning ${runs.length} runs (from DB)`);
+        res.json(runs);
+        return;
+      } catch (dbErr) {
+        console.warn("[runs] DB query failed, falling back to filesystem:", dbErr);
+      }
+    }
+
+    // Filesystem fallback
     const dirs = findResultDirs();
     console.log(`[runs] Found ${dirs.length} result directories`);
 
@@ -109,6 +145,19 @@ router.get("/", (_req: Request, res: Response) => {
 router.get("/:runId(*)", (req: Request, res: Response) => {
   try {
     const { runId } = req.params;
+
+    // Try SQLite first
+    if (dbModule.dbExists()) {
+      try {
+        const detail = dbModule.getRunDetail(runId);
+        res.json(detail);
+        return;
+      } catch (dbErr) {
+        console.warn(`[runs] DB query failed for ${runId}, falling back to filesystem:`, dbErr);
+      }
+    }
+
+    // Filesystem fallback
     const dirs = findResultDirs();
     const match = dirs.find((d) => d.runId === runId);
 
@@ -118,10 +167,11 @@ router.get("/:runId(*)", (req: Request, res: Response) => {
     }
 
     // Read raw result files
-    const rawDir = path.join(match.dir, "raw");
     let results: unknown[] = [];
 
+    const rawDir = path.join(match.dir, "raw");
     if (fs.existsSync(rawDir)) {
+      // Single-model layout: raw/ directly in match.dir
       const files = fs.readdirSync(rawDir).filter((f) => f.endsWith(".json"));
       results = files.map((f) => {
         try {
@@ -130,6 +180,22 @@ router.get("/:runId(*)", (req: Request, res: Response) => {
           return null;
         }
       }).filter(Boolean);
+    } else {
+      // Combined set-level: collect raw/ from all model subdirs
+      const subDirs = fs.readdirSync(match.dir, { withFileTypes: true });
+      for (const sub of subDirs) {
+        if (!sub.isDirectory()) continue;
+        const subRawDir = path.join(match.dir, sub.name, "raw");
+        if (!fs.existsSync(subRawDir)) continue;
+        const files = fs.readdirSync(subRawDir).filter((f) => f.endsWith(".json"));
+        for (const f of files) {
+          try {
+            results.push(JSON.parse(fs.readFileSync(path.join(subRawDir, f), "utf-8")));
+          } catch {
+            // skip
+          }
+        }
+      }
     }
 
     // Prefer report.json (full BenchmarkReport) if it exists
@@ -213,7 +279,8 @@ router.get("/:runId(*)", (req: Request, res: Response) => {
               ...(failureStage !== undefined ? { failureStage } : {}),
             };
 
-            scorer.recordResult(theoremId, model, theoremResult);
+            const displayModel = DISPLAY_NAMES[model] ?? model;
+            scorer.recordResult(theoremId, displayModel, theoremResult);
           }
 
           summary = scorer.generateReport();
@@ -234,15 +301,23 @@ router.get("/:runId(*)", (req: Request, res: Response) => {
 router.delete("/:runId(*)", (req: Request, res: Response) => {
   try {
     const { runId } = req.params;
-    const dirs = findResultDirs();
-    const match = dirs.find((d) => d.runId === runId);
 
-    if (!match) {
-      res.status(404).json({ error: `Run '${runId}' not found` });
-      return;
+    // Delete from DB if available
+    if (dbModule.dbExists()) {
+      try {
+        dbModule.deleteRun(runId);
+      } catch (dbErr) {
+        console.warn(`[runs] DB delete failed for ${runId}:`, dbErr);
+      }
     }
 
-    fs.rmSync(match.dir, { recursive: true, force: true });
+    // Also delete from filesystem
+    const dirs = findResultDirs();
+    const match = dirs.find((d) => d.runId === runId);
+    if (match) {
+      fs.rmSync(match.dir, { recursive: true, force: true });
+    }
+
     res.json({ success: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

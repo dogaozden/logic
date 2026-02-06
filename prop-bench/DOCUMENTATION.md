@@ -1305,6 +1305,22 @@ npx vite build
 
 The GUI requires the same `.env` file in `prop-bench/` root as the CLI harness.
 
+### SQLite Storage Layer
+
+PropBench uses SQLite (`propbench.db`) as a persistent storage layer, replacing filesystem scanning for the GUI server and providing faster data access for reports and rankings.
+
+**Schema (4 tables):**
+- `theorem_sets` — Benchmark theorem set metadata (name, path, theorem count)
+- `theorems` — Individual theorems with premises, conclusion, difficulty tier, and difficulty value
+- `results` — Model benchmark results (one row per theorem x model attempt, includes validation status, line count, latency, raw response)
+- `reports_cache` — Cached Elo reports for fast serving without recomputation
+
+**Concurrency:** The database uses WAL (Write-Ahead Logging) mode for safe concurrent reads and writes, allowing the GUI server to query results while the harness writes new ones.
+
+**Dual-write approach:** During the transition period, the harness writes results to both JSON files (in `results/raw/`) and SQLite simultaneously. The GUI server queries SQLite when the database is available and falls back to filesystem scanning if `propbench.db` is missing. This ensures backward compatibility with existing tooling that reads JSON files directly.
+
+**Migration:** Existing JSON results can be imported into the database via `npm run migrate`, which scans `benchmarks/` and `results/` directories. The migration is idempotent and safe to run multiple times.
+
 ---
 
 ## CLI Binary (`src/main.rs`)

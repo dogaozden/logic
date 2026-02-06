@@ -87,7 +87,14 @@ export interface ModelStats {
   avgLinesPerValidProof: number | null;
   linesByDifficulty: Record<
     DifficultyTier,
-    { total: number; count: number; avg: number | null }
+    {
+      total: number;
+      count: number;
+      avg: number | null;
+      attempted: number;
+      valid: number;
+      invalid: number;
+    }
   >;
   eloRating: number;
 }

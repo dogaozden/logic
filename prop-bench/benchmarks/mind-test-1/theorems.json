@@ -1,0 +1,16 @@
+[
+  {
+    "id": "v1-001",
+    "premises": [],
+    "conclusion": "A -> {~{{~{{{{[C | (~C & C)] & (~C & C)} | ~A} & [C | (~C & C)]} -> [~(~C & C)]}} | {~{{A & {~{[C | (~C & C)] & (~C & C)}}} | {~[C | (~C & C)]}}}}}",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 20,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4
+    }
+  }
+]

@@ -7,10 +7,12 @@ const BASE_DELAY_MS = 1000;
 
 export class GeminiAdapter implements ModelAdapter {
   name: string;
+  displayName: string;
   private defaultModel: string;
 
-  constructor(name = "gemini", defaultModel = DEFAULT_MODEL) {
+  constructor(name = "gemini", displayName = "Gemini 2.5 Flash Lite", defaultModel = DEFAULT_MODEL) {
     this.name = name;
+    this.displayName = displayName;
     this.defaultModel = defaultModel;
   }
 
