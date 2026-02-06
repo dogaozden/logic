@@ -215,6 +215,8 @@ export OPENAI_API_KEY="your-key-here"
 | Alias | Provider | Default Model | SDK |
 |-------|----------|---------------|-----|
 | `gemini`, `gemini-flash` | Google | `gemini-2.5-flash-lite-preview-09-2025` | `@google/genai` v1.0.0 |
+| `gemini-3-flash` | Google | `gemini-3-flash-preview` | `@google/genai` v1.0.0 |
+| `gemini-3-pro` | Google | `gemini-3-pro-preview` | `@google/genai` v1.0.0 |
 | `claude`, `anthropic` | Anthropic | `claude-sonnet-4-5-20250929` | `@anthropic-ai/sdk` v0.39.0 |
 | `gpt`, `openai` | OpenAI | `gpt-4o` | `openai` v4.77.0 |
 

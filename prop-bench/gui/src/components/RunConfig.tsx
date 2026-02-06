@@ -13,7 +13,9 @@ export interface RunConfigValues {
 }
 
 const MODEL_OPTIONS = [
-  { key: "gemini", label: "Gemini", envVar: "GEMINI_API_KEY", model: "gemini-2.5-flash-lite-preview-09-2025" },
+  { key: "gemini", label: "Gemini Flash Lite", envVar: "GEMINI_API_KEY", model: "gemini-2.5-flash-lite-preview-09-2025" },
+  { key: "gemini-3-flash", label: "Gemini 3 Flash", envVar: "GEMINI_API_KEY", model: "gemini-3-flash-preview" },
+  { key: "gemini-3-pro", label: "Gemini 3 Pro", envVar: "GEMINI_API_KEY", model: "gemini-3-pro-preview" },
   { key: "claude", label: "Claude", envVar: "ANTHROPIC_API_KEY", model: "claude-sonnet-4-5-20250929" },
   { key: "gpt", label: "GPT", envVar: "OPENAI_API_KEY", model: "gpt-4o" },
 ] as const;

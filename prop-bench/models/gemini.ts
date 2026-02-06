@@ -6,7 +6,13 @@ const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 1000;
 
 export class GeminiAdapter implements ModelAdapter {
-  name = "gemini";
+  name: string;
+  private defaultModel: string;
+
+  constructor(name = "gemini", defaultModel = DEFAULT_MODEL) {
+    this.name = name;
+    this.defaultModel = defaultModel;
+  }
 
   async callModel(prompt: string, config: ModelConfig): Promise<ModelResponse> {
     const apiKey = config.apiKey || process.env.GEMINI_API_KEY;
@@ -16,7 +22,7 @@ export class GeminiAdapter implements ModelAdapter {
       );
     }
 
-    const modelName = config.model || DEFAULT_MODEL;
+    const modelName = config.model || this.defaultModel;
     const client = new GoogleGenAI({ apiKey });
 
     let lastError: Error | null = null;

@@ -24,6 +24,8 @@ export interface ModelAdapter {
 const ADAPTER_ALIASES: Record<string, () => ModelAdapter> = {
   gemini: () => new GeminiAdapter(),
   "gemini-flash": () => new GeminiAdapter(),
+  "gemini-3-flash": () => new GeminiAdapter("gemini-3-flash", "gemini-3-flash-preview"),
+  "gemini-3-pro": () => new GeminiAdapter("gemini-3-pro", "gemini-3-pro-preview"),
   claude: () => new AnthropicAdapter(),
   anthropic: () => new AnthropicAdapter(),
   gpt: () => new OpenAIAdapter(),
