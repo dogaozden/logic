@@ -141,6 +141,127 @@ router.get("/", (_req: Request, res: Response) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Stats endpoints — MUST come before the /:runId(*) catch-all
+// ---------------------------------------------------------------------------
+
+/** GET /api/runs/stats/overview — Dashboard overview */
+router.get("/stats/overview", (_req: Request, res: Response) => {
+  try {
+    if (!dbModule.dbExists()) {
+      res.status(503).json({ error: "Database not available" });
+      return;
+    }
+    const overview = dbModule.getDashboardOverview();
+    res.json(overview);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+/** GET /api/runs/stats/head-to-head/:setName — Head-to-head matrix */
+router.get("/stats/head-to-head/:setName", (req: Request, res: Response) => {
+  try {
+    if (!dbModule.dbExists()) {
+      res.status(503).json({ error: "Database not available" });
+      return;
+    }
+    const cells = dbModule.getHeadToHeadMatrix(req.params.setName);
+    res.json(cells);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+/** GET /api/runs/stats/latency/:setName? — Latency stats */
+router.get("/stats/latency/:setName", (req: Request, res: Response) => {
+  try {
+    if (!dbModule.dbExists()) {
+      res.status(503).json({ error: "Database not available" });
+      return;
+    }
+    const stats = dbModule.getLatencyStats(req.params.setName);
+    res.json(stats);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.get("/stats/latency", (_req: Request, res: Response) => {
+  try {
+    if (!dbModule.dbExists()) {
+      res.status(503).json({ error: "Database not available" });
+      return;
+    }
+    const stats = dbModule.getLatencyStats();
+    res.json(stats);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+/** GET /api/runs/stats/avg-lines-by-difficulty/:setName — Avg lines by difficulty */
+router.get("/stats/avg-lines-by-difficulty/:setName", (req: Request, res: Response) => {
+  try {
+    if (!dbModule.dbExists()) {
+      res.status(503).json({ error: "Database not available" });
+      return;
+    }
+    const data = dbModule.getAvgLinesByDifficulty(req.params.setName);
+    res.json(data);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.get("/stats/avg-lines-by-difficulty", (_req: Request, res: Response) => {
+  try {
+    if (!dbModule.dbExists()) {
+      res.status(503).json({ error: "Database not available" });
+      return;
+    }
+    const data = dbModule.getAvgLinesByDifficulty();
+    res.json(data);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+/** GET /api/runs/stats/failures/:setName? — Failure analysis */
+router.get("/stats/failures/:setName", (req: Request, res: Response) => {
+  try {
+    if (!dbModule.dbExists()) {
+      res.status(503).json({ error: "Database not available" });
+      return;
+    }
+    const analysis = dbModule.getFailureAnalysis(req.params.setName);
+    res.json(analysis);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.get("/stats/failures", (_req: Request, res: Response) => {
+  try {
+    if (!dbModule.dbExists()) {
+      res.status(503).json({ error: "Database not available" });
+      return;
+    }
+    const analysis = dbModule.getFailureAnalysis();
+    res.json(analysis);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
 /** GET /api/runs/:runId — get full results for a run */
 router.get("/:runId(*)", (req: Request, res: Response) => {
   try {

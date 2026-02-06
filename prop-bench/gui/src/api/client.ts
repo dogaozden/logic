@@ -71,6 +71,69 @@ export interface RunDetail {
   results: Record<string, unknown>[];
 }
 
+export interface DashboardOverview {
+  totalSets: number;
+  totalTheorems: number;
+  totalResults: number;
+  totalModels: number;
+  modelSummaries: Array<{
+    model_slug: string;
+    model_display: string;
+    total_attempted: number;
+    total_valid: number;
+    total_invalid: number;
+    total_errors: number;
+    valid_rate: number;
+    avg_latency_ms: number;
+    avg_lines: number | null;
+    total_tokens: number;
+  }>;
+  sets: Array<{
+    name: string;
+    theorem_count: number;
+    result_count: number;
+    models: string[];
+  }>;
+}
+
+export interface HeadToHeadCell {
+  modelA: string;
+  modelB: string;
+  winsA: number;
+  winsB: number;
+  ties: number;
+  total: number;
+}
+
+export interface LatencyStats {
+  model_slug: string;
+  model_display: string;
+  avg_ms: number;
+  min_ms: number;
+  max_ms: number;
+  p50_ms: number;
+  total_tokens: number;
+  avg_tokens: number;
+}
+
+export interface FailureAnalysis {
+  model_slug: string;
+  model_display: string;
+  total: number;
+  valid: number;
+  parse_failures: number;
+  validation_failures: number;
+  api_errors: number;
+}
+
+export interface AvgLinesByDifficulty {
+  model_slug: string;
+  model_display: string;
+  difficulty: string;
+  avg_lines: number;
+  count: number;
+}
+
 // ---------------------------------------------------------------------------
 // API methods
 // ---------------------------------------------------------------------------
@@ -140,5 +203,39 @@ export const api = {
     await json<{ success: boolean }>(`/runs/${encodeURIComponent(runId)}`, {
       method: "DELETE",
     });
+  },
+
+  /** Get dashboard overview stats */
+  getDashboardOverview(): Promise<DashboardOverview> {
+    return json<DashboardOverview>("/runs/stats/overview");
+  },
+
+  /** Get head-to-head comparison matrix for a theorem set */
+  getHeadToHead(setName: string): Promise<HeadToHeadCell[]> {
+    return json<HeadToHeadCell[]>(`/runs/stats/head-to-head/${encodeURIComponent(setName)}`);
+  },
+
+  /** Get latency statistics, optionally filtered by set */
+  getLatencyStats(setName?: string): Promise<LatencyStats[]> {
+    const path = setName
+      ? `/runs/stats/latency/${encodeURIComponent(setName)}`
+      : "/runs/stats/latency";
+    return json<LatencyStats[]>(path);
+  },
+
+  /** Get avg lines by difficulty, optionally filtered by set */
+  getAvgLinesByDifficulty(setName?: string): Promise<AvgLinesByDifficulty[]> {
+    const path = setName
+      ? `/runs/stats/avg-lines-by-difficulty/${encodeURIComponent(setName)}`
+      : "/runs/stats/avg-lines-by-difficulty";
+    return json<AvgLinesByDifficulty[]>(path);
+  },
+
+  /** Get failure analysis, optionally filtered by set */
+  getFailureAnalysis(setName?: string): Promise<FailureAnalysis[]> {
+    const path = setName
+      ? `/runs/stats/failures/${encodeURIComponent(setName)}`
+      : "/runs/stats/failures";
+    return json<FailureAnalysis[]>(path);
   },
 };

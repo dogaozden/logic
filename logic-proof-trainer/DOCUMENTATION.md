@@ -975,4 +975,12 @@ npm run dev  # Opens http://localhost:3000
 
 **SQLite Storage:** PropBench now uses SQLite (`propbench.db`) as its primary storage layer for benchmark results, replacing filesystem scanning in the GUI server. The harness dual-writes to both JSON files and SQLite during the transition. Existing JSON results can be migrated via `npm run migrate`. The database uses WAL mode for concurrent access and includes four tables: `theorem_sets`, `theorems`, `results`, and `reports_cache`.
 
+**Dashboard Statistics:** The PropBench GUI Dashboard displays comprehensive benchmark analytics including:
+- Elo Rankings — Models ranked by competitive performance
+- Difficulty Breakdown — Success rates across difficulty tiers
+- Head-to-Head Wins — Pairwise comparison matrix
+- **Avg Proof Length by Difficulty** — Average line count per model per difficulty tier (only valid proofs), with green highlighting on shortest averages. Helps identify which models produce more concise proofs at different complexity levels.
+- Latency Comparison — API response time analysis
+- Failure Analysis — Parse errors and validation failures
+
 See `prop-bench/DOCUMENTATION.md`, `prop-bench/ARCHITECTURE.md`, and `prop-bench/COMMANDS.md` for complete PropBench documentation.

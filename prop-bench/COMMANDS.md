@@ -267,6 +267,28 @@ The harness writes results to both JSON files and SQLite simultaneously. The GUI
 - `results` — Model benchmark results (one row per theorem × model)
 - `reports_cache` — Cached Elo reports for fast serving
 
+### Database queries
+
+The PropBench database includes several query functions for retrieving aggregate statistics:
+
+#### Average lines by difficulty
+
+```typescript
+getAvgLinesByDifficulty(setName?: string): Promise<AvgLinesByDifficultyRow[]>
+```
+
+Computes the average proof line count for each model across difficulty tiers. Only valid proofs are included in the calculation. Results include the count of valid proofs per model per tier.
+
+**Parameters:**
+- `setName` (optional) — Filter results to a specific theorem set
+
+**Returns:**
+Array of objects containing:
+- `model` — Model alias (e.g., "gemini", "claude", "gpt")
+- `difficulty` — Difficulty tier name
+- `avg_lines` — Average line count for valid proofs
+- `valid_count` — Number of valid proofs used in calculation
+
 ## GUI
 
 ### Setup
@@ -304,9 +326,27 @@ npx vite build
 
 | Route | Page | Description |
 |-------|------|-------------|
-| `/` | Dashboard | Load results JSON, view Elo rankings, difficulty breakdown, aggregate stats |
+| `/` | Dashboard | Load results JSON, view Elo rankings, difficulty breakdown, aggregate stats, average lines by difficulty, head-to-head wins, latency comparison |
 | `/theorems` | Theorem Explorer | Browse 100 theorems, filter by difficulty, view Fitch-style proofs, compare models side-by-side |
 | `/runner` | Benchmark Runner | Configure benchmark parameters, generate CLI command, track run history |
+
+### Dashboard features
+
+#### Avg Lines by Difficulty
+
+Displays a table showing the average proof line count for each model across difficulty tiers. Features:
+- **Rows:** Models (gemini, claude, gpt, etc.)
+- **Columns:** Difficulty tiers (Easy, Medium, Hard, Expert, Nightmare, etc.)
+- **Cells:** Average line count with valid proof count in parentheses, e.g., "12.5 (8)"
+- **Highlighting:** Green background on the shortest (best) average for each difficulty tier
+- **Data source:** Only valid proofs are included; invalid/failed proofs are excluded
+
+The table helps identify which models produce more concise proofs at different difficulty levels.
+
+#### API endpoints
+
+- `GET /api/runs/stats/avg-lines-by-difficulty` — Get avg lines by difficulty for all theorem sets
+- `GET /api/runs/stats/avg-lines-by-difficulty/:setName` — Filter by specific theorem set
 
 ## Development
 
@@ -385,3 +425,12 @@ cargo build
 ### Import Fixes
 - Removed `.js` extensions from all TypeScript imports (was breaking ts-node in CommonJS mode)
 - Affects: `models/index.ts`, `models/gemini.ts`, `models/anthropic.ts`, `models/openai.ts`
+
+### Dashboard Statistics
+- Added "Avg Lines by Difficulty" table showing average proof line counts per model per difficulty tier
+- New database query `getAvgLinesByDifficulty()` joins results with theorems to compute averages
+- Only valid proofs are included in the calculation
+- Table highlights the shortest (best) average per difficulty tier in green
+- Valid proof counts shown in parentheses for each cell
+- New API endpoints: `/api/runs/stats/avg-lines-by-difficulty` and `/api/runs/stats/avg-lines-by-difficulty/:setName`
+- Component integrated into Dashboard between Head-to-Head Wins and Latency Comparison sections

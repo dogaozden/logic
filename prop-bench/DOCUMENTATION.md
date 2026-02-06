@@ -1237,11 +1237,18 @@ gui/
     ├── cli.ts              # Spawns harness subprocess
     └── routes/
         ├── benchmark.ts    # POST /api/benchmark (SSE streaming)
-        ├── results.ts      # GET /api/results (list results)
+        ├── results.ts      # GET /api/results (list results), stats endpoints
         └── theorems.ts     # GET /api/theorems (list theorems)
 ```
 
 ### Backend (Express Server)
+
+**Results Stats API (`server/routes/results.ts`):** The results route provides several statistics endpoints:
+- `GET /api/runs/stats/avg-lines-by-difficulty/:setName` — Returns average line count per model per difficulty tier for a specific theorem set
+- `GET /api/runs/stats/avg-lines-by-difficulty` — Returns average line count across all theorem sets
+- Both endpoints require SQLite database availability (return 503 if database not found)
+
+### Frontend (React + Vite)
 
 **Environment Loading (`server/index.ts`):** The server loads environment variables from `prop-bench/.env` using dotenv with `override: true` before starting. This ensures API keys are available to spawned harness processes.
 
@@ -1264,6 +1271,19 @@ gui/
 
 ### Frontend (React + Vite)
 
+**Dashboard (`pages/Dashboard.tsx`):**
+- Main results viewer displaying Elo rankings, difficulty breakdowns, and model comparisons
+- Multi-set support: dropdown selector for choosing benchmark theorem sets
+- **Statistics sections:**
+  - Elo Rankings Table — Models ranked by Elo rating
+  - Difficulty Breakdown — Valid/invalid/error counts per model per difficulty tier
+  - Elo Chart — Visual comparison of model ratings
+  - Head-to-Head Wins Matrix — Pairwise win counts between models
+  - **Avg Proof Length by Difficulty** — New table showing average line count per model per difficulty tier (only valid proofs), with green highlighting for best (shortest) average per tier
+  - Latency Comparison — API response time statistics
+  - Failure Analysis — Parse errors, validation failures, API errors breakdown
+- Fallback mode: supports manual JSON file upload when database unavailable
+
 **Benchmark Runner (`pages/BenchmarkRunner.tsx`):**
 - Fixed stale closure bug in SSE `onerror` handler using `useRef` for `isRunning` state
 - Real-time progress tracking via SSE
@@ -1283,6 +1303,14 @@ gui/
 - Maps model aliases to full names (e.g., "gemini" → "Gemini 2.5 Flash Lite Preview")
 - **Important:** When CLI model names/defaults change, this component must be updated per CLAUDE.md rules
 - Includes a "Parallel Workers" field for configuring concurrent API calls
+
+**Avg Lines by Difficulty Table (`components/AvgLinesByDifficultyTable.tsx`):**
+- Displays average proof line count per model per difficulty tier
+- Data structure: models as rows, difficulty tiers (easy, medium, hard, expert, nightmare, marathon, absurd, cosmic, mind) as columns
+- Each cell shows: average line count (1 decimal place) + count of valid proofs in parentheses
+- Green highlighting (`color: var(--success)`) on the best (shortest) average per tier
+- Empty cells displayed as `--` when no data available for that model/tier combination
+- Tier ordering follows standard difficulty progression
 
 **Vite Proxy (`vite.config.ts`):**
 - **v2.5 fix:** Added SSE buffering fix by setting `cache-control` and `x-accel-buffering` headers in proxy configuration
@@ -1320,6 +1348,9 @@ PropBench uses SQLite (`propbench.db`) as a persistent storage layer, replacing 
 **Dual-write approach:** During the transition period, the harness writes results to both JSON files (in `results/raw/`) and SQLite simultaneously. The GUI server queries SQLite when the database is available and falls back to filesystem scanning if `propbench.db` is missing. This ensures backward compatibility with existing tooling that reads JSON files directly.
 
 **Migration:** Existing JSON results can be imported into the database via `npm run migrate`, which scans `benchmarks/` and `results/` directories. The migration is idempotent and safe to run multiple times.
+
+**Query Functions (`db.ts`):**
+- `getAvgLinesByDifficulty(setName?)` — Computes average proof line count per model per difficulty tier. Joins `results` with `theorems` to aggregate only valid proofs. Returns array of `{ model_slug, model_display, difficulty, avg_lines, count }`. Useful for analyzing which models produce shorter proofs at different difficulty levels.
 
 ---
 
