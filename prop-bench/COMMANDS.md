@@ -75,6 +75,8 @@ The generate command supports three modes: **distribution** (legacy), **tier pre
 ./target/release/propbench validate --theorem theorem.json --proof proof.json
 ```
 
+**Note:** The current benchmark uses tautology-only theorems (empty premises). The examples below show the data structure format, which still supports theorems with premises for validation purposes, but the benchmark prompt no longer generates premise-based theorems.
+
 **theorem.json** format (formulas use ASCII with alternating brackets):
 ```json
 {
@@ -85,7 +87,7 @@ The generate command supports three modes: **distribution** (legacy), **tier pre
   "difficulty_value": 8
 }
 
-// Medium+ example with brackets:
+// Tautology example (current benchmark format):
 {
   "id": "v1-042",
   "premises": [],
@@ -378,8 +380,12 @@ cargo build
 - Result: Benchmark accuracy improved from 50% to 100% on first 10 theorems
 
 ### Prompt Improvements
-- Added CRITICAL section clarifying that FORMULA must be only the derived result, not premises
-- Includes explicit correct/incorrect examples in the output format specification
+- **Tautology-only:** All premise-related code removed from `buildPrompt()` — no more `hasPremises` branching, `formatTheoremWithPremises()`, or `formatTautology()` helper functions
+- Single code path: `buildPrompt()` now has a unified structure for all theorems
+- System instruction says "Given a theorem" (not "Given a tautology")
+- "Premise" justification type removed from output format specification
+- Worked example section now has only ONE example (tautology with nested CP) — the old "with premises" example was removed
+- Simplified and streamlined prompt structure
 
 ### SDK Migration
 - Gemini adapter migrated from deprecated `@google/generative-ai` to new `@google/genai` SDK

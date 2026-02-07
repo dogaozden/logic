@@ -10,7 +10,7 @@ import { Theorem } from "./config";
 
 const INFERENCE_RULES = `\
 VALID ARGUMENT FORMS (Inference Rules)
-These rules derive a NEW formula from cited premise lines.
+These rules derive a NEW formula from cited lines.
 
  #  Name                     Abbrev  Pattern
  1  Modus Ponens             MP      p > q, p           => q
@@ -90,7 +90,6 @@ Where:
   JUSTIFICATION  -- the rule and line references used
 
 JUSTIFICATION is one of:
-  Premise                    -- for given premises
   Assumption (CP)            -- opens a CP subproof
   Assumption (IP)            -- opens an IP subproof
   RULE LINE_NUMBERS          -- e.g. MP 1,2  or  Simp 3  or  DeM 5
@@ -98,38 +97,34 @@ JUSTIFICATION is one of:
   IP START-END               -- closes an IP subproof (e.g. IP 4-9)
 
 CRITICAL: The FORMULA field must contain ONLY the single formula you derived,
-NOT the premises you used to derive it.
-
-Example (CORRECT):
-  1. P > Q Premise
-  2. ~Q Premise
-  3. ~P MT 1,2          <-- formula is just "~P", not "P > Q, ~Q"
-
-Example (WRONG):
-  3. P > Q, ~Q MT 1,2   <-- DO NOT include premises in the formula field
+NOT the formulas you used to derive it.
 
 Indent lines inside subproofs with 2 extra spaces per nesting level.
-Minimize the total number of proof lines.`;
+Minimize the total number of proof lines.
+
+COMPLETE EXAMPLE (tautology — uses nested CP):
+  Prove: P > (Q > (P . Q))
+
+  1.   P Assumption (CP)
+  2.     Q Assumption (CP)
+  3.     P . Q Conj 1,2
+  4.   Q > (P . Q) CP 2-3
+  5. P > (Q > (P . Q)) CP 1-4
+
+Your output must look EXACTLY like the example above: numbered lines only,
+no backticks, no commentary, no natural language reasoning.`;
 
 // --- Prompt builder ---------------------------------------------------------
 
 /**
- * Build a complete benchmark prompt for a given theorem.
- *
- * - Easy theorems (difficulty_value 1-25) have explicit premises + conclusion.
- * - Medium+ theorems (26-100) are standalone tautologies with no premises.
+ * Build a complete benchmark prompt for a given theorem (tautology).
+ * All theorems are tautologies with no premises — proofs use CP and/or IP.
  */
 export function buildPrompt(theorem: Theorem): string {
-  const hasPremises = theorem.premises.length > 0;
-
-  const theoremSection = hasPremises
-    ? formatTheoremWithPremises(theorem)
-    : formatTautology(theorem);
-
   return `\
 You are a formal logic proof assistant. Given a theorem, produce a
 correct Fitch-style natural deduction proof using ONLY the rules and
-techniques listed below. Your primary goal is to get the correct proof with the fewest  logical operations. 
+techniques listed below. Your primary goal is to get the correct proof with the fewest logical operations.
 
 ${SYMBOLS}
 
@@ -143,34 +138,13 @@ ${OUTPUT_FORMAT}
 
 -------------------------------------
 THEOREM TO PROVE
-${theoremSection}
+Prove the following tautology:
+  ${theorem.conclusion}
+
+You will need to use Conditional Proof (CP) and/or Indirect Proof (IP)
+to derive the formula.
 -------------------------------------
 
 Write your proof below. Output ONLY the numbered proof lines.
 Do not include any explanation, commentary, or extra text.`;
-}
-
-// --- Helpers ----------------------------------------------------------------
-
-function formatTheoremWithPremises(theorem: Theorem): string {
-  const premiseList = theorem.premises
-    .map((p, i) => `  ${i + 1}. ${p}`)
-    .join("\n");
-
-  return `\
-Premises:
-${premiseList}
-Conclusion: ${theorem.conclusion}
-
-Your proof must begin with the premises as given (justified as "Premise"),
-then derive the conclusion.`;
-}
-
-function formatTautology(theorem: Theorem): string {
-  return `\
-Prove the following tautology (no premises):
-  ${theorem.conclusion}
-
-Since there are no premises, you will need to use Conditional Proof (CP)
-and/or Indirect Proof (IP) to derive the formula.`;
 }

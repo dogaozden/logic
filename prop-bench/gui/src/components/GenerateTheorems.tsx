@@ -11,11 +11,15 @@ type GenerateMode = "distribution" | "tier" | "custom";
 
 const DEFAULT_TOTAL = 100;
 const DEFAULT_DIST = {
-  easy: 30,
-  medium: 30,
+  easy: 20,
+  medium: 20,
   hard: 20,
   expert: 15,
-  nightmare: 5,
+  nightmare: 10,
+  marathon: 7,
+  absurd: 5,
+  cosmic: 2,
+  mind: 1,
 };
 
 const TIER_OPTIONS = [
@@ -60,7 +64,7 @@ export default function GenerateTheorems({
     substitution_depth: 0,
   });
 
-  const sum = dist.easy + dist.medium + dist.hard + dist.expert + dist.nightmare;
+  const sum = Object.values(dist).reduce((a, b) => a + b, 0);
 
   const isValid = (() => {
     if (!name || !/^[a-zA-Z0-9_-]+$/.test(name) || total < 1) return false;
@@ -75,13 +79,10 @@ export default function GenerateTheorems({
 
     try {
       if (mode === "distribution") {
-        const distribution = [
-          `${dist.easy}:easy`,
-          `${dist.medium}:medium`,
-          `${dist.hard}:hard`,
-          `${dist.expert}:expert`,
-          `${dist.nightmare}:nightmare`,
-        ].join(",");
+        const distribution = Object.entries(dist)
+          .filter(([, count]) => count > 0)
+          .map(([tier, count]) => `${count}:${tier}`)
+          .join(",");
         await api.generate({ count: total, distribution, name });
       } else if (mode === "tier") {
         await api.generate({ count: total, tier, name });
@@ -103,11 +104,8 @@ export default function GenerateTheorems({
   const tierPreview = TIER_PRESETS[tier];
 
   return (
-    <div className="generate-modal-backdrop" onClick={onClose}>
-      <div
-        className="generate-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="generate-modal-backdrop">
+      <div className="generate-modal">
         <div className="generate-modal-header">
           <h3>Generate New Theorem Set</h3>
           <button className="generate-modal-close" onClick={onClose}>
@@ -168,7 +166,7 @@ export default function GenerateTheorems({
               <span className="generate-label">Difficulty Distribution</span>
               <div className="generate-dist-grid">
                 {(
-                  ["easy", "medium", "hard", "expert", "nightmare"] as const
+                  ["easy", "medium", "hard", "expert", "nightmare", "marathon", "absurd", "cosmic", "mind"] as const
                 ).map((t) => (
                   <label key={t} className="generate-dist-item">
                     <span className={`difficulty-badge difficulty-badge--${t}`}>

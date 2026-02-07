@@ -297,7 +297,7 @@ interface ParseError {
 
 ## Prompt Template Builder (`prompt.ts`)
 
-Builds a complete LLM prompt containing the theorem, all rules, and strict output format requirements.
+Builds a complete LLM prompt containing the theorem, all rules, and strict output format requirements. The prompt is now tautology-only — all premise-related code has been removed.
 
 ### Function Signature
 
@@ -309,14 +309,15 @@ function buildPrompt(theorem: Theorem): string
 
 Every prompt follows this fixed structure:
 
-1. **System instruction** — Role assignment ("formal logic proof assistant") and the directive to minimize proof lines
+1. **System instruction** — Role assignment ("formal logic proof assistant") and the directive to minimize proof lines. Says "Given a theorem" (not "Given a tautology").
 2. **Symbol reference** — ASCII symbols for all connectives (`>`, `v`, `.`, `~`, `≡`, `⊥`)
 3. **Inference rules** — All 9 valid argument forms with number, name, abbreviation, and pattern
 4. **Equivalence rules** — All 10 replacement rules with bidirectional equivalences
 5. **Proof techniques** — CP and IP with step-by-step procedure
-6. **Output format** — Exact line format specification with CRITICAL clarification that FORMULA must be only the derived result, not premises
-7. **Theorem section** — The specific theorem to prove
-8. **Closing instruction** — "Output ONLY the numbered proof lines"
+6. **Output format** — Exact line format specification
+7. **Worked example** — Single tautology example with nested CP (no premise-based examples)
+8. **Theorem section** — The specific theorem to prove
+9. **Closing instruction** — "Output ONLY the numbered proof lines"
 
 ### Rules Included
 
@@ -351,26 +352,14 @@ Every prompt follows this fixed structure:
 
 **2 Proof Techniques:** Conditional Proof (CP), Indirect Proof (IP)
 
-### Theorem Format Handling
+### Theorem Format
 
-The prompt format differs based on whether the theorem has premises:
+The prompt is now tautology-only. The `buildPrompt()` function has been simplified to a single code path with no branching for premises vs. tautologies. All helper functions like `formatTheoremWithPremises()` and `formatTautology()` have been removed.
 
-**Easy theorems (difficulty 1-25)** — Have explicit premises and a conclusion. The prompt lists numbered premises and instructs the model to begin with them justified as "Premise".
-
-```
-Premises:
-  1. P > Q
-  2. P
-Conclusion: Q
-
-Your proof must begin with the premises as given (justified as "Premise"),
-then derive the conclusion.
-```
-
-**Medium+ theorems (difficulty 26-100)** — Standalone tautologies with no premises. The prompt instructs the model to use CP and/or IP since there are no premises to start from.
+The prompt instructs the model to use CP and/or IP to derive the theorem, since there are no premises to start from:
 
 ```
-Prove the following tautology (no premises):
+Prove the following theorem:
   (P > Q) v (Q > P)
 
 Since there are no premises, you will need to use Conditional Proof (CP)
@@ -386,25 +375,21 @@ N. FORMULA JUSTIFICATION
 ```
 
 Where JUSTIFICATION is one of:
-- `Premise` — for given premises
 - `Assumption (CP)` or `Assumption (IP)` — opens a subproof
 - `RULE LINE_NUMBERS` — e.g. `MP 1,2` or `Simp 3` or `DeM 5`
 - `CP START-END` or `IP START-END` — closes a subproof (e.g. `CP 3-7`)
 
-**CRITICAL Clarification (v2.5 prompt improvement):** The prompt explicitly states that FORMULA must contain ONLY the single formula you derived, NOT the premises used to derive it. This prevents common LLM errors where models include premise formulas in the FORMULA field.
+**Note:** The "Premise" justification type has been removed from the output format specification, since the prompt is now tautology-only.
 
-Example (CORRECT):
-```
-1. P > Q Premise
-2. ~Q Premise
-3. ~P MT 1,2          ← formula is just "~P", not "P > Q, ~Q"
-```
+### Worked Example
+
+The prompt includes a single worked example showing a tautology proof with nested CP. The old "with premises" example has been removed.
 
 ### Design Decisions
 
 - **ASCII symbols preferred**: The prompt and theorem JSON files use ASCII symbols (`&`, `|`, `->`, `<->`) rather than Unicode (`⊃`, `∨`, `·`, `≡`) to reduce the chance of models producing unusual Unicode variants. The Rust parser accepts both. The GUI converts to logic notation for human display (see [Formula Notation](#formula-notation)).
 - **Minimization instruction**: Appears twice (opening system instruction and output format section) to reinforce the efficiency objective.
-- **No example proof included**: Including an example proof could bias models toward a specific proof style or length. The rule descriptions are sufficient.
+- **Single worked example**: The prompt includes one tautology example with nested CP to illustrate proper formatting and proof technique usage.
 - **Fixed structure**: The rule reference is identical for every theorem. Only the theorem section varies. This ensures consistent prompting across the benchmark.
 
 ---
@@ -470,23 +455,33 @@ Patterns are tried in this order; the first match wins. If no line number is fou
 
 ### Subproof Depth Detection
 
-Depth is determined by two methods, with explicit markers taking priority:
+Depth is determined by three methods, with explicit markers and CP/IP annotations taking priority over indentation:
 
 **Method 1 — Vertical bar markers** (`|` or `│`):
 The parser counts and strips leading vertical bar characters. Each bar increments the depth by 1. This handles Fitch-style notation where subproofs are marked with vertical lines.
 
-**Method 2 — Indentation**:
+**Method 2 — DW-1 Depth Reconstruction from CP/IP Justifications**:
+For models that output flat (non-indented) proofs with correct CP/IP annotations, the parser reconstructs subproof depth by tracking justifications:
+- `Assumption (CP)` or `Assumption (IP)` opens a new subproof (increments depth)
+- `CP N-M` or `IP N-M` closes the most recent subproof (decrements depth)
+- This allows correct parsing of flat proofs like those from DeepSeek-R1, which don't use indentation but do provide proper justification ranges
+
+**Method 3 — Indentation**:
 The parser measures leading whitespace (tabs count as 2 spaces). On a pre-scan pass, it detects:
 - `baseIndent`: indentation of the first numbered line (subtracted from all measurements)
 - `indentUnit`: minimum non-zero indentation difference between any two lines
 
 Depth is computed as: `Math.round((indent - baseIndent) / indentUnit)`
 
-If both markers and indentation are present, marker depth is used.
+Priority: DW-1 depth reconstruction > vertical bar markers > indentation.
 
 ### Rule Alias Mapping
 
 The parser maps 80+ rule name variations to canonical names via three lookup tables. All lookups are case-insensitive.
+
+**Multi-word Rule Name Matching:** The parser handles full rule names like "Negation Elimination 6, 7" or "Modus Ponens 1,3". It tries 3-word matches first, then 2-word, then 1-word to correctly identify rule names before splitting formula from justification.
+
+**Dot-tolerant Rule Lookup:** The `canonicalizeRule()` function strips trailing dots from rule names before lookup, so `M.P.`, `D.S.`, `Simp.` are all recognized correctly.
 
 **Inference Aliases (28 entries):**
 
@@ -574,6 +569,11 @@ The `isCommentary(line)` function detects and skips common LLM preamble/postscri
 | Conclusions | `Therefore`, `Thus`, `QED` |
 | End markers | Tombstone symbol, `//`, `/*`, triple backticks |
 | Dividers | Em-dashes, horizontal rules (`---`) |
+| Commentary starters | `--`, `wait`, `let's`, `this is`, `let me`, `now`, `next`, `first`, `then`, `so`, `since`, `because`, `using`, `applying`, `from`, `to`, `by`, `finally`, `we should`, `we must`, `to prove` |
+
+**Aggressive Trailing Commentary Stripping:** Before parsing each line, the parser:
+- Strips `-- ...` style inline comments
+- Loops to remove ALL trailing `(...)` groups (not just the last one), handling models that add multiple layers of parenthetical commentary
 
 Lines that fail commentary detection are further checked by `looksLikeProofLine()`, which returns true if the line contains logical symbols, known rule names, or single uppercase letters (atom names).
 
@@ -802,13 +802,17 @@ There are two distinct error types, tracked separately in the GUI as `ep` (parse
 
 #### Retry Policy
 
-> **BENCHMARK DESIGN NOTE:** By default, both API errors and parse errors are retried (up to 10 attempts). This means **parse errors give the model another shot** — the model gets re-prompted and can produce a different response. This is a deliberate design choice: since the model's output is non-deterministic (temperature > 0), a parse failure on one attempt may succeed on the next if the model happens to format its response differently. However, this policy is debatable — an alternative view is that parse errors are the model's fault for not following the output format, and should count as a final result (like invalid proofs). The `--no-retry-parse` flag (and the corresponding GUI checkbox "Don't retry parse errors") switches to this stricter mode: parse errors are saved immediately as final results without retrying. This makes the benchmark less lenient toward models that produce unparseable output.
+**Parse Error Retry Limit:** Parse errors now retry up to **3 total attempts** (reduced from 10). This reduces wasted API calls for models that consistently produce unparseable output while still allowing a few retries for formatting variability.
+
+**API Error Retry Limit:** API errors (network, rate limit, auth failures) still retry up to **10 attempts** since these are infrastructure issues unrelated to the model's capabilities.
+
+> **BENCHMARK DESIGN NOTE:** By default, both API errors and parse errors are retried, but with different limits. Parse errors retry up to 3 attempts (since the model's output is non-deterministic and may format correctly on retry), while API errors retry up to 10 attempts (since these are infrastructure failures). This means **parse errors give the model a few more chances** — the model gets re-prompted and can produce a different response. However, this policy is debatable — an alternative view is that parse errors are the model's fault for not following the output format, and should count as a final result (like invalid proofs). The `--no-retry-parse` flag (and the corresponding GUI checkbox "Don't retry parse errors") switches to this stricter mode: parse errors are saved immediately as final results without retrying. This makes the benchmark less lenient toward models that produce unparseable output.
 
 | Stage | Error Type | Default | With `--no-retry-parse` | Rationale |
 |-------|-----------|---------|------------------------|-----------|
 | Prompt build | Exception in `buildPrompt()` | No retry | No retry | Deterministic — would fail identically every time |
-| API call | Network/auth/rate limit failure | **Retried** | **Retried** | Infrastructure issue, not the model's fault |
-| Parse | Output couldn't be parsed | **Retried** | **No retry** | Configurable — see design note above |
+| API call | Network/auth/rate limit failure | **Retried (up to 10)** | **Retried (up to 10)** | Infrastructure issue, not the model's fault |
+| Parse | Output couldn't be parsed | **Retried (up to 3)** | **No retry** | Configurable — see design note above |
 | Validation | Proof invalid | No retry | No retry | This is a real result — the model tried and the proof is wrong |
 
 #### Error Replacement
@@ -1334,6 +1338,17 @@ gui/
 - Green highlighting (`color: var(--success)`) on the best (shortest) average per tier
 - Empty cells displayed as `--` when no data available for that model/tier combination
 - Tier ordering follows standard difficulty progression
+
+**Generate Theorems (`components/GenerateTheorems.tsx`):**
+- Modal for generating new theorem sets with three generation modes (distribution, tier preset, custom spec)
+- **Distribution mode:** Supports all 9 difficulty tiers (Easy through Mind), allowing users to specify count for each tier
+- **Default distribution:** Easy 20, Medium 20, Hard 20, Expert 15, Nightmare 10, Marathon 7, Absurd 5, Cosmic 2, Mind 1 (totaling 100)
+- Distribution validation: Sum of all tier counts must equal the total count; displays sum status with color feedback (green if valid, red if invalid)
+- Sum calculation: Uses `Object.values(dist).reduce((a, b) => a + b, 0)` to dynamically compute total from all tiers
+- Distribution string builder: Dynamically constructs the distribution string from all tiers with count > 0 (e.g., `"20:easy,20:medium,20:hard,15:expert,10:nightmare,7:marathon,5:absurd,2:cosmic,1:mind"`)
+- Modal interaction: Modal only closes via X button or Cancel button (clicking backdrop does not close)
+- **Tier preset mode:** Generate all theorems using a single difficulty tier's preset spec
+- **Custom spec mode:** Full control over DifficultySpec parameters (variables, passes, transforms_per_pass, base_complexity, substitution_depth)
 
 **Vite Proxy (`vite.config.ts`):**
 - **v2.5 fix:** Added SSE buffering fix by setting `cache-control` and `x-accel-buffering` headers in proxy configuration

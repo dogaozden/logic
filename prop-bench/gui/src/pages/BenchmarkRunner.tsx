@@ -1,15 +1,15 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import RunConfig from "../components/RunConfig";
 import type { RunConfigValues } from "../components/RunConfig";
 import RunProgress from "../components/RunProgress";
-import type { SSEProgressEvent } from "../components/RunProgress";
 import RunHistory from "../components/RunHistory";
-import { api } from "../api/client";
+import { useRunner } from "../context/RunnerContext";
 import "../styles/runner.css";
 
 function BenchmarkRunner() {
   const navigate = useNavigate();
+  const runner = useRunner();
 
   const [config, setConfig] = useState<RunConfigValues>({
     models: [],
@@ -23,142 +23,23 @@ function BenchmarkRunner() {
     noRetryParse: false,
   });
 
-  const [isRunning, setIsRunning] = useState(false);
-  const [runId, setRunId] = useState<string | null>(null);
-  const [progress, setProgress] = useState<SSEProgressEvent | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [error, setError] = useState("");
-  const [historyRefresh, setHistoryRefresh] = useState(0);
-
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startTimeRef = useRef<number>(0);
-  const runningRef = useRef(false);
-
-  // Cleanup SSE + timer on unmount
-  useEffect(() => {
-    return () => {
-      eventSourceRef.current?.close();
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
-
-  const startTimer = useCallback(() => {
-    startTimeRef.current = Date.now();
-    setElapsedMs(0);
-    timerRef.current = setInterval(() => {
-      setElapsedMs(Date.now() - startTimeRef.current);
-    }, 1000);
-  }, []);
-
-  const stopTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    if (startTimeRef.current > 0) {
-      setElapsedMs(Date.now() - startTimeRef.current);
-    }
-  }, []);
-
-  const connectSSE = useCallback(
-    (id: string) => {
-      const es = api.getBenchmarkStatus(id);
-      eventSourceRef.current = es;
-
-      es.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data) as SSEProgressEvent;
-
-          if (data.type === "progress") {
-            setProgress(data);
-          } else if (data.type === "log") {
-            if (data.message) {
-              setLogs((prev) => [...prev, data.message!]);
-            }
-          } else if (data.type === "complete") {
-            runningRef.current = false;
-            setIsRunning(false);
-            setProgress(data);
-            stopTimer();
-            es.close();
-            eventSourceRef.current = null;
-            setHistoryRefresh((v) => v + 1);
-          } else if (data.type === "error") {
-            runningRef.current = false;
-            setError(data.error ?? "Unknown error during benchmark");
-            setIsRunning(false);
-            stopTimer();
-            es.close();
-            eventSourceRef.current = null;
-          }
-        } catch {
-          setLogs((prev) => [...prev, event.data]);
-        }
-      };
-
-      es.onerror = () => {
-        // EventSource reconnects automatically; only close if run is finished
-        if (!runningRef.current) {
-          es.close();
-          eventSourceRef.current = null;
-        }
-      };
-    },
-    [stopTimer],
-  );
-
   const handleStart = useCallback(async () => {
-    setError("");
-    setProgress(null);
-    setLogs([]);
-    setElapsedMs(0);
+    const countNum = config.count.trim()
+      ? parseInt(config.count.trim(), 10)
+      : undefined;
 
-    try {
-      runningRef.current = true;
-      setIsRunning(true);
-      const countNum = config.count.trim()
-        ? parseInt(config.count.trim(), 10)
-        : undefined;
-
-      const { runId: id } = await api.startBenchmark({
-        models: config.models,
-        theoremSet: config.theoremSet,
-        temperature: config.temperature,
-        maxTokens: config.maxTokens,
-        workers: config.workers > 1 ? config.workers : undefined,
-        start: config.startIndex > 0 ? config.startIndex : undefined,
-        count: Number.isFinite(countNum) ? countNum : undefined,
-        force: config.force || undefined,
-        noRetryParse: config.noRetryParse || undefined,
-      });
-      setRunId(id);
-      startTimer();
-      connectSSE(id);
-    } catch (err) {
-      runningRef.current = false;
-      setIsRunning(false);
-      setError(
-        err instanceof Error ? err.message : "Failed to start benchmark",
-      );
-    }
-  }, [config, startTimer, connectSSE]);
-
-  const handleStop = useCallback(async () => {
-    if (!runId) return;
-    runningRef.current = false;
-    try {
-      await api.stopBenchmark(runId);
-    } catch {
-      // Best-effort stop
-    }
-    eventSourceRef.current?.close();
-    eventSourceRef.current = null;
-    setIsRunning(false);
-    stopTimer();
-    setHistoryRefresh((v) => v + 1);
-  }, [runId, stopTimer]);
+    await runner.start({
+      models: config.models,
+      theoremSet: config.theoremSet,
+      temperature: config.temperature,
+      maxTokens: config.maxTokens,
+      workers: config.workers > 1 ? config.workers : undefined,
+      start: config.startIndex > 0 ? config.startIndex : undefined,
+      count: Number.isFinite(countNum) ? countNum : undefined,
+      force: config.force || undefined,
+      noRetryParse: config.noRetryParse || undefined,
+    });
+  }, [config, runner]);
 
   const handleViewResults = useCallback(
     (id: string) => {
@@ -174,10 +55,10 @@ function BenchmarkRunner() {
         <p>Configure and launch PropBench benchmark runs.</p>
       </div>
 
-      {error && (
+      {runner.error && (
         <div className="runner-error">
-          <span>{error}</span>
-          <button className="btn-sm" onClick={() => setError("")}>
+          <span>{runner.error}</span>
+          <button className="btn-sm" onClick={runner.clearError}>
             Dismiss
           </button>
         </div>
@@ -189,7 +70,7 @@ function BenchmarkRunner() {
           <RunConfig
             config={config}
             onChange={setConfig}
-            running={isRunning}
+            running={runner.isRunning}
             onStart={handleStart}
           />
         </div>
@@ -197,15 +78,15 @@ function BenchmarkRunner() {
         {/* Right column: progress + history */}
         <div className="runner-right">
           <RunProgress
-            isRunning={isRunning}
-            progress={progress}
-            logs={logs}
-            elapsedMs={elapsedMs}
-            onStop={handleStop}
+            isRunning={runner.isRunning}
+            progress={runner.progress}
+            logs={runner.logs}
+            elapsedMs={runner.elapsedMs}
+            onStop={runner.stop}
           />
 
           <RunHistory
-            refreshTrigger={historyRefresh}
+            refreshTrigger={runner.historyRefresh}
             onViewResults={handleViewResults}
           />
         </div>

@@ -1,0 +1,352 @@
+[
+  {
+    "id": "v1-001",
+    "premises": [],
+    "conclusion": "(P . Q) > P",
+    "difficulty": "Medium",
+    "difficulty_value": 36
+  },
+  {
+    "id": "v1-002",
+    "premises": [],
+    "conclusion": "[(P > Q) . ~Q] > ~P",
+    "difficulty": "Medium",
+    "difficulty_value": 42
+  },
+  {
+    "id": "v1-003",
+    "premises": [],
+    "conclusion": "[(P v Q) . ~P] > Q",
+    "difficulty": "Medium",
+    "difficulty_value": 26
+  },
+  {
+    "id": "v1-004",
+    "premises": [],
+    "conclusion": "(P . Q) > P",
+    "difficulty": "Medium",
+    "difficulty_value": 30
+  },
+  {
+    "id": "v1-005",
+    "premises": [],
+    "conclusion": "[(P > Q) . ~Q] > ~P",
+    "difficulty": "Medium",
+    "difficulty_value": 36
+  },
+  {
+    "id": "v1-006",
+    "premises": [],
+    "conclusion": "[~(P . Q)] > [~(P . Q)]",
+    "difficulty": "Medium",
+    "difficulty_value": 34
+  },
+  {
+    "id": "v1-007",
+    "premises": [],
+    "conclusion": "[P . (~P v Q)] > Q",
+    "difficulty": "Medium",
+    "difficulty_value": 45
+  },
+  {
+    "id": "v1-008",
+    "premises": [],
+    "conclusion": "(P > Q) > (P > Q)",
+    "difficulty": "Medium",
+    "difficulty_value": 31
+  },
+  {
+    "id": "v1-009",
+    "premises": [],
+    "conclusion": "~Q > {[~(P v Q)] v P}",
+    "difficulty": "Medium",
+    "difficulty_value": 29
+  },
+  {
+    "id": "v1-010",
+    "premises": [],
+    "conclusion": "[~P . (P v Q)] > Q",
+    "difficulty": "Medium",
+    "difficulty_value": 32
+  },
+  {
+    "id": "v1-011",
+    "premises": [],
+    "conclusion": "[(P > Q) . (Q > R)] > (P > R)",
+    "difficulty": "Hard",
+    "difficulty_value": 55
+  },
+  {
+    "id": "v1-012",
+    "premises": [],
+    "conclusion": "[(P > Q) . (Q > R)] > (P > R)",
+    "difficulty": "Hard",
+    "difficulty_value": 68
+  },
+  {
+    "id": "v1-013",
+    "premises": [],
+    "conclusion": "{~{[(P > Q) . (~Q > ~R)] . (P v R)}} v (Q v Q)",
+    "difficulty": "Hard",
+    "difficulty_value": 57
+  },
+  {
+    "id": "v1-014",
+    "premises": [],
+    "conclusion": "C > [B > (C . B)]",
+    "difficulty": "Hard",
+    "difficulty_value": 70
+  },
+  {
+    "id": "v1-015",
+    "premises": [],
+    "conclusion": "{[(P > Q) . (R > Q)] . (P v R)} > (Q v Q)",
+    "difficulty": "Hard",
+    "difficulty_value": 48
+  },
+  {
+    "id": "v1-016",
+    "premises": [],
+    "conclusion": "[(P > Q) . (~Q v R)] > (~P v R)",
+    "difficulty": "Hard",
+    "difficulty_value": 61
+  },
+  {
+    "id": "v1-017",
+    "premises": [],
+    "conclusion": "[(P > Q) . (~R > ~Q)] > (P > R)",
+    "difficulty": "Hard",
+    "difficulty_value": 49
+  },
+  {
+    "id": "v1-018",
+    "premises": [],
+    "conclusion": "(P . Q) > P",
+    "difficulty": "Hard",
+    "difficulty_value": 47
+  },
+  {
+    "id": "v1-019",
+    "premises": [],
+    "conclusion": "{~[P . (P > Q)]} v Q",
+    "difficulty": "Hard",
+    "difficulty_value": 59
+  },
+  {
+    "id": "v1-020",
+    "premises": [],
+    "conclusion": "[(P > Q) . (Q > R)] > (P > R)",
+    "difficulty": "Hard",
+    "difficulty_value": 55
+  },
+  {
+    "id": "v1-021",
+    "premises": [],
+    "conclusion": "{{[(B v ~B) v (D . C)] . [(B v ~B) > ~F]} . [(D . C) > ~F]} > ~F",
+    "difficulty": "Expert",
+    "difficulty_value": 83
+  },
+  {
+    "id": "v1-022",
+    "premises": [],
+    "conclusion": "{{[(A . B) > C] . {(C > F) . [F > (G v ~G)]}} . (A . B)} > (G v ~G)",
+    "difficulty": "Expert",
+    "difficulty_value": 81
+  },
+  {
+    "id": "v1-023",
+    "premises": [],
+    "conclusion": "{{{[~(B v B)] v C} . [~E > (H > H)]} . [(B v B) v ~E]} > [C v (H > H)]",
+    "difficulty": "Expert",
+    "difficulty_value": 75
+  },
+  {
+    "id": "v1-024",
+    "premises": [],
+    "conclusion": "[~(H v H)] > {~{(A . B) . {{{~D > [~(A . B)]} . [D > (E v F)]} . [(E v F) > (H v H)]}}}",
+    "difficulty": "Expert",
+    "difficulty_value": 80
+  },
+  {
+    "id": "v1-025",
+    "premises": [],
+    "conclusion": "{{{B > {B > [(D . D) > F]}} . (B . B)} . (D . D)} > F",
+    "difficulty": "Expert",
+    "difficulty_value": 75
+  },
+  {
+    "id": "v1-026",
+    "premises": [],
+    "conclusion": "{[(~A v B) . C] . D} > {[(~A v B) . C] . D}",
+    "difficulty": "Expert",
+    "difficulty_value": 71
+  },
+  {
+    "id": "v1-027",
+    "premises": [],
+    "conclusion": "{[B v (D v D)] . (~D . ~D)} > B",
+    "difficulty": "Expert",
+    "difficulty_value": 73
+  },
+  {
+    "id": "v1-028",
+    "premises": [],
+    "conclusion": "{[(B > ~B) > (~C > ~C)] . {(~C > ~C) > [(~F v E) . (F . E)]}} > {(B > ~B) > [(~F v E) . (F . E)]}",
+    "difficulty": "Expert",
+    "difficulty_value": 85
+  },
+  {
+    "id": "v1-029",
+    "premises": [],
+    "conclusion": "~B > {{~[(D . C) v B]} v (D . C)}",
+    "difficulty": "Expert",
+    "difficulty_value": 81
+  },
+  {
+    "id": "v1-030",
+    "premises": [],
+    "conclusion": "{{{(A > D) . [D > (E v E)]} . [(E v E) > (H > H)]} . A} > (H > H)",
+    "difficulty": "Expert",
+    "difficulty_value": 75
+  },
+  {
+    "id": "v1-031",
+    "premises": [],
+    "conclusion": "{{{{{[(~A > ~A) v B] v B} . D} > {[~(E > F)] v (~F > E)}} . {[(~A > ~A) v B] v B}} . D} > {[~(E > F)] v (~F > E)}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 86
+  },
+  {
+    "id": "v1-032",
+    "premises": [],
+    "conclusion": "{{[~(B . A)] v A} . [D > (C . C)]} > {[~(B . A)] v A}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 95
+  },
+  {
+    "id": "v1-033",
+    "premises": [],
+    "conclusion": "{{[(~A . ~B) . D] > (C > C)} . {[D > (C > C)] > {~E > [~(~F . ~F)]}}} > {[(~A . ~B) . ~E] > [~(~F . ~F)]}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 95
+  },
+  {
+    "id": "v1-034",
+    "premises": [],
+    "conclusion": "{~{{{~[D . (D . C)]} > (B v A)} . {~[D . (D . C)]}}} v (B v A)",
+    "difficulty": "Nightmare",
+    "difficulty_value": 88
+  },
+  {
+    "id": "v1-035",
+    "premises": [],
+    "conclusion": "{{A . [~A v (C > F)]} . C} > F",
+    "difficulty": "Nightmare",
+    "difficulty_value": 91
+  },
+  {
+    "id": "v1-036",
+    "premises": [],
+    "conclusion": "{~[(~A . ~A) v ~B]} v {~{{[(A v A) . B] . D} v {[(A v A) . B] . D}}}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 92
+  },
+  {
+    "id": "v1-037",
+    "premises": [],
+    "conclusion": "{{{{{{[~(A . B)] v ~A} > [C . (D . C)]} . {[C . (D . C)] > [(F . E) . ~E]}} . {[~(F . E)] v E}} v {{{{[~(A . B)] v ~A} > [C . (D . C)]} . {[C . (D . C)] > [(F . E) . ~E]}} . [(G v H) v G]}} . {[~(A . B)] v ~A}} > [(G v H) v G]",
+    "difficulty": "Nightmare",
+    "difficulty_value": 90
+  },
+  {
+    "id": "v1-038",
+    "premises": [],
+    "conclusion": "{{[(~A v B) v B] > (~D . C)} . {(~D . C) > {[(F v F) . ~F] v [(F v F) . F]}}} > {[(~A v B) v B] > {[(F v F) . ~F] v [(F v F) . F]}}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 90
+  },
+  {
+    "id": "v1-039",
+    "premises": [],
+    "conclusion": "{B . {B > {E v {~[(~C > ~C) > ~C]}}}} > {E v {~[(~C > ~C) > ~C]}}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 89
+  },
+  {
+    "id": "v1-040",
+    "premises": [],
+    "conclusion": "{{{{[~(C > C)] . {[~(~A v B)] > (C > C)}} v {{[~(~A v B)] > (C > C)} . [(E > E) . ~F]}} . {[(E > E) . ~F] > [H v (G v H)]}} . {~[H v (G v H)]}} > (~A v B)",
+    "difficulty": "Nightmare",
+    "difficulty_value": 93
+  },
+  {
+    "id": "v1-041",
+    "premises": [],
+    "conclusion": "{~D > [(~B v ~A) . (~B v ~A)]} v {~{[(~B v ~A) . (~B v ~A)] v D}}",
+    "difficulty": "Marathon",
+    "difficulty_value": 99
+  },
+  {
+    "id": "v1-042",
+    "premises": [],
+    "conclusion": "{{~{B > {(E v F) v [~(~F . C)]}}} v ~B} v {(E v F) v [~(~F . C)]}",
+    "difficulty": "Marathon",
+    "difficulty_value": 98
+  },
+  {
+    "id": "v1-043",
+    "premises": [],
+    "conclusion": "{{[~(~A > ~B)] . [(B . B) . (~A > ~B)]} v {[(B . B) . (~A > ~B)] . {[~(B . B)] v [(~D v ~D) v ~D]}}} > [(~D v ~D) v ~D]",
+    "difficulty": "Marathon",
+    "difficulty_value": 97
+  },
+  {
+    "id": "v1-044",
+    "premises": [],
+    "conclusion": "{~{[(D v D) v (C v D)] > [(A v B) v (~A > A)]}} > {[~(A v B)] . [~(~A > A)]}",
+    "difficulty": "Marathon",
+    "difficulty_value": 98
+  },
+  {
+    "id": "v1-045",
+    "premises": [],
+    "conclusion": "{{A v [(~C > ~D) v (C > D)]} . {A > [(~E > ~F) v F]}} > {{[(~C > ~D) v (C > D)] > [(~E > ~F) v F]} > [(~E > ~F) v F]}",
+    "difficulty": "Marathon",
+    "difficulty_value": 98
+  },
+  {
+    "id": "v1-046",
+    "premises": [],
+    "conclusion": "{{{[(~B v C) . ~E] v (~B v C)} . {[(~B v C) . ~E] v B}} . (E > ~C)} > ~E",
+    "difficulty": "Marathon",
+    "difficulty_value": 97
+  },
+  {
+    "id": "v1-047",
+    "premises": [],
+    "conclusion": "{{{{(A > ~A) > {[~(D v C)] v (C > C)}} . {[~(G . H)] > [~(~E . ~E)]}} . (A > ~A)} v {{{(A > ~A) > {[~(D v C)] v (C > C)}} . {[~(G . H)] > [~(~E . ~E)]}} . (~E . ~E)}} > {{[~(D v C)] v (C > C)} v (G . H)}",
+    "difficulty": "Marathon",
+    "difficulty_value": 96
+  },
+  {
+    "id": "v1-048",
+    "premises": [],
+    "conclusion": "{~[B > (F . F)]} > {~{{B > [~(~D > ~D)]} . {[~(~D > ~D)] > (F . F)}}}",
+    "difficulty": "Marathon",
+    "difficulty_value": 99
+  },
+  {
+    "id": "v1-049",
+    "premises": [],
+    "conclusion": "{{{D > {[~(E . E)] v (F . F)}} v ~B} . B} > {D > {[~(E . E)] v (F . F)}}",
+    "difficulty": "Marathon",
+    "difficulty_value": 100
+  },
+  {
+    "id": "v1-050",
+    "premises": [],
+    "conclusion": "{(~E . E) > [~(G v G)]} > {{[(~A > ~B) v ~B] > D} > {{[(~A > ~B) v ~B] v (~E . E)} > {D v [~(G v G)]}}}",
+    "difficulty": "Marathon",
+    "difficulty_value": 99
+  }
+]

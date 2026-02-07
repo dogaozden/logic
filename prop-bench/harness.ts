@@ -450,7 +450,8 @@ async function run(): Promise<void> {
 
   const totalItems = benchTheorems.length * adapters.length;
 
-  const MAX_ATTEMPTS = 10; // retry errors up to 10 times before giving up
+  const MAX_ATTEMPTS = 10; // retry API errors up to 10 times before giving up
+  const MAX_PARSE_ATTEMPTS = 3; // retry parse errors up to 3 times before giving up
 
   // Process work items with concurrency limiter
   async function processWorkItem(item: WorkItem): Promise<void> {
@@ -542,7 +543,7 @@ async function run(): Promise<void> {
         result.parse_error = parseError;
         result.validation_result = "error";
         result.validation_errors = [parseError ?? "Unknown parse error"];
-        if (!args.noRetryParse && attempt < MAX_ATTEMPTS) {
+        if (!args.noRetryParse && attempt < MAX_PARSE_ATTEMPTS) {
           console.log(`  -> PARSE ERROR (will retry): ${parseError}`);
           continue;
         }
@@ -551,7 +552,7 @@ async function run(): Promise<void> {
           try { db.insertResult(setName, result); } catch {}
         }
         totalErrors++;
-        console.log(`  -> PARSE ERROR (gave up after ${MAX_ATTEMPTS} attempts): ${parseError}`);
+        console.log(`  -> PARSE ERROR (gave up after ${attempt} attempts): ${parseError}`);
         return;
       }
       result.parsed_proof = proof;

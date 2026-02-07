@@ -157,7 +157,10 @@ const TECHNIQUE_ALIASES: Record<string, string> = {
 function canonicalizeRule(
   name: string
 ): { canonical: string; kind: "inference" | "equivalence" | "technique" } | null {
-  const lower = name.toLowerCase().trim();
+  // Strip trailing dots and normalize
+  const lower = name.toLowerCase().trim().replace(/\.+$/, "");
+
+  // Try the normalized version first
   if (TECHNIQUE_ALIASES[lower]) {
     return { canonical: TECHNIQUE_ALIASES[lower], kind: "technique" };
   }
@@ -167,6 +170,21 @@ function canonicalizeRule(
   if (EQUIVALENCE_ALIASES[lower]) {
     return { canonical: EQUIVALENCE_ALIASES[lower], kind: "equivalence" };
   }
+
+  // If nothing matched, try with ALL dots removed (e.g., "M.P." -> "mp")
+  const noDots = lower.replace(/\./g, "");
+  if (noDots !== lower) {
+    if (TECHNIQUE_ALIASES[noDots]) {
+      return { canonical: TECHNIQUE_ALIASES[noDots], kind: "technique" };
+    }
+    if (INFERENCE_ALIASES[noDots]) {
+      return { canonical: INFERENCE_ALIASES[noDots], kind: "inference" };
+    }
+    if (EQUIVALENCE_ALIASES[noDots]) {
+      return { canonical: EQUIVALENCE_ALIASES[noDots], kind: "equivalence" };
+    }
+  }
+
   return null;
 }
 
@@ -365,76 +383,104 @@ function parseJustification(text: string): ParsedJustification | null {
     }
   }
 
-  // Case 4: Rule application: "RULE LINE_NUMBERS" at the end
-  // Try to match the last word(s) as a rule name followed by line numbers,
-  // or line numbers followed by a rule name.
+  // Case 4: Rule application at the end: "FORMULA RULE LINE_NUMBERS"
+  // Try multi-word rule names (up to 3 words) before single-word, so that
+  // "Negation Elimination 6, 7" matches as a whole rule name.
 
-  // Pattern A: "FORMULA RULE N,N,N" (rule then lines at end)
-  // Use a more precise approach: look for known rule names followed by line numbers
-  // This avoids ambiguity when formulas contain dots and spaces (e.g., "P . Q Conj 1,2")
+  // Helper: try to extract "RULE LINES" from the end with N-word rule names
+  const result = tryExtractRuleAndLines(trimmed);
+  if (result) return result;
 
-  // Try to find a known rule name followed by line numbers at the end
-  const ruleNamePattern = /\s+(\S+)\s+(\d[\d,\s]*\d|\d)$/;
-  const possibleRuleMatch = trimmed.match(ruleNamePattern);
+  return null;
+}
 
-  if (possibleRuleMatch) {
-    const rulePart = possibleRuleMatch[1].trim();
-    const linesPart = possibleRuleMatch[2];
-    const canon = canonicalizeRule(rulePart);
+/**
+ * Try to extract a rule name + line numbers from the end of a proof line.
+ * Handles multi-word rule names (up to 3 words) and both orderings:
+ *   "FORMULA RULE N,N" and "FORMULA N,N RULE"
+ */
+function tryExtractRuleAndLines(text: string): ParsedJustification | null {
+  // Strip trailing -- comments first, then loop to strip ALL trailing parenthetical groups
+  let cleaned = text.replace(/\s*--.*$/, "").trim();
+  while (/\s*\([^)]*\)\s*$/.test(cleaned)) {
+    cleaned = cleaned.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  }
 
-    if (canon && (canon.kind === "inference" || canon.kind === "equivalence")) {
-      // Extract the formula by removing the rule and line numbers from the end
-      const formulaPart = trimmed.slice(0, trimmed.length - possibleRuleMatch[0].length).trim();
-      const lines = linesPart
-        .split(/[\s,]+/)
-        .map((s) => parseInt(s, 10))
-        .filter((n) => !isNaN(n));
-      return {
-        justification: `${canon.canonical} ${lines.join(",")}`,
-        formula: formulaPart,
-      };
+  // Pattern A: "... RULE LINES" at end (rule then line numbers)
+  // Try 3-word, 2-word, then 1-word rule names
+  for (const wordCount of [3, 2, 1]) {
+    const rulePattern = wordCount === 1
+      ? /\s+(\S+)\s+(\d[\d,\s]*\d|\d)$/
+      : wordCount === 2
+      ? /\s+(\S+\s+\S+)\s+(\d[\d,\s]*\d|\d)$/
+      : /\s+(\S+\s+\S+\s+\S+)\s+(\d[\d,\s]*\d|\d)$/;
+
+    const match = cleaned.match(rulePattern);
+    if (match) {
+      const rulePart = match[1].trim();
+      const linesPart = match[2];
+      const canon = canonicalizeRule(rulePart);
+      if (canon && (canon.kind === "inference" || canon.kind === "equivalence")) {
+        const formulaPart = cleaned.slice(0, cleaned.length - match[0].length).trim();
+        const lines = linesPart
+          .split(/[\s,]+/)
+          .map((s) => parseInt(s, 10))
+          .filter((n) => !isNaN(n));
+        return {
+          justification: `${canon.canonical} ${lines.join(",")}`,
+          formula: formulaPart,
+        };
+      }
     }
   }
 
-  // Pattern B: "FORMULA N,N RULE" (lines then rule at end)
-  const linesFirstPattern = /\s+(\d[\d,\s]*\d|\d)\s+(\S+)$/;
-  const linesFirstMatch = trimmed.match(linesFirstPattern);
+  // Pattern B: "... LINES RULE" at end (line numbers then rule)
+  for (const wordCount of [3, 2, 1]) {
+    const linesPattern = wordCount === 1
+      ? /\s+(\d[\d,\s]*\d|\d)\s+(\S+)$/
+      : wordCount === 2
+      ? /\s+(\d[\d,\s]*\d|\d)\s+(\S+\s+\S+)$/
+      : /\s+(\d[\d,\s]*\d|\d)\s+(\S+\s+\S+\s+\S+)$/;
 
-  if (linesFirstMatch) {
-    const linesPart = linesFirstMatch[1];
-    const rulePart = linesFirstMatch[2].trim();
-    const canon = canonicalizeRule(rulePart);
-
-    if (canon && (canon.kind === "inference" || canon.kind === "equivalence")) {
-      // Extract the formula by removing the lines and rule from the end
-      const formulaPart = trimmed.slice(0, trimmed.length - linesFirstMatch[0].length).trim();
-      const lines = linesPart
-        .split(/[\s,]+/)
-        .map((s) => parseInt(s, 10))
-        .filter((n) => !isNaN(n));
-      return {
-        justification: `${canon.canonical} ${lines.join(",")}`,
-        formula: formulaPart,
-      };
+    const match = cleaned.match(linesPattern);
+    if (match) {
+      const linesPart = match[1];
+      const rulePart = match[2].trim();
+      const canon = canonicalizeRule(rulePart);
+      if (canon && (canon.kind === "inference" || canon.kind === "equivalence")) {
+        const formulaPart = cleaned.slice(0, cleaned.length - match[0].length).trim();
+        const lines = linesPart
+          .split(/[\s,]+/)
+          .map((s) => parseInt(s, 10))
+          .filter((n) => !isNaN(n));
+        return {
+          justification: `${canon.canonical} ${lines.join(",")}`,
+          formula: formulaPart,
+        };
+      }
     }
   }
 
-  // Pattern C: Just "RULE N" at end (common for equivalence rules on one line)
-  const singleLinePattern = /\s+(\S+)\s+(\d+)$/;
-  const singleLineMatch = trimmed.match(singleLinePattern);
+  // Pattern C: Just "RULE N" at end (single line ref, try multi-word names too)
+  for (const wordCount of [3, 2, 1]) {
+    const singlePattern = wordCount === 1
+      ? /\s+(\S+)\s+(\d+)$/
+      : wordCount === 2
+      ? /\s+(\S+\s+\S+)\s+(\d+)$/
+      : /\s+(\S+\s+\S+\s+\S+)\s+(\d+)$/;
 
-  if (singleLineMatch) {
-    const rulePart = singleLineMatch[1].trim();
-    const lineNum = singleLineMatch[2];
-    const canon = canonicalizeRule(rulePart);
-
-    if (canon && (canon.kind === "inference" || canon.kind === "equivalence")) {
-      // Extract the formula by removing the rule and line number from the end
-      const formulaPart = trimmed.slice(0, trimmed.length - singleLineMatch[0].length).trim();
-      return {
-        justification: `${canon.canonical} ${lineNum}`,
-        formula: formulaPart,
-      };
+    const match = cleaned.match(singlePattern);
+    if (match) {
+      const rulePart = match[1].trim();
+      const lineNum = match[2];
+      const canon = canonicalizeRule(rulePart);
+      if (canon && (canon.kind === "inference" || canon.kind === "equivalence")) {
+        const formulaPart = cleaned.slice(0, cleaned.length - match[0].length).trim();
+        return {
+          justification: `${canon.canonical} ${lineNum}`,
+          formula: formulaPart,
+        };
+      }
     }
   }
 
@@ -590,6 +636,32 @@ export function parseProof(rawOutput: string, theorem: Theorem): ParseResult {
     }
   }
 
+  // ── DW-1: Reconstruct subproof depth from CP/IP annotations ──
+  // Whitespace-based depth detection is unreliable because LLM output has
+  // inconsistent indentation.  CP/IP justification annotations are always
+  // present in tautology proofs and encode the subproof structure exactly:
+  //   - "Assumption (CP)" / "Assumption (IP)" opens a new subproof  (depth++)
+  //   - "CP N-M" / "IP N-M" closes the most recent subproof        (depth--)
+  //   - Everything else stays at the current depth
+  // This pass overrides the earlier whitespace-based depth values.
+  {
+    let currentDepth = 0;
+    for (const line of lines) {
+      if (
+        line.justification === "Assumption (CP)" ||
+        line.justification === "Assumption (IP)"
+      ) {
+        currentDepth++;
+        line.depth = currentDepth;
+      } else if (/^(?:CP|IP)\s+\d+-\d+$/.test(line.justification)) {
+        line.depth = Math.max(0, currentDepth - 1);
+        currentDepth = Math.max(0, currentDepth - 1);
+      } else {
+        line.depth = currentDepth;
+      }
+    }
+  }
+
   return { lines, errors, unparsed_sections: unparsedSections };
 }
 
@@ -620,8 +692,30 @@ function isCommentary(line: string): boolean {
   if (lower.startsWith("//")) return true;
   if (lower.startsWith("/*")) return true;
   if (lower.startsWith("```")) return true;
-  if (line.startsWith("─") || line.startsWith("—") || line.startsWith("---"))
+  if (lower.startsWith("--")) return true;
+  if (lower.startsWith("wait")) return true;
+  if (lower.startsWith("let's")) return true;
+  if (lower.startsWith("it looks like")) return true;
+  if (lower.startsWith("this is")) return true;
+  if (lower.startsWith("let me")) return true;
+  if (line.startsWith("─") || line.startsWith("—"))
     return true;
+  if (lower.startsWith("now ")) return true;
+  if (lower.startsWith("next")) return true;
+  if (lower.startsWith("first")) return true;
+  if (lower.startsWith("then")) return true;
+  if (lower.startsWith("so ")) return true;
+  if (lower.startsWith("since")) return true;
+  if (lower.startsWith("because")) return true;
+  if (lower.startsWith("using")) return true;
+  if (lower.startsWith("applying")) return true;
+  if (lower.startsWith("from ")) return true;
+  if (lower.startsWith("to ")) return true;
+  if (lower.startsWith("by ")) return true;
+  if (lower.startsWith("finally")) return true;
+  if (lower.startsWith("we should")) return true;
+  if (lower.startsWith("we must")) return true;
+  if (lower.startsWith("to prove")) return true;
   return false;
 }
 
@@ -634,8 +728,8 @@ function looksLikeProofLine(line: string): boolean {
   if (!trimmed) return false;
   // Contains logical symbols
   if (/[>v.~⊃∨·¬≡⊥∧→↔#]/.test(trimmed)) return true;
-  // Contains a rule name
-  if (/\b(MP|MT|DS|Simp|Conj|HS|Add|CD|NegE|DN|DeM|Comm|Assoc|Dist|Contra|Impl|Exp|Taut|Equiv|CP|IP|Premise|Assumption)\b/i.test(trimmed)) return true;
+  // Contains a rule name (abbreviation or full name)
+  if (/\b(MP|MT|DS|Simp|Conj|HS|Add|CD|NegE|DN|DeM|Comm|Assoc|Dist|Contra|Impl|Exp|Taut|Equiv|CP|IP|Premise|Assumption|Modus Ponens|Modus Tollens|Disjunctive Syllogism|Simplification|Conjunction|Hypothetical Syllogism|Addition|Constructive Dilemma|Negation Elimination|Double Negation|DeMorgan|Commutation|Association|Distribution|Contraposition|Implication|Exportation|Tautology|Equivalence|Conditional Proof|Indirect Proof)\b/i.test(trimmed)) return true;
   // Contains uppercase single letters (atom names)
   if (/\b[A-Z]\b/.test(trimmed)) return true;
   return false;
