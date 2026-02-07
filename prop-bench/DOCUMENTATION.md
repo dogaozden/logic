@@ -75,16 +75,16 @@ PropBench uses two notation systems for formulas: **ASCII** (for LLM-facing outp
 
 ### Dual Notation
 
-| Operator | ASCII (JSON/LLM) | Logic (GUI display) |
-|----------|-------------------|---------------------|
-| AND | `&` | `·` |
-| OR | `\|` | `∨` |
-| IMPLIES | `->` | `⊃` |
-| BICONDITIONAL | `<->` | `≡` |
+| Operator | Prompt/JSON (LLM-facing) | Logic (GUI display) |
+|----------|--------------------------|---------------------|
+| AND | `.` | `·` |
+| OR | `v` | `∨` |
+| IMPLIES | `>` | `⊃` |
+| BICONDITIONAL | `<>` | `≡` |
 | NOT | `~` | `~` |
-| CONTRADICTION | `_\|_` | `⊥` |
+| CONTRADICTION | `#` | `⊥` |
 
-**Why two notations?** ASCII symbols (`&`, `|`, `->`) are universally familiar to LLMs from programming language training data, making them easier for models to read and reliably generate in proof output. The Rust parser accepts both notations, so LLM responses using either symbol set are valid.
+**Why two notations?** The prompt-style symbols (`.`, `v`, `>`, `<>`, `#`) are used consistently in both the LLM prompt (`prompt.ts`) and the theorem JSON files, so the LLM sees the same notation it was taught. The GUI converts to standard logic notation for human readability. The Rust parser accepts both notations, so LLM responses using either symbol set are valid.
 
 ### Alternating Bracket Hierarchy
 
@@ -653,6 +653,8 @@ npx tsx harness.ts --theorems <path> --models <list> [options]
 | `--workers <n>` | `1` | Number of parallel API workers (concurrent theorem processing) |
 | `--temperature <n>` | `0.2` | Temperature parameter passed to all models |
 | `--max-tokens <n>` | `4096` | Maximum output tokens for model responses |
+| `--force` | off | Force new run — don't skip completed theorems |
+| `--no-retry-parse` | off | Don't retry parse errors — treat unparseable model output as a final result |
 
 ### Core Loop
 
@@ -683,12 +685,14 @@ This is safe because JavaScript is single-threaded — counter increments and ar
 
 ### Resume Support
 
-The harness scans `<output>/raw/` on startup for existing result JSON files. Each file contains `theorem_id` and `model` fields. The harness builds a `Set<string>` of `"theorem_id::model"` keys and skips any pair that already has a result file.
+The harness scans `<output>/raw/` on startup for existing result JSON files. Each file contains `theorem_id`, `model`, and `validation_result` fields. The harness builds a `Set<string>` of `"theorem_id::model"` keys for results where `validation_result` is `"valid"` or `"invalid"` — error results are excluded so they will be automatically retried on re-run.
 
 This means:
 - Interrupted runs can be resumed with the same command
+- Error results (API 429s, parse failures) are automatically retried on re-run without manual intervention
 - To re-run a specific theorem/model pair, delete its result file from `output/raw/`
 - The `--start` and `--count` flags work independently of resume state
+- Use `--force` to bypass resume entirely and re-run all theorem/model pairs (useful for "best of N" analysis)
 
 ### Environment Configuration
 
@@ -781,18 +785,35 @@ Invalid: 38
 Errors:  18
 ```
 
-### Error Handling
+### Error Handling and Auto-Retry
 
-Errors at every stage are caught, logged, and saved:
+The harness automatically retries errors within the same run — up to 10 attempts per theorem/model pair. Retries use exponential backoff (1s, 2s, 4s, ...) capped at 30 seconds. If all 10 attempts fail, the error is saved and the harness moves to the next theorem. The harness never aborts on individual theorem/model failures. Only fatal errors (missing theorems file, unknown model adapter) cause an exit.
 
-| Stage | Error Type | Recorded As |
-|-------|-----------|-------------|
-| Prompt build | Exception in `buildPrompt()` | `validation_errors: ["Prompt build error: ..."]` |
-| API call | Network/auth/rate limit failure | `validation_errors: ["API error: ..."]` |
-| Parse | No proof lines found, malformed lines | `parse_error: "..."`, `validation_result: "error"` |
-| Validation | CLI subprocess error, timeout | `validation_errors: ["Validation process error: ..."]` |
+#### Error Categories
 
-The harness never aborts on individual theorem/model failures. Only fatal errors (missing theorems file, unknown model adapter) cause an exit.
+There are two distinct error types, tracked separately in the GUI as `ep` (parse errors) and `ea` (API errors):
+
+| Category | Label | What Happened | Example |
+|----------|-------|---------------|---------|
+| **API error** | `ea` | Model never responded — infrastructure failure | 429 rate limit, network timeout, auth failure |
+| **Parse error** | `ep` | Model responded, but output couldn't be parsed into proof lines | Model wrote prose, used unknown rules, produced garbled output |
+| **Invalid** | `i` | Model responded, proof was parsed, but the proof is logically wrong | Wrong rule application, scope errors, conclusion doesn't match |
+| **Valid** | `v` | Model responded, proof was parsed and validated | Correct proof |
+
+#### Retry Policy
+
+> **BENCHMARK DESIGN NOTE:** By default, both API errors and parse errors are retried (up to 10 attempts). This means **parse errors give the model another shot** — the model gets re-prompted and can produce a different response. This is a deliberate design choice: since the model's output is non-deterministic (temperature > 0), a parse failure on one attempt may succeed on the next if the model happens to format its response differently. However, this policy is debatable — an alternative view is that parse errors are the model's fault for not following the output format, and should count as a final result (like invalid proofs). The `--no-retry-parse` flag (and the corresponding GUI checkbox "Don't retry parse errors") switches to this stricter mode: parse errors are saved immediately as final results without retrying. This makes the benchmark less lenient toward models that produce unparseable output.
+
+| Stage | Error Type | Default | With `--no-retry-parse` | Rationale |
+|-------|-----------|---------|------------------------|-----------|
+| Prompt build | Exception in `buildPrompt()` | No retry | No retry | Deterministic — would fail identically every time |
+| API call | Network/auth/rate limit failure | **Retried** | **Retried** | Infrastructure issue, not the model's fault |
+| Parse | Output couldn't be parsed | **Retried** | **No retry** | Configurable — see design note above |
+| Validation | Proof invalid | No retry | No retry | This is a real result — the model tried and the proof is wrong |
+
+#### Error Replacement
+
+When a retry succeeds, the previous error result is automatically replaced (deleted from both the database and JSON files). This ensures each theorem/model pair has exactly one result — the final outcome, not intermediate failures.
 
 ---
 
@@ -1303,6 +1324,8 @@ gui/
 - Maps model aliases to full names (e.g., "gemini" → "Gemini 2.5 Flash Lite Preview")
 - **Important:** When CLI model names/defaults change, this component must be updated per CLAUDE.md rules
 - Includes a "Parallel Workers" field for configuring concurrent API calls
+- "Force new run" checkbox: when enabled, passes `--force` to the harness to skip resume logic and run all theorems fresh
+- "Don't retry parse errors" checkbox: when enabled, passes `--no-retry-parse` to the harness so unparseable model output is treated as a final result rather than retried (see [Retry Policy](#retry-policy) for design rationale)
 
 **Avg Lines by Difficulty Table (`components/AvgLinesByDifficultyTable.tsx`):**
 - Displays average proof line count per model per difficulty tier
@@ -1346,6 +1369,10 @@ PropBench uses SQLite (`propbench.db`) as a persistent storage layer, replacing 
 **Concurrency:** The database uses WAL (Write-Ahead Logging) mode for safe concurrent reads and writes, allowing the GUI server to query results while the harness writes new ones.
 
 **Dual-write approach:** During the transition period, the harness writes results to both JSON files (in `results/raw/`) and SQLite simultaneously. The GUI server queries SQLite when the database is available and falls back to filesystem scanning if `propbench.db` is missing. This ensures backward compatibility with existing tooling that reads JSON files directly.
+
+**Error result replacement:** When a new result is inserted for a theorem/model pair, any existing error results for that pair are automatically deleted (from both the database and JSON files). This ensures retried theorems replace their error records rather than accumulating duplicates. Valid and invalid results are never deleted — only errors.
+
+**Cache invalidation:** Each `insertResult()` call automatically invalidates the `reports_cache` for the corresponding theorem set. This ensures the dashboard always shows fresh data after new results are written, even during a running benchmark.
 
 **Migration:** Existing JSON results can be imported into the database via `npm run migrate`, which scans `benchmarks/` and `results/` directories. The migration is idempotent and safe to run multiple times.
 

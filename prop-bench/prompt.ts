@@ -129,7 +129,7 @@ export function buildPrompt(theorem: Theorem): string {
   return `\
 You are a formal logic proof assistant. Given a theorem, produce a
 correct Fitch-style natural deduction proof using ONLY the rules and
-techniques listed below. Minimize the number of proof lines.
+techniques listed below. Your primary goal is to get the correct proof with the fewest  logical operations. 
 
 ${SYMBOLS}
 

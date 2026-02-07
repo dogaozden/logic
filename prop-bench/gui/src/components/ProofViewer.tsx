@@ -13,11 +13,11 @@ interface ProofViewerProps {
 /** Render logic symbols in Unicode. */
 function renderFormula(raw: string): string {
   return raw
-    .replace(/_\|_/g, "⊥")
-    .replace(/ <-> /g, " ≡ ")
-    .replace(/ -> /g, " ⊃ ")
-    .replace(/ & /g, " · ")
-    .replace(/ \| /g, " ∨ ");
+    .replace(/#/g, "⊥")
+    .replace(/ <> /g, " ≡ ")
+    .replace(/ > /g, " ⊃ ")
+    .replace(/ \. /g, " · ")
+    .replace(/ v /g, " ∨ ");
 }
 
 export default function ProofViewer({

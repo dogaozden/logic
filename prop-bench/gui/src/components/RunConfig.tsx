@@ -10,6 +10,8 @@ export interface RunConfigValues {
   workers: number;
   startIndex: number;
   count: string;
+  force: boolean;
+  noRetryParse: boolean;
 }
 
 const MODEL_OPTIONS = [
@@ -41,6 +43,12 @@ function buildCommand(cfg: RunConfigValues): string {
   }
   if (cfg.count.trim() !== "") {
     parts.push(`--count ${cfg.count.trim()}`);
+  }
+  if (cfg.force) {
+    parts.push("--force");
+  }
+  if (cfg.noRetryParse) {
+    parts.push("--no-retry-parse");
   }
   return parts.join(" \\\n  ");
 }
@@ -230,6 +238,30 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
             disabled={running}
           />
         </div>
+      </div>
+
+      {/* Force new run */}
+      <div className="config-section">
+        <label className="model-checkbox">
+          <input
+            type="checkbox"
+            checked={config.force}
+            onChange={(e) => onChange({ ...config, force: e.target.checked })}
+            disabled={running}
+          />
+          <span className="model-checkbox-name">Force new run</span>
+          <span className="model-checkbox-detail">Don't skip completed theorems</span>
+        </label>
+        <label className="model-checkbox">
+          <input
+            type="checkbox"
+            checked={config.noRetryParse}
+            onChange={(e) => onChange({ ...config, noRetryParse: e.target.checked })}
+            disabled={running}
+          />
+          <span className="model-checkbox-name">Don't retry parse errors</span>
+          <span className="model-checkbox-detail">Treat unparseable output as final</span>
+        </label>
       </div>
 
       {/* Start button */}

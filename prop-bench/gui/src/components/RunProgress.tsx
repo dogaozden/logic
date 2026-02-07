@@ -9,7 +9,8 @@ export interface SSEProgressEvent {
   currentModel?: string;
   validCount?: number;
   invalidCount?: number;
-  errorCount?: number;
+  parseErrorCount?: number;
+  apiErrorCount?: number;
   skippedCount?: number;
   message?: string;
   error?: string;
@@ -55,7 +56,8 @@ function RunProgress({
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   const validCount = progress?.validCount ?? 0;
   const invalidCount = progress?.invalidCount ?? 0;
-  const errorCount = progress?.errorCount ?? 0;
+  const parseErrorCount = progress?.parseErrorCount ?? 0;
+  const apiErrorCount = progress?.apiErrorCount ?? 0;
   const skippedCount = progress?.skippedCount ?? 0;
 
   return (
@@ -102,9 +104,16 @@ function RunProgress({
         <span className="progress-stat progress-stat--invalid">
           Invalid: {invalidCount}
         </span>
-        <span className="progress-stat progress-stat--error">
-          Errors: {errorCount}
-        </span>
+        {parseErrorCount > 0 && (
+          <span className="progress-stat progress-stat--error">
+            Parse Errors: {parseErrorCount}
+          </span>
+        )}
+        {apiErrorCount > 0 && (
+          <span className="progress-stat progress-stat--error">
+            API Errors: {apiErrorCount}
+          </span>
+        )}
         {skippedCount > 0 && (
           <span className="progress-stat progress-stat--skipped">
             Skipped: {skippedCount}

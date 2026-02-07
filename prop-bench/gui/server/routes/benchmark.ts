@@ -13,7 +13,8 @@ interface RunProgress {
   currentModel: string;
   validCount: number;
   invalidCount: number;
-  errorCount: number;
+  parseErrorCount: number;
+  apiErrorCount: number;
   skippedCount: number;
 }
 
@@ -83,8 +84,13 @@ function parseHarnessLine(line: string, progress: RunProgress): void {
   }
 
   // Match "  -> API ERROR" / "  -> PARSE ERROR" / "  -> PROMPT ERROR"
-  if (line.match(/^\s*->\s+(API|PARSE|PROMPT)\s+ERROR/)) {
-    progress.errorCount++;
+  // Skip retry lines — only count final errors (those without "(will retry)")
+  if (line.match(/^\s*->\s+(API|PARSE|PROMPT)\s+ERROR/) && !line.includes("(will retry)")) {
+    if (line.match(/^\s*->\s+API\s+ERROR/)) {
+      progress.apiErrorCount++;
+    } else {
+      progress.parseErrorCount++;
+    }
     progress.completed++;
     return;
   }
@@ -93,7 +99,7 @@ function parseHarnessLine(line: string, progress: RunProgress): void {
 /** POST /api/benchmark/start — spawn a harness run */
 router.post("/start", (req: Request, res: Response) => {
   try {
-    const { theoremSet, models, temperature, maxTokens, workers, start, count } = req.body;
+    const { theoremSet, models, temperature, maxTokens, workers, start, count, force, noRetryParse } = req.body;
 
     if (!theoremSet || !models || !Array.isArray(models) || models.length === 0) {
       res.status(400).json({ error: "Missing required fields: theoremSet, models (array)" });
@@ -112,6 +118,8 @@ router.post("/start", (req: Request, res: Response) => {
       workers,
       start,
       count,
+      force,
+      noRetryParse,
     });
 
     const run = {
@@ -124,7 +132,8 @@ router.post("/start", (req: Request, res: Response) => {
         currentModel: "",
         validCount: 0,
         invalidCount: 0,
-        errorCount: 0,
+        parseErrorCount: 0,
+        apiErrorCount: 0,
         skippedCount: 0,
       },
       done: false,
@@ -142,7 +151,7 @@ router.post("/start", (req: Request, res: Response) => {
       for (const line of lines) {
         run.output.push(line);
         parseHarnessLine(line, run.progress);
-        console.log(`[benchmark:${runId}:progress] after parsing line: completed=${run.progress.completed}, total=${run.progress.total}, valid=${run.progress.validCount}, invalid=${run.progress.invalidCount}, errors=${run.progress.errorCount}, skipped=${run.progress.skippedCount}`);
+        console.log(`[benchmark:${runId}:progress] after parsing line: completed=${run.progress.completed}, total=${run.progress.total}, valid=${run.progress.validCount}, invalid=${run.progress.invalidCount}, ep=${run.progress.parseErrorCount}, ea=${run.progress.apiErrorCount}, skipped=${run.progress.skippedCount}`);
       }
     });
 
@@ -219,7 +228,8 @@ router.get("/status/:runId", (req: Request, res: Response) => {
       currentModel: p.currentModel,
       validCount: p.validCount,
       invalidCount: p.invalidCount,
-      errorCount: p.errorCount,
+      parseErrorCount: p.parseErrorCount,
+      apiErrorCount: p.apiErrorCount,
       skippedCount: p.skippedCount,
     })}\n\n`);
 
@@ -235,7 +245,8 @@ router.get("/status/:runId", (req: Request, res: Response) => {
           total: p.total,
           validCount: p.validCount,
           invalidCount: p.invalidCount,
-          errorCount: p.errorCount,
+          parseErrorCount: p.parseErrorCount,
+          apiErrorCount: p.apiErrorCount,
           skippedCount: p.skippedCount,
           message: "Benchmark run complete",
         })}\n\n`);

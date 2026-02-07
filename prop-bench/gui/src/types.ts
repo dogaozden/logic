@@ -108,14 +108,14 @@ export interface HeadToHead {
   modelBLines: number | null;
 }
 
-/** Convert ASCII formula notation to standard logic display symbols */
+/** Convert prompt-style formula notation to standard logic display symbols */
 export function toDisplayNotation(formula: string): string {
   return formula
-    .replace(/ <-> /g, " ≡ ")
-    .replace(/ -> /g, " ⊃ ")
-    .replace(/ & /g, " . ")
-    .replace(/ \| /g, " ∨ ")
-    .replace(/_\|_/g, "⊥");
+    .replace(/#/g, "⊥")
+    .replace(/ <> /g, " ≡ ")
+    .replace(/ > /g, " ⊃ ")
+    .replace(/ \. /g, " · ")
+    .replace(/ v /g, " ∨ ");
 }
 
 export interface BenchmarkReport {

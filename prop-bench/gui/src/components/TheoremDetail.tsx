@@ -12,11 +12,11 @@ interface TheoremDetailProps {
 /** Render a formula string with Unicode logic symbols. */
 function renderFormula(raw: string): string {
   return raw
-    .replace(/_\|_/g, "⊥")
-    .replace(/ <-> /g, " ≡ ")
-    .replace(/ -> /g, " ⊃ ")
-    .replace(/ & /g, " · ")
-    .replace(/ \| /g, " ∨ ");
+    .replace(/#/g, "⊥")
+    .replace(/ <> /g, " ≡ ")
+    .replace(/ > /g, " ⊃ ")
+    .replace(/ \. /g, " · ")
+    .replace(/ v /g, " ∨ ");
 }
 
 type ViewMode = "proofs" | "compare";

@@ -145,6 +145,8 @@ export interface HarnessOpts {
   workers?: number;
   start?: number;
   count?: number;
+  force?: boolean;
+  noRetryParse?: boolean;
 }
 
 export function spawnHarness(opts: HarnessOpts): ChildProcess {
@@ -179,6 +181,12 @@ export function spawnHarness(opts: HarnessOpts): ChildProcess {
   }
   if (opts.count !== undefined) {
     args.push("--count", String(opts.count));
+  }
+  if (opts.force) {
+    args.push("--force");
+  }
+  if (opts.noRetryParse) {
+    args.push("--no-retry-parse");
   }
 
   // Build child env: inherit process.env and also load .env from project root

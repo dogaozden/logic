@@ -97,8 +97,18 @@ function RunHistory({ refreshTrigger, onViewResults }: RunHistoryProps) {
                 <span className="text-success">{run.stats.total_valid}v</span>
                 {" / "}
                 <span className="text-error">{run.stats.total_invalid}i</span>
-                {" / "}
-                <span className="text-warning">{run.stats.total_errors}e</span>
+                {run.stats.total_parse_errors > 0 && (
+                  <>
+                    {" / "}
+                    <span className="text-warning">{run.stats.total_parse_errors}ep</span>
+                  </>
+                )}
+                {run.stats.total_api_errors > 0 && (
+                  <>
+                    {" / "}
+                    <span className="text-warning">{run.stats.total_api_errors}ea</span>
+                  </>
+                )}
               </span>
             </div>
             <div className="run-history-actions">

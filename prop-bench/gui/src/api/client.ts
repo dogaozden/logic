@@ -52,6 +52,8 @@ export interface StartBenchmarkOpts {
   workers?: number;
   start?: number;
   count?: number;
+  force?: boolean;
+  noRetryParse?: boolean;
 }
 
 export interface RunInfo {
@@ -63,6 +65,8 @@ export interface RunInfo {
     total_valid: number;
     total_invalid: number;
     total_errors: number;
+    total_parse_errors: number;
+    total_api_errors: number;
   };
 }
 

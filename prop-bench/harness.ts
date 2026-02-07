@@ -62,6 +62,8 @@ interface CliArgs {
   temperature: number;
   maxTokens: number;
   workers: number;
+  force: boolean;
+  noRetryParse: boolean;
 }
 
 function parseArgs(): CliArgs {
@@ -76,6 +78,8 @@ function parseArgs(): CliArgs {
     temperature: 0.2,
     maxTokens: 4096,
     workers: 1,
+    force: false,
+    noRetryParse: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -106,6 +110,12 @@ function parseArgs(): CliArgs {
         break;
       case "--workers":
         parsed.workers = parseInt(args[++i], 10);
+        break;
+      case "--force":
+        parsed.force = true;
+        break;
+      case "--no-retry-parse":
+        parsed.noRetryParse = true;
         break;
       default:
         console.error(`Unknown argument: ${args[i]}`);
@@ -138,6 +148,8 @@ Options:
   --temperature <n>         Model temperature (default: 0.2)
   --max-tokens <n>          Max tokens for model response (default: 4096)
   --workers <n>             Number of parallel API calls (default: 1)
+  --force                   Force new run (don't skip completed theorems)
+  --no-retry-parse          Don't retry parse errors (treat as final result)
 `);
 }
 
@@ -181,7 +193,10 @@ function loadRunState(outputDir: string): RunState {
         const data = JSON.parse(
           fs.readFileSync(path.join(rawDir, file), "utf-8")
         ) as BenchmarkResult;
-        completed.add(`${data.theorem_id}::${data.model}`);
+        // Only skip successful results; errors should be retried
+        if (data.validation_result !== "error") {
+          completed.add(`${data.theorem_id}::${data.model}`);
+        }
       } catch {
         // Skip corrupt files
       }
@@ -197,7 +212,10 @@ function loadRunState(outputDir: string): RunState {
         const data = JSON.parse(
           fs.readFileSync(path.join(flatRawDir, file), "utf-8")
         ) as BenchmarkResult;
-        completed.add(`${data.theorem_id}::${data.model}`);
+        // Only skip successful results; errors should be retried
+        if (data.validation_result !== "error") {
+          completed.add(`${data.theorem_id}::${data.model}`);
+        }
       } catch {
         // Skip corrupt files
       }
@@ -288,6 +306,20 @@ function saveResult(result: BenchmarkResult, outputDir: string): void {
   const rawDir = path.join(outputDir, result.model, "raw");
   fs.mkdirSync(rawDir, { recursive: true });
 
+  // Delete old error files for this theorem/model so retries replace them
+  const prefix = `${result.theorem_id}_${result.model}_`;
+  try {
+    const existing = fs.readdirSync(rawDir).filter((f) => f.startsWith(prefix) && f.endsWith(".json"));
+    for (const file of existing) {
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(rawDir, file), "utf-8")) as BenchmarkResult;
+        if (data.validation_result === "error") {
+          fs.unlinkSync(path.join(rawDir, file));
+        }
+      } catch { /* skip unreadable files */ }
+    }
+  } catch { /* skip if dir listing fails */ }
+
   const filename = `${result.theorem_id}_${result.model}_${Date.now()}.json`;
   const filepath = path.join(rawDir, filename);
   fs.writeFileSync(filepath, JSON.stringify(result, null, 2), "utf-8");
@@ -331,6 +363,7 @@ async function run(): Promise<void> {
   console.log(`Models:   ${args.models.join(", ")}`);
   console.log(`Output:   ${args.output}`);
   console.log(`Workers:  ${args.workers}`);
+  if (args.force) console.log(`Force:    YES (new run, skipping nothing)`);
   console.log();
 
   // Load theorems
@@ -404,7 +437,7 @@ async function run(): Promise<void> {
     for (let ai = 0; ai < adapters.length; ai++) {
       itemNumber++;
       const key = resultKey(benchTheorems[ti].id, adapters[ai].name);
-      if (state.completed.has(key)) {
+      if (!args.force && state.completed.has(key)) {
         totalSkipped++;
         console.log(
           `[${itemNumber}/${benchTheorems.length * adapters.length}] ${benchTheorems[ti].id} x ${adapters[ai].name} — SKIPPED (already done)`
@@ -417,6 +450,8 @@ async function run(): Promise<void> {
 
   const totalItems = benchTheorems.length * adapters.length;
 
+  const MAX_ATTEMPTS = 10; // retry errors up to 10 times before giving up
+
   // Process work items with concurrency limiter
   async function processWorkItem(item: WorkItem): Promise<void> {
     const benchThm = benchTheorems[item.theoremIndex];
@@ -424,114 +459,130 @@ async function run(): Promise<void> {
     const theorem = toTheorem(benchThm);
     const progress = `[${item.itemNumber}/${totalItems}]`;
 
-    console.log(
-      `${progress} ${benchThm.id} x ${adapter.displayName} — running...`
-    );
-
-    const result: BenchmarkResult = {
-      theorem_id: benchThm.id,
-      model: adapter.name,
-      model_name: "",
-      raw_response: "",
-      parsed_proof: null,
-      parse_error: null,
-      validation_result: "error",
-      validation_errors: [],
-      line_count: null,
-      latency_ms: 0,
-      tokens_used: undefined,
-      timestamp: new Date().toISOString(),
-    };
-
-    const modelConfig: ModelConfig = {
-      model: "",
-      temperature: args.temperature,
-      maxTokens: args.maxTokens,
-    };
-
-    // Step 1: Build prompt
-    let prompt: string;
-    try {
-      prompt = promptForTheorem(theorem);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      result.validation_errors = [`Prompt build error: ${msg}`];
-      saveResult(result, args.output);
-      // DB dual-write
-      if (setName) {
-        try { db.insertResult(setName, result); } catch {}
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      if (attempt > 1) {
+        // Exponential backoff capped at 30s
+        const delay = Math.min(1000 * Math.pow(2, attempt - 2), 30_000);
+        console.log(`${progress} ${benchThm.id} x ${adapter.displayName} — retrying (attempt ${attempt}/${MAX_ATTEMPTS}) after ${delay}ms...`);
+        await new Promise((r) => setTimeout(r, delay));
+      } else {
+        console.log(
+          `${progress} ${benchThm.id} x ${adapter.displayName} — running...`
+        );
       }
-      totalErrors++;
-      console.log(`  -> PROMPT ERROR: ${msg}`);
-      return;
-    }
 
-    // Step 2: Call model API
-    let response: ModelResponse;
-    try {
-      response = await adapter.callModel(prompt, modelConfig);
-      result.raw_response = response.raw_response;
-      result.latency_ms = response.latency_ms;
-      result.model_name = response.model;
-      result.tokens_used = response.tokens_used;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      result.validation_errors = [`API error: ${msg}`];
-      saveResult(result, args.output);
-      // DB dual-write
-      if (setName) {
-        try { db.insertResult(setName, result); } catch {}
+      const result: BenchmarkResult = {
+        theorem_id: benchThm.id,
+        model: adapter.name,
+        model_name: adapter.displayName,
+        raw_response: "",
+        parsed_proof: null,
+        parse_error: null,
+        validation_result: "error",
+        validation_errors: [],
+        line_count: null,
+        latency_ms: 0,
+        tokens_used: undefined,
+        timestamp: new Date().toISOString(),
+      };
+
+      const modelConfig: ModelConfig = {
+        model: "",
+        temperature: args.temperature,
+        maxTokens: args.maxTokens,
+      };
+
+      // Step 1: Build prompt
+      let prompt: string;
+      try {
+        prompt = promptForTheorem(theorem);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        result.validation_errors = [`Prompt build error: ${msg}`];
+        // Prompt errors are deterministic — no point retrying
+        saveResult(result, args.output);
+        if (setName) {
+          try { db.insertResult(setName, result); } catch {}
+        }
+        totalErrors++;
+        console.log(`  -> PROMPT ERROR: ${msg}`);
+        return;
       }
-      totalErrors++;
-      console.log(`  -> API ERROR: ${msg}`);
-      return;
-    }
 
-    // Step 3: Parse response
-    const { proof, error: parseError } = parseModelResponse(
-      response.raw_response,
-      theorem
-    );
-    if (parseError || !proof) {
-      result.parse_error = parseError;
-      result.validation_result = "error";
-      result.validation_errors = [parseError ?? "Unknown parse error"];
-      saveResult(result, args.output);
-      // DB dual-write
-      if (setName) {
-        try { db.insertResult(setName, result); } catch {}
+      // Step 2: Call model API
+      let response: ModelResponse;
+      try {
+        response = await adapter.callModel(prompt, modelConfig);
+        result.raw_response = response.raw_response;
+        result.latency_ms = response.latency_ms;
+        result.model_name = response.model;
+        result.tokens_used = response.tokens_used;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        result.validation_errors = [`API error: ${msg}`];
+        if (attempt < MAX_ATTEMPTS) {
+          console.log(`  -> API ERROR (will retry): ${msg}`);
+          continue;
+        }
+        saveResult(result, args.output);
+        if (setName) {
+          try { db.insertResult(setName, result); } catch {}
+        }
+        totalErrors++;
+        console.log(`  -> API ERROR (gave up after ${MAX_ATTEMPTS} attempts): ${msg}`);
+        return;
       }
-      totalErrors++;
-      console.log(`  -> PARSE ERROR: ${parseError}`);
-      return;
-    }
-    result.parsed_proof = proof;
 
-    // Step 4: Validate via CLI
-    const { valid, line_count, errors } = await validateProof(
-      benchThm,
-      proof,
-      args.propbenchBin
-    );
-    result.validation_result = valid ? "valid" : "invalid";
-    result.validation_errors = errors;
-    result.line_count = valid ? line_count : null;
-
-    saveResult(result, args.output);
-    // DB dual-write
-    if (setName) {
-      try { db.insertResult(setName, result); } catch {}
-    }
-    totalRun++;
-
-    if (valid) {
-      totalValid++;
-      console.log(`  -> VALID (${proof.length} lines, ${result.latency_ms}ms)`);
-    } else {
-      totalInvalid++;
-      console.log(
-        `  -> INVALID: ${errors.slice(0, 2).join("; ")}${errors.length > 2 ? ` (+${errors.length - 2} more)` : ""}`
+      // Step 3: Parse response
+      const { proof, error: parseError } = parseModelResponse(
+        response.raw_response,
+        theorem
       );
+      if (parseError || !proof) {
+        result.parse_error = parseError;
+        result.validation_result = "error";
+        result.validation_errors = [parseError ?? "Unknown parse error"];
+        if (!args.noRetryParse && attempt < MAX_ATTEMPTS) {
+          console.log(`  -> PARSE ERROR (will retry): ${parseError}`);
+          continue;
+        }
+        saveResult(result, args.output);
+        if (setName) {
+          try { db.insertResult(setName, result); } catch {}
+        }
+        totalErrors++;
+        console.log(`  -> PARSE ERROR (gave up after ${MAX_ATTEMPTS} attempts): ${parseError}`);
+        return;
+      }
+      result.parsed_proof = proof;
+
+      // Step 4: Validate via CLI
+      const { valid, line_count, errors } = await validateProof(
+        benchThm,
+        proof,
+        args.propbenchBin
+      );
+      result.validation_result = valid ? "valid" : "invalid";
+      result.validation_errors = errors;
+      result.line_count = valid ? line_count : null;
+
+      saveResult(result, args.output);
+      if (setName) {
+        try { db.insertResult(setName, result); } catch {}
+      }
+      totalRun++;
+
+      if (valid) {
+        totalValid++;
+        console.log(`  -> VALID (${proof.length} lines, ${result.latency_ms}ms)`);
+      } else {
+        // Invalid proofs are final results, NOT errors — don't retry
+        totalInvalid++;
+        console.log(
+          `  -> INVALID: ${errors.slice(0, 2).join("; ")}${errors.length > 2 ? ` (+${errors.length - 2} more)` : ""}`
+        );
+      }
+      return; // Got a result (valid or invalid) — done
     }
   }
 
@@ -662,7 +713,7 @@ async function run(): Promise<void> {
       if (!fs.existsSync(rawDir)) continue;
 
       // Resolve display name: adapter lookup → per-model summary → dir name
-      let displayName = displayNameMap.get(subDir.name);
+      let displayName: string = displayNameMap.get(subDir.name) ?? "";
       if (!displayName) {
         const modelSummaryPath = path.join(args.output, subDir.name, "summary.json");
         if (fs.existsSync(modelSummaryPath)) {

@@ -140,7 +140,8 @@ impl Formula {
         self.ascii_bracketed_inner()
     }
 
-    /// Recursive bracketed formatter using ASCII operators (& | -> <->)
+    /// Recursive bracketed formatter using prompt-compatible symbols (. v > <>)
+    /// Matches the symbols used in prompt.ts so LLMs see consistent notation.
     fn ascii_bracketed_inner(&self) -> String {
         match self {
             Formula::Atom(name) => name.clone(),
@@ -158,24 +159,24 @@ impl Formula {
             Formula::And(left, right) => {
                 let left_str = Self::wrap_if_compound_ascii(left);
                 let right_str = Self::wrap_if_compound_ascii(right);
-                format!("{} & {}", left_str, right_str)
+                format!("{} . {}", left_str, right_str)
             }
             Formula::Or(left, right) => {
                 let left_str = Self::wrap_if_compound_ascii(left);
                 let right_str = Self::wrap_if_compound_ascii(right);
-                format!("{} | {}", left_str, right_str)
+                format!("{} v {}", left_str, right_str)
             }
             Formula::Implies(left, right) => {
                 let left_str = Self::wrap_if_compound_ascii(left);
                 let right_str = Self::wrap_if_compound_ascii(right);
-                format!("{} -> {}", left_str, right_str)
+                format!("{} > {}", left_str, right_str)
             }
             Formula::Biconditional(left, right) => {
                 let left_str = Self::wrap_if_compound_ascii(left);
                 let right_str = Self::wrap_if_compound_ascii(right);
-                format!("{} <-> {}", left_str, right_str)
+                format!("{} <> {}", left_str, right_str)
             }
-            Formula::Contradiction => "_|_".to_string(),
+            Formula::Contradiction => "#".to_string(),
         }
     }
 
@@ -754,59 +755,59 @@ mod tests {
     fn test_ascii_bracketed_negation_compound() {
         // ~(P & Q) should bracket the compound
         let f = Formula::parse("~(P & Q)").unwrap();
-        assert_eq!(f.ascii_string_bracketed(), "~(P & Q)");
+        assert_eq!(f.ascii_string_bracketed(), "~(P . Q)");
     }
 
     #[test]
     fn test_ascii_bracketed_simple_binary() {
         // P & Q — outermost not wrapped
         let f = Formula::parse("P & Q").unwrap();
-        assert_eq!(f.ascii_string_bracketed(), "P & Q");
+        assert_eq!(f.ascii_string_bracketed(), "P . Q");
     }
 
     #[test]
     fn test_ascii_bracketed_nested_one_level() {
         // (P | Q) & R — the Or is compound, local depth 0 → ()
         let f = Formula::parse("(P | Q) & R").unwrap();
-        assert_eq!(f.ascii_string_bracketed(), "(P | Q) & R");
+        assert_eq!(f.ascii_string_bracketed(), "(P v Q) . R");
     }
 
     #[test]
     fn test_ascii_bracketed_implies_with_and() {
         // (P & Q) -> R — And is compound, local depth 0 → ()
         let f = Formula::parse("(P & Q) -> R").unwrap();
-        assert_eq!(f.ascii_string_bracketed(), "(P & Q) -> R");
+        assert_eq!(f.ascii_string_bracketed(), "(P . Q) > R");
     }
 
     #[test]
     fn test_ascii_bracketed_two_levels() {
         // ((P | Q) & R) -> S
-        // Inner: P | Q wrapped in () (local depth 0)
-        // (P | Q) & R is a compound with local depth 1 → [] wrapping
+        // Inner: P v Q wrapped in () (local depth 0)
+        // (P v Q) . R is a compound with local depth 1 → [] wrapping
         let f = Formula::parse("((P | Q) & R) -> S").unwrap();
-        assert_eq!(f.ascii_string_bracketed(), "[(P | Q) & R] -> S");
+        assert_eq!(f.ascii_string_bracketed(), "[(P v Q) . R] > S");
     }
 
     #[test]
     fn test_ascii_bracketed_contradiction() {
         let f = Formula::parse("_|_").unwrap();
-        assert_eq!(f.ascii_string_bracketed(), "_|_");
+        assert_eq!(f.ascii_string_bracketed(), "#");
     }
 
     #[test]
     fn test_ascii_bracketed_biconditional() {
         let f = Formula::parse("P <-> Q").unwrap();
-        assert_eq!(f.ascii_string_bracketed(), "P <-> Q");
+        assert_eq!(f.ascii_string_bracketed(), "P <> Q");
     }
 
     #[test]
     fn test_ascii_bracketed_local_depth_hierarchy() {
         // (P | Q) & ((~R -> ~P) & R)
-        // P | Q: local depth 0 → ()
-        // (~R -> ~P) & R: local depth 1 → []
+        // P v Q: local depth 0 → ()
+        // (~R > ~P) . R: local depth 1 → []
         let f = Formula::parse("(P | Q) & ((~R -> ~P) & R)").unwrap();
         let result = f.ascii_string_bracketed();
-        assert_eq!(result, "(P | Q) & [(~R -> ~P) & R]");
+        assert_eq!(result, "(P v Q) . [(~R > ~P) . R]");
     }
 
     #[test]

@@ -19,6 +19,8 @@ function BenchmarkRunner() {
     workers: 1,
     startIndex: 0,
     count: "",
+    force: false,
+    noRetryParse: false,
   });
 
   const [isRunning, setIsRunning] = useState(false);
@@ -128,6 +130,8 @@ function BenchmarkRunner() {
         workers: config.workers > 1 ? config.workers : undefined,
         start: config.startIndex > 0 ? config.startIndex : undefined,
         count: Number.isFinite(countNum) ? countNum : undefined,
+        force: config.force || undefined,
+        noRetryParse: config.noRetryParse || undefined,
       });
       setRunId(id);
       startTimer();

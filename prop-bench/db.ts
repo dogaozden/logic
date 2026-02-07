@@ -40,6 +40,8 @@ export interface RunInfo {
     total_valid: number;
     total_invalid: number;
     total_errors: number;
+    total_parse_errors: number;
+    total_api_errors: number;
   };
 }
 
@@ -201,6 +203,12 @@ export function insertResult(setName: string, result: BenchmarkResult): void {
     throw new Error(`Theorem set '${setName}' not found in DB`);
   }
 
+  // Delete previous error results for this theorem/model so retries replace them
+  db.prepare(`
+    DELETE FROM results
+    WHERE set_id = ? AND theorem_id = ? AND model_slug = ? AND validation_result = 'error'
+  `).run(setRow.id, result.theorem_id, result.model);
+
   const stmt = db.prepare(`
     INSERT INTO results (
       set_id, theorem_id, model_slug, model_display,
@@ -225,6 +233,9 @@ export function insertResult(setName: string, result: BenchmarkResult): void {
     result.tokens_used ?? null,
     result.timestamp
   );
+
+  // Invalidate cached reports so dashboard queries return fresh data
+  invalidateReportCache(setRow.id);
 }
 
 export function hasResult(setName: string, theoremId: string, modelSlug: string): boolean {
@@ -248,16 +259,20 @@ export function getRunsList(): RunInfo[] {
   const db = getDb();
 
   // Get per-model runs
+  // Use MAX(model_display) to pick a non-empty display name (empty string sorts before real names)
+  // Split errors into parse errors (parse_error IS NOT NULL) and API errors (parse_error IS NULL)
   const modelRuns = db.prepare(`
     SELECT
       ts.name AS set_name,
       r.model_slug,
-      r.model_display,
+      MAX(r.model_display) AS model_display,
       MAX(r.timestamp) AS latest_timestamp,
       COUNT(*) AS total_run,
       SUM(CASE WHEN r.validation_result = 'valid' THEN 1 ELSE 0 END) AS total_valid,
       SUM(CASE WHEN r.validation_result = 'invalid' THEN 1 ELSE 0 END) AS total_invalid,
-      SUM(CASE WHEN r.validation_result = 'error' THEN 1 ELSE 0 END) AS total_errors
+      SUM(CASE WHEN r.validation_result = 'error' THEN 1 ELSE 0 END) AS total_errors,
+      SUM(CASE WHEN r.validation_result = 'error' AND r.parse_error IS NOT NULL THEN 1 ELSE 0 END) AS total_parse_errors,
+      SUM(CASE WHEN r.validation_result = 'error' AND r.parse_error IS NULL THEN 1 ELSE 0 END) AS total_api_errors
     FROM results r
     JOIN theorem_sets ts ON ts.id = r.set_id
     GROUP BY ts.name, r.model_slug
@@ -271,6 +286,8 @@ export function getRunsList(): RunInfo[] {
     total_valid: number;
     total_invalid: number;
     total_errors: number;
+    total_parse_errors: number;
+    total_api_errors: number;
   }>;
 
   // Get combined set-level runs
@@ -281,7 +298,9 @@ export function getRunsList(): RunInfo[] {
       COUNT(*) AS total_run,
       SUM(CASE WHEN r.validation_result = 'valid' THEN 1 ELSE 0 END) AS total_valid,
       SUM(CASE WHEN r.validation_result = 'invalid' THEN 1 ELSE 0 END) AS total_invalid,
-      SUM(CASE WHEN r.validation_result = 'error' THEN 1 ELSE 0 END) AS total_errors
+      SUM(CASE WHEN r.validation_result = 'error' THEN 1 ELSE 0 END) AS total_errors,
+      SUM(CASE WHEN r.validation_result = 'error' AND r.parse_error IS NOT NULL THEN 1 ELSE 0 END) AS total_parse_errors,
+      SUM(CASE WHEN r.validation_result = 'error' AND r.parse_error IS NULL THEN 1 ELSE 0 END) AS total_api_errors
     FROM results r
     JOIN theorem_sets ts ON ts.id = r.set_id
     GROUP BY ts.name
@@ -294,6 +313,8 @@ export function getRunsList(): RunInfo[] {
     total_valid: number;
     total_invalid: number;
     total_errors: number;
+    total_parse_errors: number;
+    total_api_errors: number;
   }>;
 
   // Get models per set for combined runs
@@ -324,6 +345,8 @@ export function getRunsList(): RunInfo[] {
         total_valid: row.total_valid,
         total_invalid: row.total_invalid,
         total_errors: row.total_errors,
+        total_parse_errors: row.total_parse_errors,
+        total_api_errors: row.total_api_errors,
       },
     });
   }
@@ -339,6 +362,8 @@ export function getRunsList(): RunInfo[] {
         total_valid: row.total_valid,
         total_invalid: row.total_invalid,
         total_errors: row.total_errors,
+        total_parse_errors: row.total_parse_errors,
+        total_api_errors: row.total_api_errors,
       },
     });
   }
