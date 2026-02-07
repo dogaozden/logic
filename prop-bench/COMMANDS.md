@@ -231,11 +231,15 @@ export OPENAI_API_KEY="your-key-here"
 
 ```
 results/
-├── raw/                           # Individual result JSON per theorem+model
-│   ├── v1-001_gemini_1738800000.json
-│   ├── v1-001_anthropic_1738800001.json
-│   └── ...
-└── summary.json                   # Run summary (counts, models used)
+└── <set-name>/                    # e.g. v1
+    ├── <model-slug>/              # e.g. gemini, anthropic, openai
+    │   ├── raw/
+    │   │   ├── v1-001_gemini_1738800000.json
+    │   │   └── ...
+    │   ├── summary.json           # per-model aggregate counts
+    │   └── report.json            # per-model report (Scorer output)
+    ├── summary.json               # combined cross-model summary
+    └── report.json                # combined cross-model report
 propbench.db                       # SQLite database (all data)
 ```
 

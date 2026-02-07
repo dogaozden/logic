@@ -10,16 +10,16 @@ interface GenerateTheoremsProps {
 type GenerateMode = "distribution" | "tier" | "custom";
 
 const DEFAULT_TOTAL = 100;
-const DEFAULT_DIST = {
-  easy: 20,
-  medium: 20,
-  hard: 20,
-  expert: 15,
-  nightmare: 10,
-  marathon: 7,
-  absurd: 5,
-  cosmic: 2,
-  mind: 1,
+const DEFAULT_DIST: Record<string, number | null> = {
+  easy: null,
+  medium: null,
+  hard: null,
+  expert: null,
+  nightmare: null,
+  marathon: null,
+  absurd: null,
+  cosmic: null,
+  mind: null,
 };
 
 const TIER_OPTIONS = [
@@ -44,7 +44,7 @@ export default function GenerateTheorems({
   onGenerated,
 }: GenerateTheoremsProps) {
   const [name, setName] = useState("");
-  const [total, setTotal] = useState(DEFAULT_TOTAL);
+  const [total, setTotal] = useState<number | null>(DEFAULT_TOTAL);
   const [mode, setMode] = useState<GenerateMode>("distribution");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
@@ -64,10 +64,10 @@ export default function GenerateTheorems({
     substitution_depth: 0,
   });
 
-  const sum = Object.values(dist).reduce((a, b) => a + b, 0);
+  const sum = Object.values(dist).reduce<number>((a, b) => a + (b ?? 0), 0);
 
   const isValid = (() => {
-    if (!name || !/^[a-zA-Z0-9_-]+$/.test(name) || total < 1) return false;
+    if (!name || !/^[a-zA-Z0-9_-]+$/.test(name) || !total || total < 1) return false;
     if (mode === "distribution") return sum === total;
     return true;
   })();
@@ -77,17 +77,18 @@ export default function GenerateTheorems({
     setGenerating(true);
     setError("");
 
+    const count = total ?? DEFAULT_TOTAL;
     try {
       if (mode === "distribution") {
         const distribution = Object.entries(dist)
-          .filter(([, count]) => count > 0)
-          .map(([tier, count]) => `${count}:${tier}`)
+          .filter(([, c]) => (c ?? 0) > 0)
+          .map(([tier, c]) => `${c}:${tier}`)
           .join(",");
-        await api.generate({ count: total, distribution, name });
+        await api.generate({ count, distribution, name });
       } else if (mode === "tier") {
-        await api.generate({ count: total, tier, name });
+        await api.generate({ count, tier, name });
       } else {
-        await api.generate({ count: total, spec, name });
+        await api.generate({ count, spec, name });
       }
       onGenerated(name);
     } catch (err) {
@@ -97,8 +98,8 @@ export default function GenerateTheorems({
     }
   };
 
-  const handleDistChange = (t: keyof typeof dist, value: number) => {
-    setDist((prev) => ({ ...prev, [t]: Math.max(0, value) }));
+  const handleDistChange = (t: string, value: number | null) => {
+    setDist((prev) => ({ ...prev, [t]: value }));
   };
 
   const tierPreview = TIER_PRESETS[tier];
@@ -137,9 +138,10 @@ export default function GenerateTheorems({
               type="number"
               className="theorem-search"
               min={1}
-              value={total}
-              onChange={(e) => setTotal(Math.max(1, parseInt(e.target.value) || 1))}
+              value={total ?? ""}
+              onChange={(e) => setTotal(e.target.value === "" ? null : parseInt(e.target.value, 10))}
               disabled={generating}
+              placeholder="100"
             />
           </label>
 
@@ -176,21 +178,22 @@ export default function GenerateTheorems({
                       type="number"
                       className="theorem-search generate-dist-input"
                       min={0}
-                      value={dist[t]}
+                      value={dist[t] ?? ""}
                       onChange={(e) =>
-                        handleDistChange(t, parseInt(e.target.value) || 0)
+                        handleDistChange(t, e.target.value === "" ? null : parseInt(e.target.value, 10))
                       }
                       disabled={generating}
+                      placeholder="0"
                     />
                   </label>
                 ))}
               </div>
               <div
                 className="generate-dist-sum"
-                style={{ color: sum === total ? "var(--success)" : "var(--error)" }}
+                style={{ color: total != null && sum === total ? "var(--success)" : "var(--error)" }}
               >
-                Sum: {sum} / {total}
-                {sum !== total && " (must equal total)"}
+                Sum: {sum} / {total ?? "?"}
+                {(total == null || sum !== total) && " (must equal total)"}
               </div>
             </div>
           )}

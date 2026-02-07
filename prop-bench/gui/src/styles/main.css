@@ -224,6 +224,13 @@ body {
 
 /* ─── Tables ─────────────────────────────────────────────────────────────── */
 
+.data-table-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -246,6 +253,7 @@ body {
   background: var(--bg-secondary);
   position: sticky;
   top: 0;
+  z-index: 1;
 }
 
 .data-table tbody tr:hover {
@@ -712,4 +720,213 @@ body {
   background: var(--success);
   border-radius: 2px;
   transition: width 0.3s ease;
+}
+
+/* --- Dashboard Set Picker --- */
+.dashboard-set-picker {
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.dashboard-set-picker label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.dashboard-set-picker select {
+  font-size: 15px;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-width: 280px;
+}
+
+/* --- View Toggle --- */
+.view-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.view-toggle-btn {
+  padding: 10px 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.view-toggle-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.view-toggle-btn.active {
+  background: var(--accent-dim);
+  color: var(--text-primary);
+  border-color: var(--accent-dim);
+}
+
+/* --- Individual Runs Table --- */
+.individual-runs-table-scroll {
+  max-height: 600px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.run-status {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.run-status.finished {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--success);
+}
+
+.run-status.running {
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--warning);
+}
+
+/* --- Model Scorecards --- */
+.model-scorecard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.model-scorecard {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}
+.model-scorecard-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+.model-scorecard-rate {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.model-scorecard-rate.--high { color: var(--success); }
+.model-scorecard-rate.--mid { color: var(--warning); }
+.model-scorecard-rate.--low { color: var(--error); }
+.model-scorecard-counts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 12px 0;
+}
+.model-scorecard-count {
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--bg-primary);
+  font-size: 12px;
+}
+.model-scorecard-count .count-value {
+  font-size: 18px;
+  font-weight: 600;
+  display: block;
+}
+.model-scorecard-count.--valid .count-value { color: var(--success); }
+.model-scorecard-count.--invalid .count-value { color: var(--error); }
+.model-scorecard-count.--parse .count-value { color: var(--warning); }
+.model-scorecard-count.--api .count-value { color: #ef4444; }
+.model-scorecard-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.model-scorecard-meta span strong {
+  color: var(--text-primary);
+}
+
+/* --- Failure Numbers Table --- */
+.failure-numbers {
+  margin-top: 16px;
+}
+
+/* --- Hardest Theorems --- */
+.success-rate { font-weight: 600; }
+.success-rate.--high { color: var(--success); }
+.success-rate.--mid { color: var(--warning); }
+.success-rate.--low { color: var(--error); }
+
+/* --- Per-Difficulty Stats --- */
+.per-difficulty-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.model-difficulty-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+.model-difficulty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.difficulty-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.difficulty-stats-table th,
+.difficulty-stats-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.difficulty-stats-table th {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  background: var(--bg-tertiary);
+}
+
+.difficulty-stats-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.difficulty-stats-table tbody tr:hover {
+  background: var(--bg-hover);
 }

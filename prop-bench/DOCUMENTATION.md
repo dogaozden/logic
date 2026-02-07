@@ -212,6 +212,8 @@ interface BenchmarkResult {
 }
 ```
 
+Note: this `config.ts` shape is retained for shared typing compatibility. The harness/runtime result object is documented in the [Benchmark Harness](#benchmark-harness-harnessts) section and is the one written to JSON/SQLite during benchmark runs.
+
 **`BenchmarkSummary`** — Aggregate results for one model across all theorems:
 ```typescript
 interface BenchmarkSummary {
@@ -632,7 +634,7 @@ Main orchestrator that drives the entire benchmark. Iterates over theorems and m
 ### CLI Interface
 
 ```bash
-npx tsx harness.ts --theorems <path> --models <list> [options]
+npx ts-node harness.ts --theorems <path> --models <list> [options]
 ```
 
 **Required arguments:**
@@ -662,10 +664,10 @@ For each theorem in the selected range, for each model adapter:
 
 ```
 1. buildPrompt(theorem)          → prompt string
-2. adapter.callModel(prompt)     → ModelResponse { raw_response, latency_ms, model, tokens_used }
-3. parseResponse(raw_response)   → ProofLine[] or parse error
-4. validateProof(theorem, proof) → { valid, errors } via Rust CLI subprocess
-5. saveResult(result, outputDir) → JSON file in output/raw/
+2. adapter.callModel(prompt)      → ModelResponse { raw_response, latency_ms, model, tokens_used }
+3. parseModelResponse(raw_output) → ProofLine[] or parse error
+4. validateProof(theorem, proof)  → { valid, line_count, errors } via Rust CLI subprocess
+5. saveResult(result, outputDir)  → JSON file in output/<model>/raw/
 ```
 
 Each step is wrapped in try/catch. If any step fails, the error is captured in the `BenchmarkResult`, saved to disk, and the harness continues to the next theorem/model pair.
@@ -685,12 +687,12 @@ This is safe because JavaScript is single-threaded — counter increments and ar
 
 ### Resume Support
 
-The harness scans `<output>/raw/` on startup for existing result JSON files. Each file contains `theorem_id`, `model`, and `validation_result` fields. The harness builds a `Set<string>` of `"theorem_id::model"` keys for results where `validation_result` is `"valid"` or `"invalid"` — error results are excluded so they will be automatically retried on re-run.
+The harness scans `<output>/<model>/raw/` on startup for existing result JSON files (and also checks legacy `<output>/raw/` for backward compatibility). Each file contains `theorem_id`, `model`, and `validation_result` fields. The harness builds a `Set<string>` of `"theorem_id::model"` keys for results where `validation_result` is `"valid"` or `"invalid"` — error results are excluded so they will be automatically retried on re-run.
 
 This means:
 - Interrupted runs can be resumed with the same command
 - Error results (API 429s, parse failures) are automatically retried on re-run without manual intervention
-- To re-run a specific theorem/model pair, delete its result file from `output/raw/`
+- To re-run a specific theorem/model pair, delete its result file from `output/<model>/raw/`
 - The `--start` and `--count` flags work independently of resume state
 - Use `--force` to bypass resume entirely and re-run all theorem/model pairs (useful for "best of N" analysis)
 
@@ -709,14 +711,11 @@ The harness loads these at startup before any model adapters are instantiated.
 
 ### Dynamic Module Loading
 
-The harness dynamically imports `prompt.ts` and `parser.ts` at runtime. **v2.5 import fix:** All `.js` extensions were removed from import statements to fix compatibility with ts-node in CommonJS mode. Import paths now use bare module names (e.g., `"./prompt"` not `"./prompt.js"`).
-
-- **`buildFallbackPrompt(theorem)`** — Generates a basic prompt with the theorem, all 19 rules + CP/IP, output format spec, and symbol reference. Handles both premise-based (Easy) and tautology (Medium+) theorem formats.
-- **`parseFallback(rawResponse)`** — Extracts numbered lines via regex, detects subproof depth from `|` markers, and splits formula from justification using known rule keyword patterns.
+The harness loads `prompt.ts` and `parser.ts` via runtime `require()` calls (`"./prompt"` and `"./parser"`). This keeps compatibility with the ts-node CommonJS execution path used by both CLI runs and the GUI server subprocess launcher.
 
 ### Result Storage
 
-Each result is saved as an individual JSON file in `<output>/raw/` with the naming pattern:
+Each result is saved as an individual JSON file in `<output>/<model>/raw/` with the naming pattern:
 
 ```
 <theorem_id>_<model>_<timestamp_ms>.json
@@ -728,7 +727,7 @@ Each result is saved as an individual JSON file in `<output>/raw/` with the nami
 interface BenchmarkResult {
   theorem_id: string;
   model: string;             // adapter name (e.g., "gemini")
-  model_name: string;        // actual model ID (e.g., "gemini-2.0-flash")
+  model_name: string;        // actual model ID (e.g., "gemini-2.5-flash-lite-preview-09-2025")
   raw_response: string;      // full LLM output
   parsed_proof: ProofLine[] | null;
   parse_error: string | null;
@@ -741,7 +740,13 @@ interface BenchmarkResult {
 }
 ```
 
-A run summary is also written to `<output>/summary.json` with aggregate counts.
+Per-model summaries/reports are written to:
+- `<output>/<model>/summary.json`
+- `<output>/<model>/report.json` (written by harness for CLI use; GUI server recomputes reports instead of serving this file)
+
+A combined cross-model summary/report is also written to:
+- `<output>/summary.json`
+- `<output>/report.json` (written by harness for CLI use; GUI server recomputes reports instead of serving this file)
 
 ### Validation via CLI
 
@@ -751,10 +756,9 @@ The harness invokes the Rust CLI binary as a subprocess:
 propbench validate --theorem <theorem_json> --proof <proof_json>
 ```
 
-- Theorem and proof are passed as JSON string arguments
+- The theorem and proof are written to temporary JSON files and passed via `--theorem <path> --proof <path>`
 - Subprocess timeout: 30 seconds
-- The harness parses the CLI's stdout as JSON `{ valid: boolean, errors?: string[] }`
-- If stdout is not valid JSON, the harness checks for the word "valid" as a simple pass/fail heuristic
+- The harness parses the CLI's stdout as JSON `{ valid: boolean, line_count: number, errors: string[] }`
 - Subprocess errors (missing binary, timeout, crash) are caught and recorded as validation errors
 
 ### Progress Reporting
@@ -770,11 +774,11 @@ Loaded 100 theorems
 Processing theorems 0 to 99 (100 total)
 Found 0 already-completed results
 
-[1/100] theorem-001 x gemini — running...
+[1/200] theorem-001 x gemini — running...
   -> VALID (5 lines, 1823ms)
-[1/100] theorem-001 x anthropic — running...
+[2/200] theorem-001 x anthropic — running...
   -> INVALID: Scope error on line 4 (cited line 2 not accessible)
-[2/100] theorem-002 x gemini — SKIPPED (already done)
+[3/200] theorem-002 x gemini — SKIPPED (already done)
 ...
 
 === Summary ===
@@ -870,6 +874,8 @@ Looks up a model adapter by name or alias (case-insensitive). Throws if the name
 |-------|---------|
 | `gemini` | `GeminiAdapter` |
 | `gemini-flash` | `GeminiAdapter` |
+| `gemini-3-flash` | `GeminiAdapter` |
+| `gemini-3-pro` | `GeminiAdapter` |
 | `claude` | `AnthropicAdapter` |
 | `anthropic` | `AnthropicAdapter` |
 | `gpt` | `OpenAIAdapter` |
@@ -1035,13 +1041,13 @@ Example output:
 Rankings:
 #   Model                       Elo     Valid     Rate    Lines   Avg Lines
 ----------------------------------------------------------------------------
-1   gemini-2.0-flash            1532    85/100    85.0%   612     7.2
+1   gemini-2.5-flash-lite       1532    85/100    85.0%   612     7.2
 2   claude-sonnet-4.5           1468    78/100    78.0%   702     9.0
 
 Lines by Difficulty Tier:
 Model                       easy        medium      hard        expert      nightmare   marathon
 ------------------------------------------------------------------------------------------------
-gemini-2.0-flash            4.2 (30)    6.8 (28)    9.1 (17)    12.3 (8)    18.0 (2)    -
+gemini-2.5-flash-lite       4.2 (30)    6.8 (28)    9.1 (17)    12.3 (8)    18.0 (2)    -
 claude-sonnet-4.5           5.1 (28)    7.9 (25)    10.4 (15)   14.2 (7)    22.0 (3)    -
 ```
 
@@ -1221,10 +1227,10 @@ Returns the current `RunSummary` object programmatically, without writing to dis
 After a run with two models:
 ```
 results/
-├── gemini-2_0-flash/
+├── gemini/
 │   ├── run-2026-02-05T23-04-12-345Z.jsonl    # 100 lines, one per theorem
 │   └── latest-summary.json                    # aggregate stats
-└── claude-sonnet-4_5/
+└── anthropic/
     ├── run-2026-02-05T23-04-12-345Z.jsonl
     └── latest-summary.json
 ```
@@ -1261,17 +1267,23 @@ gui/
     ├── index.ts            # Express server, loads .env
     ├── cli.ts              # Spawns harness subprocess
     └── routes/
-        ├── benchmark.ts    # POST /api/benchmark (SSE streaming)
-        ├── results.ts      # GET /api/results (list results), stats endpoints
-        └── theorems.ts     # GET /api/theorems (list theorems)
+        ├── benchmark.ts    # /api/benchmark/* (start/status/stop)
+        ├── results.ts      # /api/runs/* (runs + stats + details + delete)
+        ├── theoremSets.ts  # /api/theorem-sets/*
+        ├── generate.ts     # /api/generate
+        └── validate.ts     # /api/validate
 ```
 
 ### Backend (Express Server)
 
-**Results Stats API (`server/routes/results.ts`):** The results route provides several statistics endpoints:
-- `GET /api/runs/stats/avg-lines-by-difficulty/:setName` — Returns average line count per model per difficulty tier for a specific theorem set
-- `GET /api/runs/stats/avg-lines-by-difficulty` — Returns average line count across all theorem sets
-- Both endpoints require SQLite database availability (return 503 if database not found)
+**Results Stats API (`server/routes/results.ts`):** The results route exposes:
+- `GET /api/runs/stats/overview` — dashboard rollup (sets, totals, per-model summary)
+- `GET /api/runs/stats/head-to-head/:setName` — pairwise win matrix
+- `GET /api/runs/stats/latency/:setName` and `GET /api/runs/stats/latency` — latency/token statistics
+- `GET /api/runs/stats/avg-lines-by-difficulty/:setName` and `GET /api/runs/stats/avg-lines-by-difficulty`
+- `GET /api/runs/stats/failures/:setName` and `GET /api/runs/stats/failures`
+
+These stats endpoints require SQLite availability and return `503` if `propbench.db` is unavailable.
 
 ### Frontend (React + Vite)
 
@@ -1288,11 +1300,11 @@ gui/
 - Spawns the harness as a subprocess via `spawnHarness()`
 - Parses harness stdout line-by-line into structured progress events
 - Sends Server-Sent Events (SSE) to the frontend with progress updates
-- Event types: `progress` (completed, total, validCount, invalidCount, errorCount, skippedCount), `complete`, `error`
+- Event types: `progress` (completed, total, validCount, invalidCount, parseErrorCount, apiErrorCount, skippedCount), `complete`, `error`
 - Error events send `{type:"error", error:"..."}` (not `{type:"error", data:"..."}`)
 - Includes detailed logging for debugging
 
-**Results API (`server/routes/results.ts`):** Fixed to use `RESULTS_DIR` instead of `BENCHMARKS_DIR` for listing result files.
+**Results API (`server/routes/results.ts`):** Uses DB-first reads (`db.ts`) with filesystem fallback when DB is unavailable.
 
 ### Frontend (React + Vite)
 
@@ -1312,7 +1324,7 @@ gui/
 **Benchmark Runner (`pages/BenchmarkRunner.tsx`):**
 - Fixed stale closure bug in SSE `onerror` handler using `useRef` for `isRunning` state
 - Real-time progress tracking via SSE
-- Displays validCount, invalidCount, errorCount, skippedCount counters
+- Displays validCount, invalidCount, parseErrorCount, apiErrorCount, skippedCount counters
 - Progress bar and status messages
 
 **Proof Viewer (`components/ProofViewer.tsx`):**
@@ -1325,7 +1337,7 @@ gui/
 
 **Run Config (`components/RunConfig.tsx`):**
 - Model selection dropdown with `MODEL_OPTIONS` constant defining available models
-- Maps model aliases to full names (e.g., "gemini" → "Gemini 2.5 Flash Lite Preview")
+- Maps model aliases to labels + concrete model IDs (e.g., `"gemini"` → label `Gemini Flash Lite`, model `gemini-2.5-flash-lite-preview-09-2025`)
 - **Important:** When CLI model names/defaults change, this component must be updated per CLAUDE.md rules
 - Includes a "Parallel Workers" field for configuring concurrent API calls
 - "Force new run" checkbox: when enabled, passes `--force` to the harness to skip resume logic and run all theorems fresh
@@ -1373,21 +1385,21 @@ The GUI requires the same `.env` file in `prop-bench/` root as the CLI harness.
 
 ### SQLite Storage Layer
 
-PropBench uses SQLite (`propbench.db`) as a persistent storage layer, replacing filesystem scanning for the GUI server and providing faster data access for reports and rankings.
+PropBench uses SQLite (`propbench.db`) as the primary persistent storage layer for reports/rankings. The GUI server still supports filesystem fallback when the database is unavailable.
 
 **Schema (4 tables):**
 - `theorem_sets` — Benchmark theorem set metadata (name, path, theorem count)
 - `theorems` — Individual theorems with premises, conclusion, difficulty tier, and difficulty value
 - `results` — Model benchmark results (one row per theorem x model attempt, includes validation status, line count, latency, raw response)
-- `reports_cache` — Cached Elo reports for fast serving without recomputation
+- `reports_cache` — Exists for backward compatibility but is no longer used (reports are always recomputed to ensure current scorer code is applied)
 
 **Concurrency:** The database uses WAL (Write-Ahead Logging) mode for safe concurrent reads and writes, allowing the GUI server to query results while the harness writes new ones.
 
-**Dual-write approach:** During the transition period, the harness writes results to both JSON files (in `results/raw/`) and SQLite simultaneously. The GUI server queries SQLite when the database is available and falls back to filesystem scanning if `propbench.db` is missing. This ensures backward compatibility with existing tooling that reads JSON files directly.
+**Dual-write approach:** The harness writes results to both JSON files (in `results/<set>/<model>/raw/`) and SQLite simultaneously. The GUI server queries SQLite when available and falls back to filesystem scanning if `propbench.db` is missing.
 
 **Error result replacement:** When a new result is inserted for a theorem/model pair, any existing error results for that pair are automatically deleted (from both the database and JSON files). This ensures retried theorems replace their error records rather than accumulating duplicates. Valid and invalid results are never deleted — only errors.
 
-**Cache invalidation:** Each `insertResult()` call automatically invalidates the `reports_cache` for the corresponding theorem set. This ensures the dashboard always shows fresh data after new results are written, even during a running benchmark.
+**Report generation:** The GUI server always recomputes reports using the current scorer code rather than serving cached or pre-generated reports. This ensures that when the scorer changes (e.g., adding new difficulty tiers), reports immediately reflect the updated logic without requiring manual cache invalidation.
 
 **Migration:** Existing JSON results can be imported into the database via `npm run migrate`, which scans `benchmarks/` and `results/` directories. The migration is idempotent and safe to run multiple times.
 
@@ -1398,7 +1410,25 @@ PropBench uses SQLite (`propbench.db`) as a persistent storage layer, replacing 
 
 ## CLI Binary (`src/main.rs`)
 
-*Section to be filled in by the rust-cli agent.*
+The Rust binary (`propbench`) provides the authoritative theorem generation and proof validation commands used by both CLI and GUI flows.
+
+**Subcommands:**
+- `generate` — Creates theorem sets as JSON (`BenchTheorem[]`)
+- `validate` — Validates a proof JSON against a theorem JSON and emits:
+  ```json
+  { "valid": true|false, "line_count": <number>, "errors": ["..."] }
+  ```
+
+**Generate modes:**
+- Distribution mode via `--difficulty-distribution` (or default distribution when omitted)
+- Tier preset mode via `--tier <easy|...|mind>`
+- Custom spec mode via `--variables --passes --transforms --base --substitution`
+
+**Validation details:**
+- Parses theorem/proof JSON inputs from file paths
+- Replays proof lines with justification parsing (`Premise`, `Assumption`, `CP/IP`, inference/equivalence rules)
+- Verifies each line with `ProofVerifier`
+- Checks final completeness (closed scopes + conclusion at depth 0 + no invalid lines)
 
 ---
 

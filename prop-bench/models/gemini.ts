@@ -42,6 +42,8 @@ export class GeminiAdapter implements ModelAdapter {
         });
         const latency_ms = Math.round(performance.now() - start);
 
+        const finishReason = response.candidates?.[0]?.finishReason;
+
         // Extract text from response
         let text = response.text ?? "";
         if (!text && response.candidates) {
@@ -64,6 +66,7 @@ export class GeminiAdapter implements ModelAdapter {
             ? (usage.promptTokenCount ?? 0) +
               (usage.candidatesTokenCount ?? 0)
             : undefined,
+          finish_reason: finishReason ?? undefined,
         };
       } catch (err: unknown) {
         lastError = err instanceof Error ? err : new Error(String(err));

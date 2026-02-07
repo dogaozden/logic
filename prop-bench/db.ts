@@ -28,6 +28,7 @@ export interface BenchmarkResult {
   line_count: number | null;
   latency_ms: number;
   tokens_used: number | undefined;
+  finish_reason?: string;
   timestamp: string;
 }
 
@@ -107,12 +108,21 @@ export function initSchema(): void {
       UNIQUE(set_id, theorem_id)
     );
 
+    CREATE TABLE IF NOT EXISTS runs (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      set_id     INTEGER NOT NULL REFERENCES theorem_sets(id) ON DELETE CASCADE,
+      model_slug TEXT NOT NULL,
+      started_at TEXT NOT NULL DEFAULT (datetime('now')),
+      finished_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS results (
       id                INTEGER PRIMARY KEY AUTOINCREMENT,
       set_id            INTEGER NOT NULL REFERENCES theorem_sets(id) ON DELETE CASCADE,
       theorem_id        TEXT NOT NULL,
       model_slug        TEXT NOT NULL,
       model_display     TEXT NOT NULL,
+      run_id            INTEGER REFERENCES runs(id) ON DELETE CASCADE,
       raw_response      TEXT NOT NULL DEFAULT '',
       parsed_proof      TEXT,
       parse_error       TEXT,
@@ -121,6 +131,7 @@ export function initSchema(): void {
       line_count        INTEGER,
       latency_ms        INTEGER NOT NULL DEFAULT 0,
       tokens_used       INTEGER,
+      finish_reason     TEXT,
       timestamp         TEXT NOT NULL,
       created_at        TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (set_id, theorem_id) REFERENCES theorems(set_id, theorem_id)
@@ -128,7 +139,20 @@ export function initSchema(): void {
 
     CREATE INDEX IF NOT EXISTS idx_results_set_model   ON results(set_id, model_slug);
     CREATE INDEX IF NOT EXISTS idx_results_set_theorem  ON results(set_id, theorem_id);
+    CREATE INDEX IF NOT EXISTS idx_results_run ON results(run_id);
+  `);
 
+  // Migration: add finish_reason column if missing
+  try {
+    db.exec(`ALTER TABLE results ADD COLUMN finish_reason TEXT`);
+  } catch { /* column already exists */ }
+
+  // Migration: add run_id column if missing
+  try {
+    db.exec(`ALTER TABLE results ADD COLUMN run_id INTEGER REFERENCES runs(id) ON DELETE CASCADE`);
+  } catch { /* column already exists */ }
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS reports_cache (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       set_id     INTEGER NOT NULL REFERENCES theorem_sets(id) ON DELETE CASCADE,
@@ -195,7 +219,7 @@ export function upsertTheorem(
 // Results
 // ---------------------------------------------------------------------------
 
-export function insertResult(setName: string, result: BenchmarkResult): void {
+export function insertResult(setName: string, result: BenchmarkResult, runId?: number): void {
   const db = getDb();
 
   const setRow = db.prepare("SELECT id FROM theorem_sets WHERE name = ?").get(setName) as { id: number } | undefined;
@@ -211,11 +235,11 @@ export function insertResult(setName: string, result: BenchmarkResult): void {
 
   const stmt = db.prepare(`
     INSERT INTO results (
-      set_id, theorem_id, model_slug, model_display,
+      set_id, theorem_id, model_slug, model_display, run_id,
       raw_response, parsed_proof, parse_error,
       validation_result, validation_errors,
-      line_count, latency_ms, tokens_used, timestamp
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      line_count, latency_ms, tokens_used, finish_reason, timestamp
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   stmt.run(
@@ -223,6 +247,7 @@ export function insertResult(setName: string, result: BenchmarkResult): void {
     result.theorem_id,
     result.model,
     result.model_name,
+    runId ?? null,
     result.raw_response,
     result.parsed_proof ? JSON.stringify(result.parsed_proof) : null,
     result.parse_error,
@@ -231,11 +256,9 @@ export function insertResult(setName: string, result: BenchmarkResult): void {
     result.line_count,
     result.latency_ms,
     result.tokens_used ?? null,
+    result.finish_reason ?? null,
     result.timestamp
   );
-
-  // Invalidate cached reports so dashboard queries return fresh data
-  invalidateReportCache(setRow.id);
 }
 
 export function hasResult(setName: string, theoremId: string, modelSlug: string): boolean {
@@ -249,6 +272,105 @@ export function hasResult(setName: string, theoremId: string, modelSlug: string)
   `).get(setName, theoremId, modelSlug);
 
   return row !== undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Runs management
+// ---------------------------------------------------------------------------
+
+export function createRun(setName: string, modelSlug: string): number {
+  const db = getDb();
+
+  const setRow = db.prepare("SELECT id FROM theorem_sets WHERE name = ?").get(setName) as { id: number } | undefined;
+  if (!setRow) {
+    throw new Error(`Theorem set '${setName}' not found in DB`);
+  }
+
+  const stmt = db.prepare(`
+    INSERT INTO runs (set_id, model_slug)
+    VALUES (?, ?)
+  `);
+
+  const info = stmt.run(setRow.id, modelSlug);
+  return info.lastInsertRowid as number;
+}
+
+export function finishRun(runId: number): void {
+  const db = getDb();
+
+  db.prepare(`
+    UPDATE runs
+    SET finished_at = datetime('now')
+    WHERE id = ?
+  `).run(runId);
+}
+
+export function getIndividualRuns(setName?: string): Array<{
+  runId: number;
+  setName: string;
+  modelSlug: string;
+  modelDisplay: string;
+  startedAt: string;
+  finishedAt: string | null;
+  stats: { total: number; valid: number; invalid: number; errors: number; };
+}> {
+  const db = getDb();
+
+  let setFilter = "";
+  const params: unknown[] = [];
+
+  if (setName) {
+    const setRow = db.prepare("SELECT id FROM theorem_sets WHERE name = ?").get(setName) as { id: number } | undefined;
+    if (!setRow) return [];
+    setFilter = "WHERE runs.set_id = ?";
+    params.push(setRow.id);
+  }
+
+  const rows = db.prepare(`
+    SELECT
+      runs.id AS run_id,
+      ts.name AS set_name,
+      runs.model_slug,
+      runs.started_at,
+      runs.finished_at,
+      COALESCE(r.model_display, '') AS model_display,
+      COALESCE(COUNT(r.id), 0) AS total,
+      COALESCE(SUM(CASE WHEN r.validation_result = 'valid' THEN 1 ELSE 0 END), 0) AS valid,
+      COALESCE(SUM(CASE WHEN r.validation_result = 'invalid' THEN 1 ELSE 0 END), 0) AS invalid,
+      COALESCE(SUM(CASE WHEN r.validation_result = 'error' THEN 1 ELSE 0 END), 0) AS errors
+    FROM runs
+    JOIN theorem_sets ts ON ts.id = runs.set_id
+    LEFT JOIN results r ON r.run_id = runs.id
+    ${setFilter}
+    GROUP BY runs.id, ts.name, runs.model_slug, runs.started_at, runs.finished_at
+    ORDER BY runs.started_at DESC
+  `).all(...params) as Array<{
+    run_id: number;
+    set_name: string;
+    model_slug: string;
+    model_display: string;
+    started_at: string;
+    finished_at: string | null;
+    total: number;
+    valid: number;
+    invalid: number;
+    errors: number;
+  }>;
+
+  return rows.map((row) => ({
+    runId: row.run_id,
+    setName: row.set_name,
+    modelSlug: row.model_slug,
+    modelDisplay: row.model_display || row.model_slug,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    stats: {
+      total: row.total,
+      valid: row.valid,
+      invalid: row.invalid,
+      errors: row.errors,
+    },
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -397,6 +519,7 @@ export function getRunDetail(runId: string): { summary: unknown; results: unknow
     line_count: number | null;
     latency_ms: number;
     tokens_used: number | null;
+    finish_reason: string | null;
     timestamp: string;
   }>;
 
@@ -404,7 +527,7 @@ export function getRunDetail(runId: string): { summary: unknown; results: unknow
     rawResults = db.prepare(`
       SELECT theorem_id, model_slug, model_display, raw_response, parsed_proof,
              parse_error, validation_result, validation_errors, line_count,
-             latency_ms, tokens_used, timestamp
+             latency_ms, tokens_used, finish_reason, timestamp
       FROM results
       WHERE set_id = ? AND model_slug = ?
       ORDER BY theorem_id
@@ -413,7 +536,7 @@ export function getRunDetail(runId: string): { summary: unknown; results: unknow
     rawResults = db.prepare(`
       SELECT theorem_id, model_slug, model_display, raw_response, parsed_proof,
              parse_error, validation_result, validation_errors, line_count,
-             latency_ms, tokens_used, timestamp
+             latency_ms, tokens_used, finish_reason, timestamp
       FROM results
       WHERE set_id = ?
       ORDER BY theorem_id, model_slug
@@ -433,17 +556,13 @@ export function getRunDetail(runId: string): { summary: unknown; results: unknow
     line_count: r.line_count,
     latency_ms: r.latency_ms,
     tokens_used: r.tokens_used ?? undefined,
+    finish_reason: r.finish_reason ?? undefined,
     timestamp: r.timestamp,
   }));
 
-  // Try cached report first
+  // Always recompute report via Scorer to ensure it uses current scorer code
+  // (caching would serve stale data when scorer.ts changes)
   const scope = modelSlug ?? "combined";
-  const cached = getCachedReport(setRow.id, scope);
-  if (cached) {
-    return { summary: cached.report, results };
-  }
-
-  // Compute report via Scorer
   const summary = computeReport(setRow.id, scope, results);
   return { summary, results };
 }
@@ -499,22 +618,7 @@ function computeReport(setId: number, scope: string, results: unknown[]): unknow
 
   const report = scorer.generateReport();
 
-  // Cache it
-  const summaryData = {
-    timestamp: new Date().toISOString(),
-    models: [...new Set((results as Array<Record<string, unknown>>).map((r) => r.model_name as string))],
-    total_run: results.length,
-    total_valid: (results as Array<Record<string, unknown>>).filter((r) => r.validation_result === "valid").length,
-    total_invalid: (results as Array<Record<string, unknown>>).filter((r) => r.validation_result === "invalid").length,
-    total_errors: (results as Array<Record<string, unknown>>).filter((r) => r.validation_result === "error").length,
-  };
-
-  try {
-    cacheReport(setId, scope, report, summaryData);
-  } catch {
-    // Cache write failure is non-fatal
-  }
-
+  // No caching — always recompute to ensure reports use current scorer code
   return report;
 }
 
@@ -533,9 +637,6 @@ export function deleteRun(runId: string): void {
   } else {
     db.prepare("DELETE FROM results WHERE set_id = ?").run(setRow.id);
   }
-
-  // Invalidate cache
-  invalidateReportCache(setRow.id);
 }
 
 // ---------------------------------------------------------------------------
@@ -885,6 +986,90 @@ export function getAvgLinesByDifficulty(setName?: string): AvgLinesByDifficulty[
     GROUP BY r.model_slug, t.difficulty
     ORDER BY r.model_display, t.difficulty_value
   `).all(...params) as AvgLinesByDifficulty[];
+}
+
+export interface SetOverview {
+  totalTheorems: number;
+  totalResults: number;
+  totalModels: number;
+  modelSummaries: Array<{
+    model_slug: string;
+    model_display: string;
+    total_attempted: number;
+    total_valid: number;
+    total_invalid: number;
+    total_parse_errors: number;
+    total_api_errors: number;
+    valid_rate: number;
+    avg_latency_ms: number;
+    avg_lines: number | null;
+    total_tokens: number;
+  }>;
+}
+
+export function getSetOverview(setName: string): SetOverview {
+  const db = getDb();
+
+  const setRow = db.prepare("SELECT id FROM theorem_sets WHERE name = ?").get(setName) as { id: number } | undefined;
+  if (!setRow) {
+    return { totalTheorems: 0, totalResults: 0, totalModels: 0, modelSummaries: [] };
+  }
+
+  const totals = db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM theorems WHERE set_id = ?) as totalTheorems,
+      (SELECT COUNT(*) FROM results WHERE set_id = ?) as totalResults,
+      (SELECT COUNT(DISTINCT model_slug) FROM results WHERE set_id = ?) as totalModels
+  `).get(setRow.id, setRow.id, setRow.id) as { totalTheorems: number; totalResults: number; totalModels: number };
+
+  const modelSummaries = db.prepare(`
+    SELECT
+      model_slug, model_display,
+      COUNT(*) as total_attempted,
+      SUM(CASE WHEN validation_result = 'valid' THEN 1 ELSE 0 END) as total_valid,
+      SUM(CASE WHEN validation_result = 'invalid' THEN 1 ELSE 0 END) as total_invalid,
+      SUM(CASE WHEN validation_result = 'error' AND parse_error IS NOT NULL THEN 1 ELSE 0 END) as total_parse_errors,
+      SUM(CASE WHEN validation_result = 'error' AND parse_error IS NULL THEN 1 ELSE 0 END) as total_api_errors,
+      ROUND(100.0 * SUM(CASE WHEN validation_result = 'valid' THEN 1 ELSE 0 END) / COUNT(*), 1) as valid_rate,
+      ROUND(AVG(latency_ms), 0) as avg_latency_ms,
+      ROUND(AVG(CASE WHEN validation_result = 'valid' THEN line_count END), 1) as avg_lines,
+      SUM(COALESCE(tokens_used, 0)) as total_tokens
+    FROM results WHERE set_id = ?
+    GROUP BY model_slug, model_display
+  `).all(setRow.id) as SetOverview["modelSummaries"];
+
+  return { ...totals, modelSummaries };
+}
+
+export interface HardestTheorem {
+  theorem_id: string;
+  difficulty: string;
+  difficulty_value: number;
+  attempts: number;
+  valid_count: number;
+  success_rate: number;
+}
+
+export function getHardestTheorems(setName: string, limit: number = 15): HardestTheorem[] {
+  const db = getDb();
+
+  const setRow = db.prepare("SELECT id FROM theorem_sets WHERE name = ?").get(setName) as { id: number } | undefined;
+  if (!setRow) return [];
+
+  return db.prepare(`
+    SELECT
+      t.theorem_id, t.difficulty, t.difficulty_value,
+      COUNT(r.id) as attempts,
+      SUM(CASE WHEN r.validation_result = 'valid' THEN 1 ELSE 0 END) as valid_count,
+      ROUND(100.0 * SUM(CASE WHEN r.validation_result = 'valid' THEN 1 ELSE 0 END) / COUNT(r.id), 1) as success_rate
+    FROM theorems t
+    JOIN results r ON t.set_id = r.set_id AND t.theorem_id = r.theorem_id
+    WHERE t.set_id = ?
+    GROUP BY t.theorem_id, t.difficulty, t.difficulty_value
+    HAVING COUNT(r.id) > 0
+    ORDER BY success_rate ASC, t.difficulty_value DESC
+    LIMIT ?
+  `).all(setRow.id, limit) as HardestTheorem[];
 }
 
 export function getFailureAnalysis(setName?: string): FailureAnalysis[] {

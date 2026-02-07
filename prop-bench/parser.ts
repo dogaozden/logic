@@ -41,6 +41,7 @@ const INFERENCE_ALIASES: Record<string, string> = {
   disjsyl: "DS",
   // Simplification
   simp: "Simp",
+  sim: "Simp",
   simplification: "Simp",
   simple: "Simp",
   // Conjunction
@@ -541,7 +542,7 @@ export function parseProof(rawOutput: string, theorem: Theorem): ParseResult {
   let inProofBlock = false;
 
   for (const rawLine of rawLines) {
-    const stripped = rawLine.trimEnd();
+    const stripped = rawLine.trimEnd().replace(/`/g, "");
 
     // Skip empty lines
     if (!stripped.trim()) continue;

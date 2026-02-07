@@ -19,14 +19,25 @@ export default function TheoremSetPicker({
   useEffect(() => {
     setLoading(true);
     setError("");
-    api
-      .getTheoremSets()
-      .then((data) => {
+    Promise.all([
+      api.getTheoremSets(),
+      api.getRuns().catch(() => []),
+    ])
+      .then(([data, runs]) => {
         setSets(data);
-        // Auto-select first set if none selected
+        // Auto-select the set with the most recent run
         if (!selectedSet && data.length > 0) {
-          const v1 = data.find((s) => s.name === "v1");
-          onSelect(v1 ? v1.name : data[0].name);
+          const setNames = new Set(data.map((s) => s.name));
+          let latestSet = "";
+          let latestTime = "";
+          for (const run of runs) {
+            const setName = run.runId.split("/")[0];
+            if (setNames.has(setName) && run.timestamp && run.timestamp > latestTime) {
+              latestTime = run.timestamp;
+              latestSet = setName;
+            }
+          }
+          onSelect(latestSet || data.find((s) => s.count > 0)?.name || data[0].name);
         }
       })
       .catch((err) => setError(err.message))

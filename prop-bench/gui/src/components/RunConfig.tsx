@@ -6,9 +6,9 @@ export interface RunConfigValues {
   models: string[];
   theoremSet: string;
   temperature: number;
-  maxTokens: number;
-  workers: number;
-  startIndex: number;
+  maxTokens: number | null;
+  workers: number | null;
+  startIndex: number | null;
   count: string;
   force: boolean;
   noRetryParse: boolean;
@@ -34,11 +34,13 @@ function buildCommand(cfg: RunConfigValues): string {
   parts.push(`--theorems ${cfg.theoremSet}`);
   parts.push(`--models ${cfg.models.join(",")}`);
   parts.push(`--temperature ${cfg.temperature}`);
-  parts.push(`--max-tokens ${cfg.maxTokens}`);
-  if (cfg.workers > 1) {
+  if (cfg.maxTokens != null) {
+    parts.push(`--max-tokens ${cfg.maxTokens}`);
+  }
+  if (cfg.workers != null && cfg.workers > 1) {
     parts.push(`--workers ${cfg.workers}`);
   }
-  if (cfg.startIndex > 0) {
+  if (cfg.startIndex != null && cfg.startIndex > 0) {
     parts.push(`--start ${cfg.startIndex}`);
   }
   if (cfg.count.trim() !== "") {
@@ -58,17 +60,27 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
   const [showCommand, setShowCommand] = useState(false);
 
   useEffect(() => {
-    api
-      .getTheoremSets()
-      .then((sets) => {
-        setTheoremSets(sets);
-        if (sets.length > 0 && !config.theoremSet) {
-          onChange({ ...config, theoremSet: sets[0].name });
+    Promise.all([
+      api.getTheoremSets().catch(() => [] as TheoremSetInfo[]),
+      api.getRuns().catch(() => []),
+    ]).then(([sets, runs]) => {
+      setTheoremSets(sets);
+      if (sets.length > 0) {
+        // Pick the set with the most recent run
+        const setNames = new Set(sets.map((s) => s.name));
+        let latestSet = "";
+        let latestTime = "";
+        for (const run of runs) {
+          const setName = run.runId.split("/")[0];
+          if (setNames.has(setName) && run.timestamp && run.timestamp > latestTime) {
+            latestTime = run.timestamp;
+            latestSet = setName;
+          }
         }
-      })
-      .catch(() => {
-        /* server not available yet */
-      });
+        const best = latestSet || sets.find((s) => s.count > 0)?.name || sets[0].name;
+        onChange({ ...config, theoremSet: best });
+      }
+    });
     // Only run on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -170,14 +182,15 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
           type="number"
           min={256}
           max={32768}
-          value={config.maxTokens}
+          value={config.maxTokens ?? ""}
           onChange={(e) =>
             onChange({
               ...config,
-              maxTokens: parseInt(e.target.value, 10) || 4096,
+              maxTokens: e.target.value === "" ? null : parseInt(e.target.value, 10),
             })
           }
           disabled={running}
+          placeholder="default"
         />
       </div>
 
@@ -192,14 +205,15 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
           type="number"
           min={1}
           max={10}
-          value={config.workers}
+          value={config.workers ?? ""}
           onChange={(e) =>
             onChange({
               ...config,
-              workers: parseInt(e.target.value, 10) || 1,
+              workers: e.target.value === "" ? null : parseInt(e.target.value, 10),
             })
           }
           disabled={running}
+          placeholder="1"
         />
       </div>
 
@@ -214,14 +228,15 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
             className="config-input config-input--sm"
             type="number"
             min={0}
-            value={config.startIndex}
+            value={config.startIndex ?? ""}
             onChange={(e) =>
               onChange({
                 ...config,
-                startIndex: parseInt(e.target.value, 10) || 0,
+                startIndex: e.target.value === "" ? null : parseInt(e.target.value, 10),
               })
             }
             disabled={running}
+            placeholder="0"
           />
         </div>
         <div>

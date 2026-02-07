@@ -26,6 +26,7 @@ function LatencyTable({ data }: Props) {
   const fastestAvg = Math.min(...data.map((d) => d.avg_ms));
 
   return (
+    <div className="data-table-scroll">
     <table className="data-table">
       <thead>
         <tr>
@@ -60,6 +61,7 @@ function LatencyTable({ data }: Props) {
         })}
       </tbody>
     </table>
+    </div>
   );
 }
 

@@ -98,6 +98,33 @@ function FailureChart({ data }: Props) {
           );
         })}
       </div>
+
+      <div className="data-table-scroll">
+      <table className="data-table failure-numbers">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Total</th>
+            <th>Valid</th>
+            <th>Parse Err</th>
+            <th>Validation Err</th>
+            <th>API Err</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row) => (
+            <tr key={row.model_slug}>
+              <td className="model-cell">{row.model_display}</td>
+              <td className="number-cell">{row.total}</td>
+              <td className="number-cell">{row.valid}</td>
+              <td className="number-cell">{row.parse_failures}</td>
+              <td className="number-cell">{row.validation_failures}</td>
+              <td className="number-cell">{row.api_errors}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      </div>
     </div>
   );
 }

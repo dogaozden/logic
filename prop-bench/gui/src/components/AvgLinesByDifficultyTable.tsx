@@ -55,6 +55,7 @@ function AvgLinesByDifficultyTable({ data }: Props) {
   }
 
   return (
+    <div className="data-table-scroll">
     <table className="data-table">
       <thead>
         <tr>
@@ -97,6 +98,7 @@ function AvgLinesByDifficultyTable({ data }: Props) {
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 

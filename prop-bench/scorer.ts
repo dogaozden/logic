@@ -25,7 +25,10 @@ export type DifficultyTier =
   | "hard"
   | "expert"
   | "nightmare"
-  | "marathon";
+  | "marathon"
+  | "absurd"
+  | "cosmic"
+  | "mind";
 
 export interface ModelStats {
   model: string;
@@ -171,6 +174,9 @@ export class Scorer {
       "expert",
       "nightmare",
       "marathon",
+      "absurd",
+      "cosmic",
+      "mind",
     ];
     console.log(
       padRight("Model", 28) +
@@ -304,6 +310,9 @@ export class Scorer {
         expert: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
         nightmare: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
         marathon: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
+        absurd: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
+        cosmic: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
+        mind: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
       };
 
       for (const [, modelMap] of this.results) {

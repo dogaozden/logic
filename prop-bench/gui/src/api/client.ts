@@ -138,6 +138,49 @@ export interface AvgLinesByDifficulty {
   count: number;
 }
 
+export interface SetOverview {
+  totalTheorems: number;
+  totalResults: number;
+  totalModels: number;
+  modelSummaries: Array<{
+    model_slug: string;
+    model_display: string;
+    total_attempted: number;
+    total_valid: number;
+    total_invalid: number;
+    total_parse_errors: number;
+    total_api_errors: number;
+    valid_rate: number;
+    avg_latency_ms: number;
+    avg_lines: number | null;
+    total_tokens: number;
+  }>;
+}
+
+export interface HardestTheorem {
+  theorem_id: string;
+  difficulty: string;
+  difficulty_value: number;
+  attempts: number;
+  valid_count: number;
+  success_rate: number;
+}
+
+export interface IndividualRun {
+  runId: number;
+  setName: string;
+  modelSlug: string;
+  modelDisplay: string;
+  startedAt: string;
+  finishedAt: string | null;
+  stats: {
+    total: number;
+    valid: number;
+    invalid: number;
+    errors: number;
+  };
+}
+
 // ---------------------------------------------------------------------------
 // API methods
 // ---------------------------------------------------------------------------
@@ -235,11 +278,29 @@ export const api = {
     return json<AvgLinesByDifficulty[]>(path);
   },
 
+  /** Get per-set overview stats */
+  getSetOverview(setName: string): Promise<SetOverview> {
+    return json<SetOverview>(`/runs/stats/set-overview/${encodeURIComponent(setName)}`);
+  },
+
+  /** Get hardest theorems for a set */
+  getHardestTheorems(setName: string): Promise<HardestTheorem[]> {
+    return json<HardestTheorem[]>(`/runs/stats/hardest-theorems/${encodeURIComponent(setName)}`);
+  },
+
   /** Get failure analysis, optionally filtered by set */
   getFailureAnalysis(setName?: string): Promise<FailureAnalysis[]> {
     const path = setName
       ? `/runs/stats/failures/${encodeURIComponent(setName)}`
       : "/runs/stats/failures";
     return json<FailureAnalysis[]>(path);
+  },
+
+  /** Get individual runs, optionally filtered by set */
+  getIndividualRuns(setName?: string): Promise<IndividualRun[]> {
+    const path = setName
+      ? `/runs/individual/${encodeURIComponent(setName)}`
+      : "/runs/individual";
+    return json<IndividualRun[]>(path);
   },
 };

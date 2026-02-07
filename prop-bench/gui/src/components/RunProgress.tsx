@@ -24,6 +24,14 @@ interface RunProgressProps {
   onStop: () => void;
 }
 
+const MODEL_DISPLAY: Record<string, string> = {
+  gemini: "Gemini 2.5 Flash Lite",
+  "gemini-3-flash": "Gemini 3 Flash",
+  "gemini-3-pro": "Gemini 3 Pro",
+  claude: "Claude Sonnet 4.5",
+  gpt: "GPT-4o",
+};
+
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
   const min = Math.floor(totalSec / 60);
@@ -73,7 +81,7 @@ function RunProgress({
       {isRunning && progress?.currentTheoremId && (
         <div className="progress-current">
           <span className="progress-current-model">
-            {progress.currentModel}
+            {(progress.currentModel && MODEL_DISPLAY[progress.currentModel]) || progress.currentModel}
           </span>
           <span className="progress-current-theorem">
             {progress.currentTheoremId}

@@ -10,8 +10,6 @@ import * as os from "node:os";
 import { getModel } from "./models/index";
 import type { ModelConfig, ModelResponse } from "./models/index";
 import type { Theorem, ProofLine } from "./config";
-import { Scorer } from "./scorer";
-import type { TheoremResult, DifficultyTier } from "./scorer";
 import * as db from "./db";
 
 const execFileAsync = promisify(execFile);
@@ -41,6 +39,7 @@ export interface BenchmarkResult {
   line_count: number | null;
   latency_ms: number;
   tokens_used: number | undefined;
+  finish_reason?: string;
   timestamp: string;
 }
 
@@ -55,7 +54,6 @@ interface RunState {
 interface CliArgs {
   theorems: string;
   models: string[];
-  output: string;
   start: number;
   count: number | null;
   propbenchBin: string;
@@ -71,7 +69,6 @@ function parseArgs(): CliArgs {
   const parsed: CliArgs = {
     theorems: "",
     models: [],
-    output: "results/",
     start: 0,
     count: null,
     propbenchBin: "propbench",
@@ -89,9 +86,6 @@ function parseArgs(): CliArgs {
         break;
       case "--models":
         parsed.models = args[++i].split(",").map((m) => m.trim());
-        break;
-      case "--output":
-        parsed.output = args[++i];
         break;
       case "--start":
         parsed.start = parseInt(args[++i], 10);
@@ -141,7 +135,6 @@ Required:
   --models <list>           Comma-separated model names (gemini,claude,gpt)
 
 Options:
-  --output <dir>            Output directory (default: results/)
   --start <n>               Start at theorem index n (default: 0)
   --count <n>               Process only n theorems (default: all)
   --propbench-bin <path>    Path to propbench CLI binary (default: propbench)
@@ -173,53 +166,25 @@ function toTheorem(bt: BenchTheorem): Theorem {
   };
 }
 
-function loadRunState(outputDir: string): RunState {
+function loadRunState(setName: string): RunState {
   const completed = new Set<string>();
 
-  if (!fs.existsSync(outputDir)) {
-    return { completed };
-  }
+  try {
+    // Query DB for all completed results for this set
+    const dbConn = db.getDb();
+    const rows = dbConn.prepare(`
+      SELECT r.theorem_id, r.model_slug
+      FROM results r
+      JOIN theorem_sets ts ON ts.id = r.set_id
+      WHERE ts.name = ?
+    `).all(setName) as Array<{ theorem_id: string; model_slug: string }>;
 
-  // Scan model subdirectories: {outputDir}/{model}/raw/*.json
-  const entries = fs.readdirSync(outputDir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const rawDir = path.join(outputDir, entry.name, "raw");
-    if (!fs.existsSync(rawDir)) continue;
-
-    const files = fs.readdirSync(rawDir).filter((f) => f.endsWith(".json"));
-    for (const file of files) {
-      try {
-        const data = JSON.parse(
-          fs.readFileSync(path.join(rawDir, file), "utf-8")
-        ) as BenchmarkResult;
-        // Only skip successful results; errors should be retried
-        if (data.validation_result !== "error") {
-          completed.add(`${data.theorem_id}::${data.model}`);
-        }
-      } catch {
-        // Skip corrupt files
-      }
+    for (const row of rows) {
+      completed.add(`${row.theorem_id}::${row.model_slug}`);
     }
-  }
-
-  // Also scan old flat layout: {outputDir}/raw/*.json for backward compat
-  const flatRawDir = path.join(outputDir, "raw");
-  if (fs.existsSync(flatRawDir)) {
-    const files = fs.readdirSync(flatRawDir).filter((f) => f.endsWith(".json"));
-    for (const file of files) {
-      try {
-        const data = JSON.parse(
-          fs.readFileSync(path.join(flatRawDir, file), "utf-8")
-        ) as BenchmarkResult;
-        // Only skip successful results; errors should be retried
-        if (data.validation_result !== "error") {
-          completed.add(`${data.theorem_id}::${data.model}`);
-        }
-      } catch {
-        // Skip corrupt files
-      }
-    }
+  } catch (err) {
+    // If DB query fails, return empty set (no resume support)
+    console.warn(`Failed to load run state from DB: ${err instanceof Error ? err.message : err}`);
   }
 
   return { completed };
@@ -302,28 +267,6 @@ async function validateProof(
   }
 }
 
-function saveResult(result: BenchmarkResult, outputDir: string): void {
-  const rawDir = path.join(outputDir, result.model, "raw");
-  fs.mkdirSync(rawDir, { recursive: true });
-
-  // Delete old error files for this theorem/model so retries replace them
-  const prefix = `${result.theorem_id}_${result.model}_`;
-  try {
-    const existing = fs.readdirSync(rawDir).filter((f) => f.startsWith(prefix) && f.endsWith(".json"));
-    for (const file of existing) {
-      try {
-        const data = JSON.parse(fs.readFileSync(path.join(rawDir, file), "utf-8")) as BenchmarkResult;
-        if (data.validation_result === "error") {
-          fs.unlinkSync(path.join(rawDir, file));
-        }
-      } catch { /* skip unreadable files */ }
-    }
-  } catch { /* skip if dir listing fails */ }
-
-  const filename = `${result.theorem_id}_${result.model}_${Date.now()}.json`;
-  const filepath = path.join(rawDir, filename);
-  fs.writeFileSync(filepath, JSON.stringify(result, null, 2), "utf-8");
-}
 
 // ---------------------------------------------------------------------------
 // Concurrency helpers
@@ -361,7 +304,6 @@ async function run(): Promise<void> {
   console.log("=== PropBench Harness ===");
   console.log(`Theorems: ${args.theorems}`);
   console.log(`Models:   ${args.models.join(", ")}`);
-  console.log(`Output:   ${args.output}`);
   console.log(`Workers:  ${args.workers}`);
   if (args.force) console.log(`Force:    YES (new run, skipping nothing)`);
   console.log();
@@ -380,14 +322,6 @@ async function run(): Promise<void> {
   console.log(
     `Processing theorems ${startIdx} to ${endIdx - 1} (${benchTheorems.length} total)`
   );
-
-  // Load run state for resume support
-  const state = loadRunState(args.output);
-  console.log(`Found ${state.completed.size} already-completed results`);
-  console.log();
-
-  // Ensure output directory
-  fs.mkdirSync(args.output, { recursive: true });
 
   // Initialize SQLite DB
   let setName = "";
@@ -408,8 +342,14 @@ async function run(): Promise<void> {
     console.log(`SQLite DB initialized (set: ${setName}, id: ${setId})`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`SQLite init warning (continuing with file-only mode): ${msg}`);
+    console.error(`SQLite init failed: ${msg}`);
+    process.exit(1);
   }
+
+  // Load run state for resume support
+  const state = loadRunState(setName);
+  console.log(`Found ${state.completed.size} already-completed results`);
+  console.log();
 
   // Initialize model adapters
   const adapters = args.models.map((name) => {
@@ -422,6 +362,13 @@ async function run(): Promise<void> {
       process.exit(1);
     }
   });
+
+  // Create run records for each model
+  const runIds = new Map<string, number>();
+  for (const adapter of adapters) {
+    const runId = db.createRun(setName, adapter.name);
+    runIds.set(adapter.name, runId);
+  }
 
   // Stats
   let totalRun = 0;
@@ -464,7 +411,7 @@ async function run(): Promise<void> {
       if (attempt > 1) {
         // Exponential backoff capped at 30s
         const delay = Math.min(1000 * Math.pow(2, attempt - 2), 30_000);
-        console.log(`${progress} ${benchThm.id} x ${adapter.displayName} — retrying (attempt ${attempt}/${MAX_ATTEMPTS}) after ${delay}ms...`);
+        console.log(`${progress} ${benchThm.id} x ${adapter.displayName} — retrying (attempt ${attempt}) after ${delay}ms...`);
         await new Promise((r) => setTimeout(r, delay));
       } else {
         console.log(
@@ -501,10 +448,7 @@ async function run(): Promise<void> {
         const msg = err instanceof Error ? err.message : String(err);
         result.validation_errors = [`Prompt build error: ${msg}`];
         // Prompt errors are deterministic — no point retrying
-        saveResult(result, args.output);
-        if (setName) {
-          try { db.insertResult(setName, result); } catch {}
-        }
+        try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
         totalErrors++;
         console.log(`  -> PROMPT ERROR: ${msg}`);
         return;
@@ -518,6 +462,7 @@ async function run(): Promise<void> {
         result.latency_ms = response.latency_ms;
         result.model_name = response.model;
         result.tokens_used = response.tokens_used;
+        result.finish_reason = response.finish_reason;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         result.validation_errors = [`API error: ${msg}`];
@@ -525,10 +470,7 @@ async function run(): Promise<void> {
           console.log(`  -> API ERROR (will retry): ${msg}`);
           continue;
         }
-        saveResult(result, args.output);
-        if (setName) {
-          try { db.insertResult(setName, result); } catch {}
-        }
+        try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
         totalErrors++;
         console.log(`  -> API ERROR (gave up after ${MAX_ATTEMPTS} attempts): ${msg}`);
         return;
@@ -547,10 +489,7 @@ async function run(): Promise<void> {
           console.log(`  -> PARSE ERROR (will retry): ${parseError}`);
           continue;
         }
-        saveResult(result, args.output);
-        if (setName) {
-          try { db.insertResult(setName, result); } catch {}
-        }
+        try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
         totalErrors++;
         console.log(`  -> PARSE ERROR (gave up after ${attempt} attempts): ${parseError}`);
         return;
@@ -567,10 +506,7 @@ async function run(): Promise<void> {
       result.validation_errors = errors;
       result.line_count = valid ? line_count : null;
 
-      saveResult(result, args.output);
-      if (setName) {
-        try { db.insertResult(setName, result); } catch {}
-      }
+      try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
       totalRun++;
 
       if (valid) {
@@ -589,6 +525,11 @@ async function run(): Promise<void> {
 
   await runWithConcurrency(workItems, args.workers, processWorkItem);
 
+  // Mark all runs as finished
+  for (const runId of runIds.values()) {
+    try { db.finishRun(runId); } catch {}
+  }
+
   // Summary
   console.log();
   console.log("=== Summary ===");
@@ -598,211 +539,6 @@ async function run(): Promise<void> {
   console.log(`Invalid: ${totalInvalid}`);
   console.log(`Errors:  ${totalErrors}`);
   console.log();
-
-  // Write per-model summaries and reports
-  // Build a lookup map from theorem id -> BenchTheorem for difficulty info
-  const theoremMap = new Map<string, BenchTheorem>();
-  for (const bt of allBenchTheorems) {
-    theoremMap.set(bt.id, bt);
-  }
-
-  for (const adapter of adapters) {
-    const modelDir = path.join(args.output, adapter.name);
-    const rawDir = path.join(modelDir, "raw");
-
-    if (!fs.existsSync(rawDir)) continue;
-
-    // Collect all raw results for this model
-    const rawFiles = fs.readdirSync(rawDir).filter((f) => f.endsWith(".json"));
-    const rawResults: BenchmarkResult[] = [];
-    let modelValid = 0;
-    let modelInvalid = 0;
-    let modelErrors = 0;
-
-    for (const file of rawFiles) {
-      try {
-        const data = JSON.parse(
-          fs.readFileSync(path.join(rawDir, file), "utf-8")
-        ) as BenchmarkResult;
-        rawResults.push(data);
-        if (data.validation_result === "valid") modelValid++;
-        else if (data.validation_result === "invalid") modelInvalid++;
-        else modelErrors++;
-      } catch {
-        // Skip corrupt files
-      }
-    }
-
-    // Write per-model summary.json
-    const modelSummary = {
-      timestamp: new Date().toISOString(),
-      theorems_file: args.theorems,
-      models: [adapter.displayName],
-      total_run: rawResults.length,
-      total_skipped: 0,
-      total_valid: modelValid,
-      total_invalid: modelInvalid,
-      total_errors: modelErrors,
-    };
-    const modelSummaryPath = path.join(modelDir, "summary.json");
-    fs.writeFileSync(modelSummaryPath, JSON.stringify(modelSummary, null, 2), "utf-8");
-    console.log(`Model summary written to ${modelSummaryPath}`);
-
-    // Generate and write report.json using Scorer
-    try {
-      const scorer = new Scorer();
-      for (const raw of rawResults) {
-        const bt = theoremMap.get(raw.theorem_id);
-        const difficulty = (bt?.difficulty?.toLowerCase() ?? "medium") as DifficultyTier;
-        const difficultyValue = bt?.difficulty_value ?? 0;
-
-        let failureStage: "api_call" | "parse" | "validation" | undefined;
-        if (raw.validation_result !== "valid") {
-          if (raw.parse_error !== null) {
-            failureStage = "parse";
-          } else if (raw.validation_errors.some((e) => e.includes("API"))) {
-            failureStage = "api_call";
-          } else {
-            failureStage = "validation";
-          }
-        }
-
-        const theoremResult: TheoremResult = {
-          theoremId: raw.theorem_id,
-          valid: raw.validation_result === "valid",
-          parseSuccess: raw.parse_error === null,
-          lineCount: raw.line_count,
-          difficulty,
-          difficultyValue,
-          ...(failureStage !== undefined ? { failureStage } : {}),
-        };
-
-        scorer.recordResult(raw.theorem_id, adapter.displayName, theoremResult);
-      }
-
-      const report = scorer.generateReport();
-      const reportPath = path.join(modelDir, "report.json");
-      fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf-8");
-      console.log(`Model report written to ${reportPath}`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`Failed to generate report for ${adapter.displayName}: ${msg}`);
-    }
-  }
-
-  // Generate combined cross-model report at the set level (for Elo comparison)
-  // Scans ALL model subdirectories, not just current run's adapters
-  try {
-    const combinedScorer = new Scorer();
-    const allModelNames: string[] = [];
-    let combinedValid = 0;
-    let combinedInvalid = 0;
-    let combinedErrors = 0;
-
-    // Build display-name lookup from current adapters
-    const displayNameMap = new Map<string, string>();
-    for (const adapter of adapters) {
-      displayNameMap.set(adapter.name, adapter.displayName);
-    }
-
-    // Scan all model subdirectories in the output dir
-    const allSubDirs = fs.readdirSync(args.output, { withFileTypes: true })
-      .filter((d) => d.isDirectory());
-
-    for (const subDir of allSubDirs) {
-      const rawDir = path.join(args.output, subDir.name, "raw");
-      if (!fs.existsSync(rawDir)) continue;
-
-      // Resolve display name: adapter lookup → per-model summary → dir name
-      let displayName: string = displayNameMap.get(subDir.name) ?? "";
-      if (!displayName) {
-        const modelSummaryPath = path.join(args.output, subDir.name, "summary.json");
-        if (fs.existsSync(modelSummaryPath)) {
-          try {
-            const ms = JSON.parse(fs.readFileSync(modelSummaryPath, "utf-8"));
-            displayName = ms.models?.[0] ?? subDir.name;
-          } catch {
-            displayName = subDir.name;
-          }
-        } else {
-          displayName = subDir.name;
-        }
-      }
-      allModelNames.push(displayName);
-
-      const rawFiles = fs.readdirSync(rawDir).filter((f) => f.endsWith(".json"));
-      for (const file of rawFiles) {
-        try {
-          const raw = JSON.parse(
-            fs.readFileSync(path.join(rawDir, file), "utf-8")
-          ) as BenchmarkResult;
-          const bt = theoremMap.get(raw.theorem_id);
-          const difficulty = (bt?.difficulty?.toLowerCase() ?? "medium") as DifficultyTier;
-          const difficultyValue = bt?.difficulty_value ?? 0;
-
-          const valid = raw.validation_result === "valid";
-          if (valid) combinedValid++;
-          else if (raw.validation_result === "invalid") combinedInvalid++;
-          else combinedErrors++;
-
-          let failureStage: "api_call" | "parse" | "validation" | undefined;
-          if (!valid) {
-            if (raw.parse_error !== null) failureStage = "parse";
-            else if (raw.validation_errors.some((e) => e.includes("API"))) failureStage = "api_call";
-            else failureStage = "validation";
-          }
-
-          combinedScorer.recordResult(raw.theorem_id, displayName, {
-            theoremId: raw.theorem_id,
-            valid,
-            parseSuccess: raw.parse_error === null,
-            lineCount: raw.line_count,
-            difficulty,
-            difficultyValue,
-            ...(failureStage !== undefined ? { failureStage } : {}),
-          });
-        } catch {
-          // Skip corrupt files
-        }
-      }
-    }
-
-    if (allModelNames.length > 0) {
-      const combinedReport = combinedScorer.generateReport();
-      const combinedSummary = {
-        timestamp: new Date().toISOString(),
-        theorems_file: args.theorems,
-        models: allModelNames,
-        total_run: combinedValid + combinedInvalid + combinedErrors,
-        total_skipped: 0,
-        total_valid: combinedValid,
-        total_invalid: combinedInvalid,
-        total_errors: combinedErrors,
-      };
-
-      fs.writeFileSync(
-        path.join(args.output, "report.json"),
-        JSON.stringify(combinedReport, null, 2),
-        "utf-8"
-      );
-      fs.writeFileSync(
-        path.join(args.output, "summary.json"),
-        JSON.stringify(combinedSummary, null, 2),
-        "utf-8"
-      );
-      console.log(`Combined report written to ${path.join(args.output, "report.json")}`);
-
-      combinedScorer.printSummary(combinedReport);
-    }
-
-    // Invalidate DB report cache so next server query recomputes
-    if (setId) {
-      try { db.invalidateReportCache(setId); } catch {}
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`Failed to generate combined report: ${msg}`);
-  }
 }
 
 // ---------------------------------------------------------------------------

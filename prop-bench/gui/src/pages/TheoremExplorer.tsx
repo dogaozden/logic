@@ -9,7 +9,7 @@ import "../styles/theorems.css";
 
 export default function TheoremExplorer() {
   const [theorems, setTheorems] = useState<Theorem[]>([]);
-  const [selectedSet, setSelectedSet] = useState<string>("v1");
+  const [selectedSet, setSelectedSet] = useState<string>("");
   const [loadingTheorems, setLoadingTheorems] = useState(false);
   const [theoremsError, setTheoremsError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
