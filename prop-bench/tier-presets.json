@@ -57,9 +57,9 @@
   },
   "mind": {
     "variables": 7,
-    "passes": 20,
-    "transforms_per_pass": 24,
+    "passes": 50,
+    "transforms_per_pass": 50,
     "base_complexity": "complex",
-    "substitution_depth": 4
+    "substitution_depth": 10
   }
 }
