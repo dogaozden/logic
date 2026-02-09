@@ -176,7 +176,7 @@ function loadRunState(setName: string): RunState {
       SELECT r.theorem_id, r.model_slug
       FROM results r
       JOIN theorem_sets ts ON ts.id = r.set_id
-      WHERE ts.name = ?
+      WHERE ts.name = ? AND (r.validation_result IN ('valid', 'invalid') OR (r.validation_result = 'error' AND r.parse_error IS NOT NULL))
     `).all(setName) as Array<{ theorem_id: string; model_slug: string }>;
 
     for (const row of rows) {
@@ -366,7 +366,7 @@ async function run(): Promise<void> {
   // Create run records for each model
   const runIds = new Map<string, number>();
   for (const adapter of adapters) {
-    const runId = db.createRun(setName, adapter.name);
+    const runId = db.createRun(setName, adapter.name, args.temperature, args.maxTokens);
     runIds.set(adapter.name, runId);
   }
 

@@ -173,9 +173,6 @@ export async function generate(opts: GenerateOpts): Promise<{ path: string; theo
     allTheorems.forEach((t: any, i: number) => {
       t.id = `v1-${String(i + 1).padStart(3, '0')}`;
     });
-
-    // Write merged result
-    fs.writeFileSync(outFile, JSON.stringify(allTheorems, null, 2), "utf-8");
   } else {
     // No mode specified: use default distribution
     const defaultDist = "30:easy,30:medium,20:hard,15:expert,5:nightmare";
@@ -216,10 +213,10 @@ export async function generate(opts: GenerateOpts): Promise<{ path: string; theo
     allTheorems.forEach((t: any, i: number) => {
       t.id = `v1-${String(i + 1).padStart(3, '0')}`;
     });
-
-    // Write merged result
-    fs.writeFileSync(outFile, JSON.stringify(allTheorems, null, 2), "utf-8");
   }
+
+  // Write final (possibly patched) theorems to disk
+  fs.writeFileSync(outFile, JSON.stringify(allTheorems, null, 2), "utf-8");
 
   return { path: outFile, theorems: allTheorems };
 }
@@ -300,7 +297,6 @@ export function spawnHarness(opts: HarnessOpts): ChildProcess {
     HARNESS_PATH,
     "--theorems", theoremsPath,
     "--models", opts.models.join(","),
-    "--output", path.join(RESULTS_DIR, opts.theoremSet),
     "--temperature", String(opts.temperature),
     "--max-tokens", String(opts.maxTokens),
     "--propbench-bin", PROPBENCH_BIN,

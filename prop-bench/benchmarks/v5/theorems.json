@@ -1,0 +1,802 @@
+[
+  {
+    "id": "v1-001",
+    "premises": [],
+    "conclusion": "[P . (P > Q)] > Q",
+    "difficulty": "Medium",
+    "difficulty_value": 40
+  },
+  {
+    "id": "v1-002",
+    "premises": [],
+    "conclusion": "[~(P . Q)] v P",
+    "difficulty": "Medium",
+    "difficulty_value": 34
+  },
+  {
+    "id": "v1-003",
+    "premises": [],
+    "conclusion": "[(P v Q) . ~P] > Q",
+    "difficulty": "Medium",
+    "difficulty_value": 31
+  },
+  {
+    "id": "v1-004",
+    "premises": [],
+    "conclusion": "[P . (P > Q)] > Q",
+    "difficulty": "Medium",
+    "difficulty_value": 35
+  },
+  {
+    "id": "v1-005",
+    "premises": [],
+    "conclusion": "{~{[~(~Q > ~P)] v ~P}} > Q",
+    "difficulty": "Medium",
+    "difficulty_value": 40
+  },
+  {
+    "id": "v1-006",
+    "premises": [],
+    "conclusion": "P > (Q > P)",
+    "difficulty": "Medium",
+    "difficulty_value": 40
+  },
+  {
+    "id": "v1-007",
+    "premises": [],
+    "conclusion": "[P . (P > Q)] > Q",
+    "difficulty": "Medium",
+    "difficulty_value": 26
+  },
+  {
+    "id": "v1-008",
+    "premises": [],
+    "conclusion": "[(P > Q) . (Q > R)] > (P > R)",
+    "difficulty": "Medium",
+    "difficulty_value": 43
+  },
+  {
+    "id": "v1-009",
+    "premises": [],
+    "conclusion": "(P . Q) > (P . Q)",
+    "difficulty": "Medium",
+    "difficulty_value": 42
+  },
+  {
+    "id": "v1-010",
+    "premises": [],
+    "conclusion": "[(P > Q) . (Q > R)] > (P > R)",
+    "difficulty": "Medium",
+    "difficulty_value": 42
+  },
+  {
+    "id": "v1-011",
+    "premises": [],
+    "conclusion": "[(P v Q) . ~P] > Q",
+    "difficulty": "Hard",
+    "difficulty_value": 46
+  },
+  {
+    "id": "v1-012",
+    "premises": [],
+    "conclusion": "{~[(P > Q) . (Q > R)]} v (P > R)",
+    "difficulty": "Hard",
+    "difficulty_value": 55
+  },
+  {
+    "id": "v1-013",
+    "premises": [],
+    "conclusion": "[P . (~P v Q)] > Q",
+    "difficulty": "Hard",
+    "difficulty_value": 50
+  },
+  {
+    "id": "v1-014",
+    "premises": [],
+    "conclusion": "[~(P . Q)] > [~(Q . P)]",
+    "difficulty": "Hard",
+    "difficulty_value": 57
+  },
+  {
+    "id": "v1-015",
+    "premises": [],
+    "conclusion": "{(P > Q) . [(R > Q) . (P v R)]} > Q",
+    "difficulty": "Hard",
+    "difficulty_value": 58
+  },
+  {
+    "id": "v1-016",
+    "premises": [],
+    "conclusion": "[(Q > R) . (~Q > ~P)] > (P > R)",
+    "difficulty": "Hard",
+    "difficulty_value": 58
+  },
+  {
+    "id": "v1-017",
+    "premises": [],
+    "conclusion": "[~(~P v R)] > {~[(~P v Q) . (Q > R)]}",
+    "difficulty": "Hard",
+    "difficulty_value": 57
+  },
+  {
+    "id": "v1-018",
+    "premises": [],
+    "conclusion": "[~(~P v R)] > {~[(P > Q) . (Q > R)]}",
+    "difficulty": "Hard",
+    "difficulty_value": 48
+  },
+  {
+    "id": "v1-019",
+    "premises": [],
+    "conclusion": "[(P > Q) . (Q > R)] > (~R > ~P)",
+    "difficulty": "Hard",
+    "difficulty_value": 47
+  },
+  {
+    "id": "v1-020",
+    "premises": [],
+    "conclusion": "{~{[~(P > Q)] v Q}} > ~P",
+    "difficulty": "Hard",
+    "difficulty_value": 66
+  },
+  {
+    "id": "v1-021",
+    "premises": [],
+    "conclusion": "{[(R > ~R) v (P . S)] . {{~{~Q v [~(Q . Q)]}} v T}} > {[(P . S) v (R > ~R)] . {T v [(Q . Q) . Q]}}",
+    "difficulty": "Expert",
+    "difficulty_value": 81
+  },
+  {
+    "id": "v1-022",
+    "premises": [],
+    "conclusion": "{[(T v ~T) . Q] . {[(R . R) . P] . S}} > {[(R . R) . P] . S}",
+    "difficulty": "Expert",
+    "difficulty_value": 81
+  },
+  {
+    "id": "v1-023",
+    "premises": [],
+    "conclusion": "{[~P v (R . ~R)] . {Q v [Q v (S > ~S)]}} > {[~P v (R . ~R)] . {Q v [(S > ~S) v Q]}}",
+    "difficulty": "Expert",
+    "difficulty_value": 80
+  },
+  {
+    "id": "v1-024",
+    "premises": [],
+    "conclusion": "{{~[(P v R) . S]} . {[(R v P) . S] v [(Q > ~Q) . (Q > T)]}} > [(Q > ~Q) . (Q > T)]",
+    "difficulty": "Expert",
+    "difficulty_value": 83
+  },
+  {
+    "id": "v1-025",
+    "premises": [],
+    "conclusion": "{{{{[(~P . T) > T] > {Q > [T v (T v Q)]}} . {{Q > [T v (Q v T)]} > [(T > ~T) > ~R]}} . {{[~(T > ~T)] v ~R} > {T > [T > (T > S)]}}} . [(~P . T) > T]} > {T > [T > (T > S)]}",
+    "difficulty": "Expert",
+    "difficulty_value": 81
+  },
+  {
+    "id": "v1-026",
+    "premises": [],
+    "conclusion": "{[(~R > P) > S] . [(~Q . ~Q) v T]} > [(~P > R) > S]",
+    "difficulty": "Expert",
+    "difficulty_value": 82
+  },
+  {
+    "id": "v1-027",
+    "premises": [],
+    "conclusion": "{{{~[(P v ~P) v S]} v {[S > (Q > S)] . Q}} . {[(S . R) > (R v R)] v {~{[S > (Q > S)] . Q}}}} > {{~[(P v ~P) v S]} v [(S . R) > (R v R)]}",
+    "difficulty": "Expert",
+    "difficulty_value": 76
+  },
+  {
+    "id": "v1-028",
+    "premises": [],
+    "conclusion": "{{{{[P v (B . B)] > A} > [(~Q > D) . (C > Q)]} . {{[E v (R > R)] v F} > {[(H > H) > G] . (S v G)}}} . {{[P v (B . B)] > A} v {[E v (R > R)] v F}}} > {[(~Q > D) . (C > Q)] v {[(H > H) > G] . (S v G)}}",
+    "difficulty": "Expert",
+    "difficulty_value": 75
+  },
+  {
+    "id": "v1-029",
+    "premises": [],
+    "conclusion": "{[~P . (R v R)] . [~S > (Q v S)]} > {[~P . (R v R)] . {[~(Q v S)] > S}}",
+    "difficulty": "Expert",
+    "difficulty_value": 71
+  },
+  {
+    "id": "v1-030",
+    "premises": [],
+    "conclusion": "{{{[~(P v S)] > ~R} > P} . {[~(~Q v ~T)] v T}} > {~P > {~[R > (P v S)]}}",
+    "difficulty": "Expert",
+    "difficulty_value": 83
+  },
+  {
+    "id": "v1-031",
+    "premises": [],
+    "conclusion": "{{{{{{~[(T v P) > P]} > {(P . T) > {[~(~Q > T)] . (T v ~Q)}}} . {[(T v ~Q) . (~T . ~Q)] > {{~[~R v (R > ~R)]} . T}}} . {{{~[~R v (R > ~R)]} . T} > {[~(S > ~T)] > [T v (T v T)]}}} . {~[(T v P) > P]}} . (P . T)} > {[~(S > ~T)] > [T v (T v T)]}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 89
+  },
+  {
+    "id": "v1-032",
+    "premises": [],
+    "conclusion": "{{{{~[(Q > T) > Q]} . ~T} > {~{{[(~S v P) v R] . (P . P)} > (S v P)}}} . {~{T v [(Q > T) > Q]}}} > {~{[R v (S > P)] > [(P . P) > (S v P)]}}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 90
+  },
+  {
+    "id": "v1-033",
+    "premises": [],
+    "conclusion": "{{(~S > ~P) > [P . (S . ~P)]} v R} > {{[(Q > Q) . Q] . (~T . ~Q)} > {{{(P > S) > [P . (S . ~P)]} v R} . {[(Q > Q) . Q] . [~(T v Q)]}}}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 86
+  },
+  {
+    "id": "v1-034",
+    "premises": [],
+    "conclusion": "{{{~{{T . {[(T v Q) . S] . S}} . (Q > Q)}} > {~{{[~(~S > ~S)] > ~P} > {T v [~(P . ~S)]}}}} . {{{T . [(S . S) . (T v Q)]} . (Q > Q)} > {[(S v ~S) . (T . ~T)] > [~(T v R)]}}} > {{~{[P > (S > S)] > {T v [~(P . ~S)]}}} v {(S v ~S) > {(T . ~T) > [~(T v R)]}}}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 91
+  },
+  {
+    "id": "v1-035",
+    "premises": [],
+    "conclusion": "{~{{R v [(T > T) v ~S]} > (S v ~R)}} > {{~{{{{[~P v (T . P)] v S} > P} v {{[(S v Q) . (S . S)] . Q} v T}} . {{~{{[~P v (T . P)] v S} > P}} v {{R v [(T > T) v ~S]} > (~R v S)}}}} v {~{{{T v {[(Q v S) . (S . S)] . Q}} . {R v [(T > T) v ~S]}} > (S v ~R)}}}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 95
+  },
+  {
+    "id": "v1-036",
+    "premises": [],
+    "conclusion": "{[(P > R) . (R . P)] . [(R v ~P) > S]} > {{{[(P > R) . (P . R)] . [(R v ~P) > S]} > {~T v [(Q > ~Q) . (Q v Q)]}} > {~T v [(Q > ~Q) . (Q v Q)]}}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 92
+  },
+  {
+    "id": "v1-037",
+    "premises": [],
+    "conclusion": "{{{{{[P . (P v T)] . [S > (T v P)]} . {[(T v T) > Q] v {[(Q > T) . S] > ~S}}} > {{~S . [T > (~R . S)]} v (T > T)}} . {P . {(~P > T) . [S > (T v P)]}}} . {[(T v T) > Q] v [(Q > T) > (S > ~S)]}} > {{~S . {T > [~(R v ~S)]}} v (T > T)}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 93
+  },
+  {
+    "id": "v1-038",
+    "premises": [],
+    "conclusion": "{{~{(T v Q) . {~T v [Q > (Q v T)]}}} > {~{{[~(~R > ~R)] . P} . [(~S v ~R) v ~S]}}} > {{[~(T v Q)] v {~{T > [Q > (Q v T)]}}} > {{~{{[~(~R v R)] . P} . (~S v ~R)}} . {~{{[~(R > R)] . P} . ~S}}}}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 94
+  },
+  {
+    "id": "v1-039",
+    "premises": [],
+    "conclusion": "{{{{S . [(P > R) v ~R]} > (P . P)} v {{[(T v ~Q) v T] > (T > Q)} v Q}} . {~{{(S . ~R) v [(P > R) . S]} > (P . P)}}} > {{[(T v ~Q) v T] > (~T v Q)} v Q}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 86
+  },
+  {
+    "id": "v1-040",
+    "premises": [],
+    "conclusion": "{{~[~R . (T . ~R)]} . [~(S . ~R)]} > {~{{{{~{{(Q v ~T) . {~[(S v ~S) . S]}} > {{S v [~R . (T . ~R)]} . {[~R . (T . ~R)] v ~R}}}} > {~{{[~(~S v ~S)] v (P . T)} . (P . T)}}} . {{P . {[~(~S v ~S)] v (T . P)}} . T}} . {(Q v ~T) . {~[(S v ~S) . S]}}}}",
+    "difficulty": "Nightmare",
+    "difficulty_value": 91
+  },
+  {
+    "id": "v1-041",
+    "premises": [],
+    "conclusion": "{{{R > [~(P v ~P)]} > R} . S} > {{{~{{Q v [~(Q > Q)]} . [T . (T > Q)]}} v {{[(P v ~P) > ~R] > R} . S}} . {{{Q v [~(Q > Q)]} . [T . (T > Q)]} v {~{{Q v [~(Q > Q)]} . [T . (T > Q)]}}}}",
+    "difficulty": "Marathon",
+    "difficulty_value": 99
+  },
+  {
+    "id": "v1-042",
+    "premises": [],
+    "conclusion": "{{[(P v ~S) > (~R > ~P)] . ~S} . {{{~R > {~[(P v ~S) . P]}} . ~S} > {[T . (~Q > ~Q)] > Q}}} > {T > {[~(Q . ~Q)] > Q}}",
+    "difficulty": "Marathon",
+    "difficulty_value": 97
+  },
+  {
+    "id": "v1-043",
+    "premises": [],
+    "conclusion": "{{{{~[~R v (R > ~S)]} . ~P} v S} . {{~{{[~R v (R > ~S)] v P} . ~S}} > {{[(T . ~Q) > ~T] . ~T} v Q}}} > {{~{{~[T > (~Q > ~T)]} v T}} v Q}",
+    "difficulty": "Marathon",
+    "difficulty_value": 96
+  },
+  {
+    "id": "v1-044",
+    "premises": [],
+    "conclusion": "{~{{~{{{{{[~(P > P)] . (S . S)} v (T . P)} v {{~T v [(Q v T) > (T v T)]} . S}} . {~{{[~(P > P)] . (S . S)} v (T . P)}}} v {{{{[~(P > P)] . S} v (T . P)} v {{~T v [(Q v T) > (T v T)]} . S}} . {S . {(~T v T) . [(S . ~R) . R]}}}}} v {~{{~T v [(Q v T) > (T v T)]} > {S > {{(~T v T) . [(S . ~R) . R]} . S}}}}}} > {{(~T v T) . [(S . ~R) . R]} . S}",
+    "difficulty": "Marathon",
+    "difficulty_value": 100
+  },
+  {
+    "id": "v1-045",
+    "premises": [],
+    "conclusion": "{~Q . {{{{S v [~P v (R v ~P)]} > ~P} v {{[~(T v Q)] v [~(T . T)]} > Q}} . {~{{S v [~P v (~P v R)]} > ~P}}}} > [(T v Q) . (T . T)]",
+    "difficulty": "Marathon",
+    "difficulty_value": 100
+  },
+  {
+    "id": "v1-046",
+    "premises": [],
+    "conclusion": "{{{{{T > [T > (S > ~S)]} . ~P} > {{[(Q . S) > (~Q v ~T)] . T} > {(R > T) > {[(R . ~R) v (S . ~T)] . ~T}}}} . {~P . {{~{[~(~T v ~S)] > ~S}} > ~T}}} . {[(Q . S) > (~Q v ~T)] . T}} > {(R > T) > {~T . [(R . ~R) v (S . ~T)]}}",
+    "difficulty": "Marathon",
+    "difficulty_value": 99
+  },
+  {
+    "id": "v1-047",
+    "premises": [],
+    "conclusion": "{{{{[(~P . P) v (T . ~T)] > {[(Q . T) v Q] . (Q > ~Q)}} . {{~{T v [~R > (~T > ~R)]}} v {{(T > S) > [(S > ~S) . ~T]} > T}}} . [(~P . P) v (T . ~T)]} v {{{[(~P . P) v (T . ~T)] > {[(Q . T) v Q] . (Q > ~Q)}} . {{T v {[~(R v T)] > ~R}} > {{(T > S) > [(S > ~S) . ~T]} > T}}} . {T v {[~(R v T)] > ~R}}}} > {{[(Q . T) v Q] . (Q > ~Q)} v {{(~T v S) > [(S > ~S) . ~T]} > T}}",
+    "difficulty": "Marathon",
+    "difficulty_value": 97
+  },
+  {
+    "id": "v1-048",
+    "premises": [],
+    "conclusion": "{~{{R > [(R . T) v T]} v ~S}} > {~{{{{{~[(T v ~T) > P]} v {~S v {~P > [~(S . ~S)]}}} v {{[~(S v S)] v Q} > ~T}} . {{~{{R > [(R . T) v T]} v ~S}} > {~{[(T v ~T) > P] > {[S > (~S > P)] v ~S}}}}} . {{{[~(S v S)] v Q} > ~T} > {{R > [(R . T) v T]} v ~S}}}}",
+    "difficulty": "Marathon",
+    "difficulty_value": 96
+  },
+  {
+    "id": "v1-049",
+    "premises": [],
+    "conclusion": "{~{{{{{[(~P > P) . (~T v T)] > {[(Q v Q) v (T > T)] > (T > ~T)}} . {{{~[(T > T) . S]} v (~S v S)} > {{~[(~R > T) . R]} v ~T}}} . (~T v T)} . (~P > P)} v {{{[(T v ~T) . (~P > P)] > {{[(Q v Q) v (T > T)] . T} > ~T}} . {{[R . (~R > T)] . T} > {[(T > T) . S] . [~(~S v S)]}}} . {[(~R > T) . R] . T}}}} v {{[(Q v Q) v (T > T)] > (T > ~T)} v {[(T > T) . S] . [~(~S v S)]}}",
+    "difficulty": "Marathon",
+    "difficulty_value": 99
+  },
+  {
+    "id": "v1-050",
+    "premises": [],
+    "conclusion": "{{{{(S . ~P) > [~(T > ~T)]} > {{{(Q v ~T) . [~(T . ~S)]} v (S . Q)} > {~R > {~{~T v [(S > T) . ~R]}}}}} . [(S . ~P) > (T . T)]} . {{[(Q v ~T) . ~T] v [(Q v ~T) . S]} v (S . Q)}} > {{T > [(S > T) . ~R]} > R}",
+    "difficulty": "Marathon",
+    "difficulty_value": 99
+  },
+  {
+    "id": "v1-051",
+    "premises": [],
+    "conclusion": "{{{{{[(T v ~T) . T] v {(~T v T) . {[(~Q . ~T) v ~Q] . T}}} v ~T} v (S . ~S)} . {{[(~T v T) . T] v {(~T v T) . {{Q > [~(T v Q)]} . T}}} v ~T}} v {{[~T v (S . ~S)] v {(T > T) . {T v {T . [(T v Q) > ~Q]}}}} . {[P > (S . ~S)] . {[S v (P v P)] v ~P}}}} > {{[~(S . ~S)] v {[P > (~S . S)] > {{P > [(P v S) v P]} > {{{[(R . A) v (~A . ~A)] . R} . [~(A v R)]} v A}}}} > {{{~{{{{[~(A v A)] v (R . A)} . R} . [~(A v R)]} v A}} > {T . {[~(T v ~T)] v {~T . {~{T . {[~(Q v T)] v ~Q}}}}}}} > {{{[(A . R) v (~A . ~A)] . R} . [~(R v A)]} v A}}}",
+    "difficulty": "Absurd",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 6,
+      "passes": 5,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-052",
+    "premises": [],
+    "conclusion": "{~{{{{~[~A . (~T . A)]} > {~{{{{{~[(A > T) > (A v A)]} v P} . {{~[(~T > ~A) > (A v A)]} v (T > P)}} . (P . ~T)} . {[~(~Q v A)] > (T > Q)}}}} . {{~{{{{~[(A > T) v A]} v {T > {(~R > ~A) . [~(R . T)]}}} v R} . {{[(A > T) v A] > {{~{(~R > ~A) . [~(R . T)]}} > ~T}} v ~T}}} > {~{{[~(A v ~Q)] > (~T v Q)} > [~A . (~T . A)]}}}} . {{{{[~(A > ~A)] v [~(~S v ~A)]} > ~T} v {[~(S v A)] v A}} v {~{{{T > [(A > R) . (~R v ~T)]} v {[~(A > T)] . ~A}} v (~T . R)}}}}} v {{{[(A . ~T) v (A v A)] > [P . (~P > ~T)]} . (~T . P)} > {{T > [(A > ~A) . (S > ~A)]} v [(S v A) > A]}}",
+    "difficulty": "Absurd",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 6,
+      "passes": 5,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-053",
+    "premises": [],
+    "conclusion": "{{{{{{{{[(~A v ~P) v A] . T} v {{~{[(P > A) > T] > ~T}} > ~P}} > {{(Q v A) . {{(T v Q) > [(T v ~Q) > T]} . ~Q}} . ~Q}} . {{~{~Q > {{A > {[(R . ~A) . T] v T}} v {A > [~(R . R)]}}}} > {~{(Q v A) . {~Q . {[(Q v T) . (T v ~Q)] > T}}}}}} . {{{~A v {[(R . ~A) . T] v T}} v {~R v [~(A . R)]}} > {(A . S) v {{~{T > [(T > T) > A]}} v (S > ~S)}}}} . {[(P > ~A) v A] . T}} v {{{(Q v A) > {{~{~Q . {[T v (Q . ~Q)] > T}}} v {{~{{{{~[(R . ~A) . T]} . ~T} > ~A} v {R > [~(R . A)]}}} > Q}}} . {{{[(P > ~A) v A] . T} v {{~{[(P > A) > T] > ~T}} > ~P}} > {(Q v A) . {{{[~(T v Q)] v [(T v ~Q) > T]} . ~Q} . ~Q}}}} . {{~{[(A . S) v (S > ~S)] v {~{T > {~A > [~(T > T)]}}}}} > {~{{A > {[(R . ~A) . T] v T}} v [~R v (R > ~A)]}}}}} . {{{~{T > {~{[~(P > A)] v T}}}} > ~P} v {{{{{{[(~A v ~P) v A] . T} v {{~{[(P > A) > T] > ~T}} > ~P}} > {{(Q v A) . {{(T v Q) > [(T v ~Q) > T]} . ~Q}} . ~Q}} . {{~{~Q > {{A > {[(R . ~A) . T] v T}} v [(R . R) > ~A]}}} > {~{(Q v A) . {~Q . {[(Q v T) . (T v ~Q)] > T}}}}}} . {{{~A v {[(R . ~A) . T] v T}} v [~R v (~A v ~R)]} > {(A . S) v {(S > ~S) v {~{T > [(T > T) > A]}}}}}} . {[(P > ~A) v A] . T}}}} > {{[~(S . A)] > (S > ~S)} v {~{T > {~A > [~(T > T)]}}}}",
+    "difficulty": "Absurd",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 6,
+      "passes": 5,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-054",
+    "premises": [],
+    "conclusion": "{[R > (R > A)] v {{~{{{{~{{~T > {~[(Q . T) v T]}} . Q}} v {(~P v S) v {[S > (P > ~P)] v {(P v P) . {P v [~(P > ~S)]}}}}} . {{(~P v S) v {[(S . P) > ~P] v {(P v P) . {[~(P > ~S)] v P}}}} v {{~{{[~(Q > ~T)] v T} > T}} v Q}}} . {{[R > (~A > ~R)] v {{~A . [(A v A) v A]} > A}} v {~{S v {~P v {{P > [~(S . P)]} v {{P v [~(P > ~S)]} . (P v P)}}}}}}}} v {~{{{~{~T > {~[(T > ~Q) > T]}}} v (~Q . Q)} > {(~A > ~R) v {~R v {~A > {[(A v A) v A] > A}}}}}}}} v {{[(A v A) . ~A] v (~A . A)} > A}",
+    "difficulty": "Absurd",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 6,
+      "passes": 5,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-055",
+    "premises": [],
+    "conclusion": "{{{{{S . [~S v (S v S)]} v [~(~S . P)]} . P} v {{{T v [(T v ~Q) v Q]} v (~Q . T)} . {~[(~T v Q) . T]}}} . {{~{P . {(S v ~P) v [(S > S) . S]}}} v {{[A > (R > ~R)] > A} > {{~[(R . R) v R]} v {~[A v (R . R)]}}}}} > {{{~A > {~{[~(R > ~R)] > ~A}}} > {{(~Q . T) v {~T . {[(T v ~Q) v Q] v T}}} > [~R v (~A . ~R)]}} > {[~R v (~R . ~A)] v {~{[A > (R > ~R)] > A}}}}",
+    "difficulty": "Absurd",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 6,
+      "passes": 5,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-056",
+    "premises": [],
+    "conclusion": "{{{~{S > {{[P > (~P v ~S)] v [~(S v ~P)]} v P}}} v {{~{A > {(A v A) v [(R . A) . A]}}} . [R v (R > ~R)]}} . {{(S . ~P) > {(P . ~S) v {~[(P . S) . P]}}} v {{{~Q v [~(~Q v Q)]} . (T > Q)} v (~Q v T)}}} > {{{{~{{(Q v ~T) . [(Q > Q) > ~Q]} v (~Q v T)}} v {{~{{[~(A v A)] . {~[(A . R) . A]}} > ~A}} . (R > ~R)}} v {{~{A > {A v {A v [R . (A . A)]}}}} . R}} > {{~{A > {{[A v (A v A)] . [(A v A) v R]} . [(A v A) v A]}}} . [R v (R > ~R)]}}",
+    "difficulty": "Absurd",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 6,
+      "passes": 5,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-057",
+    "premises": [],
+    "conclusion": "{~{{~{{A . [(R v ~R) v ~A]} v {A . [~(A v R)]}}} v ~R}} > {{~{{{[(T > ~Q) . (T . ~T)] . Q} v {{~T . [(T > ~Q) . T]} . {(T . T) . [(~T v ~T) v T]}}} v {~S > {~{[S > (P > ~P)] v [~(P > P)]}}}}} v {~{{{{~{[(S . P) > ~P] v [~(P > P)]}} v S} > {R > {{~{{~[~A v (R v ~R)]} . (A v R)}} > ~A}}} . {{R . {{[(Q > ~T) . (T . ~T)] . Q} v {[(T . ~T) . (Q > ~T)] . {{T . [~(T . T)]} v [(T . T) . T]}}}} > {~{{[(~R v R) v ~A] v (~A . ~R)} . A}}}}}}",
+    "difficulty": "Absurd",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 6,
+      "passes": 5,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-058",
+    "premises": [],
+    "conclusion": "{{{{{{(S v S) v {P v {[(P > P) . S] > [~(~P . ~S)]}}} > {(~R . ~R) v {{{~{[~(A . ~A)] > ~A}} . A} v ~A}}} . {{[(~P > ~P) . (~S . ~P)] > ~S} v [(S v S) v P]}} v {[~(~R . ~R)] > {{~{{~A v [(~A v A) > ~A]} > ~A}} > {~{(S v S) v {P v {[~(S v P)] > {~[S . (P > P)]}}}}}}}} . {{{{{~{S v {S v {P v {(P > P) > {S > [~(~P . ~S)]}}}}}} v {[~(R v R)] v {{[A > (A . ~A)] v ~A} > ~A}}} . [(S v S) v P]} v {{{~{{P v {[(P > P) . S] > [~(~P . ~S)]}} v (S v S)}} v {[~(R v R)] v {{{[~(A . ~A)] > ~A} v ~A} > ~A}}} . {[(P > P) . (~S . ~P)] > ~S}}} v {{[~Q > (T v Q)] . Q} . {~{T . [(Q . T) v T]}}}}} . {{Q . {{[~(~T . ~Q)] v Q} . {{~[(Q . T) v T]} v ~T}}} > {~R v {{[~A v (A . ~A)] v ~A} > ~A}}}} > {[~(R v R)] v {{~A v [(~A . A) v ~A]} > ~A}}",
+    "difficulty": "Absurd",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 6,
+      "passes": 5,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-059",
+    "premises": [],
+    "conclusion": "{{{~{~T . [(Q . T) v (Q v ~Q)]}} > ~T} . {{~{{P . {~{[(P v ~S) v P] . (P . ~S)}}} . (~S > ~S)}} . {{[~(~S > ~S)] v {~P v {[(~S v P) v P] . (~S . P)}}} > {{{T > {{[(T . Q) . ~T] v (~Q > ~Q)} . {[T . (Q . ~T)] v ~T}}} . (~R v A)} > {R > {~{A . [R . (A . ~A)]}}}}}}} > {{~{{A . [R . (A . ~A)]} > ~R}} > (~A . R)}",
+    "difficulty": "Absurd",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 6,
+      "passes": 5,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-060",
+    "premises": [],
+    "conclusion": "{{{{{{A > {{[P v (P . P)] . ~T} . [A v (A . A)]}} > ~T} > {{Q . [(~Q v A) > (~T > Q)]} > {{[~(Q > ~Q)] > ~Q} > A}}} . {{{~{{[~T . (~A > ~Q)] > Q} . Q}} v {{~{Q > [~(Q . Q)]}} v A}} > {{(T v ~T) . {[~A v (A . ~A)] . {{[~(R > R)] . T} v {[~(~R v R)] . A}}}} . A}}} . {[A . (T v ~T)] > {{~{[A > (A . ~A)] . {{T . [~(R > R)]} v {A . [~(R > R)]}}}} v {~A v {{~{T . [~(~S > ~S)]}} . {[~(T . S)] . ~T}}}}}} . {T > {~{A > {{~{~T > {~[(P v P) . (P v P)]}}} . [A v (A . A)]}}}}} > {{[~T v (S > S)] . [(~S v ~T) . ~T]} v ~A}",
+    "difficulty": "Absurd",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 6,
+      "passes": 5,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-061",
+    "premises": [],
+    "conclusion": "{{{~{{[(A v B) . ~A] . R} v {(~B . T) v {{T . [(~B > ~B) > R]} v (~A . T)}}}} > {~{{A . [B v (T . ~A)]} v {B . {B v {[~(Q > ~Q)] v ~B}}}}}} . {{~{{~{{~{{(A . ~B) v {[(~B v ~P) . ~B] > ~B}} . [~(A . B)]}} > ~T}} > (~P . B)}} v {{{[A . (~A . T)] v (A . B)} v B} . {{A . [(~A . T) v B]} v {{[~(Q . Q)] > ~B} v B}}}}} > {{{~{{[T v (B v ~T)] v {~[A . (~A > ~A)]}} > {S . [(~S . ~B) . B]}}} > {~{{[(A v B) . R] . ~A} v {~{(~T v B) . {{~T v {~{R v [~(B v ~B)]}}} . [~(T . ~A)]}}}}}} > {{~{[(~S . ~B) . (S . B)] v {{~[(~A > ~A) > ~A]} . {~T . [~(~B > ~T)]}}}} > {~{{[(B . ~P) v ~T] v {(A . ~B) v {[~(B > B)] > [~(B > ~P)]}}} . {{~[(~B v P) . T]} v (~B v ~A)}}}}}",
+    "difficulty": "Cosmic",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 10,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-062",
+    "premises": [],
+    "conclusion": "{{{{{{{~{{(R v ~B) v [(~B . R) v R]} v {(B . ~R) > [~(B v ~B)]}}} > {~{{{{{{[(~P v P) > (S > S)] > ~P} v {T . {~[~T > (~T v ~P)]}}} v T} . ~A} . {Q . [(A . ~A) . A]}} v {{{~A . {{T . {~[~T > (~T v ~P)]}} v {{[S . (~P > ~P)] > S} > ~P}}} v (~A . T)} . [~(Q . Q)]}}}} . {{[(T . P) > T] v ~T} > {{~S > {~[(P > P) . S]}} > ~P}}} v {{{~A . {Q . [~A . (A . A)]}} v [~A . (~Q v ~Q)]} > {{{{T . {~[(T . P) > T]}} v {[(~P > ~P) > (S > S)] > ~P}} v T} > {{[~(~B v R)] > [~(B v ~B)]} v {(~B v R) v [(B v ~R) > R]}}}}} . {{{~{{{{{{{~S > {~[(~P v P) . S]}} > ~P} v {T . {~{[~(T > ~P)] > T}}}} v T} . ~A} . {Q . [(~A . A) . A]}} v {{{T v {{T . {~[~T > (~T v ~P)]}} v {{[(P > P) . S] > S} > ~P}}} . ~A} . [~(Q . Q)]}}} v {{[(~B . R) v R] v (R v ~B)} v [(B . ~R) > (~B . B)]}} . {{~T v {[~(~P v T)] > ~T}} > {{~S > {~[S . (P > P)]}} > ~P}}}} v {T . {{{{~{(R v ~B) v [(~B . R) v R]}} > {{~{[~(~B . B)] > [~(B . ~R)]}} > {~{{{{{{[(~P v P) > (S > S)] > ~P} v {T . {~[~T > (T > ~P)]}}} v T} . ~A} . {Q . [(A . ~A) . A]}} v {(~Q v ~Q) . {~A . {{{T . {~[~T > (~T v ~P)]}} v {{~{[(P > P) . S] > S}} v ~P}} v T}}}}}}} . {{~T v [~T v (P > T)]} > {P > {~{~S > {~[S . (P > P)]}}}}}} v {{~{{(B . ~R) > [~(B v ~B)]} v {(~B v R) v {R v [~(B v ~R)]}}}} > {~{{{{T . {~[(T . P) > T]}} v {P > {~[(~P > ~P) > (S > S)]}}} v T} . {{~A . {Q . [~A . (A . A)]}} v [~A . (~Q v ~Q)]}}}}}}} . {~A . {{Q . [(~A . A) . A]} v [~(Q . Q)]}}} > {{(R v ~B) v {[~(B v ~R)] v R}} v [(B v ~B) > (R v ~B)]}",
+    "difficulty": "Cosmic",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 10,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-063",
+    "premises": [],
+    "conclusion": "{[(~T > ~T) . (S . B)] v {[(A . A) . B] v {[A . (T . A)] v {A . {A . [~(S v S)]}}}}} v {~{{{{~T v [~(~P > ~T)]} > {P . [(A v B) v P]}} v (T > ~B)} . {{{{~{B v [R v (A > T)]}} v {{(~T . T) v [~(B . S)]} > {{~{A . {A . {B v {[~(S v S)] v T}}}}} > {~{A . {[~(B > A)] . (~B v T)}}}}}} . {{[~(Q v B)] v {~{[T > (Q . B)] v [A . (Q . B)]}}} > {~{[T . (~P > ~T)] v {B > {T > {[B v (P v A)] . P}}}}}}} . {{{~[(Q v Q) v B]} v {{~A v [~(B . Q)]} . {~[T > (B . Q)]}}} v {{{B v [~T > (A > R)]} . A} . {{T . [~(~A > ~B)]} v [(B . ~A) . ~B]}}}}}}",
+    "difficulty": "Cosmic",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 10,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-064",
+    "premises": [],
+    "conclusion": "{~{{{{(B . ~B) v {B . [~(B v R)]}} > [(~B . ~B) > ~B]} . B} v ~R}} > {~{{{{[P > (T v S)] > {{{~{{P > [~(T . ~P)]} > [~T > (~S . P)]}} > S} > {~R v {{[B > (B v B)] v {{~{[~(B . B)] . (~B v ~R)}} v ~B}} . B}}}} . {{{{{[P > (P v ~T)] > [(P . ~S) v S]} v [~(T > ~T)]} . ~P} v {{{{[P > (P v ~T)] > [S v (P . ~S)]} v [~(T > ~T)]} . S} v {{{[P > (P v ~T)] > [(P . ~S) v S]} v [~(T > ~T)]} . T}}} v A}} v {{[~P v (T v S)] > {{{~{{P > [~(T . ~P)]} > [~T > (~S . P)]}} > S} > {{{{[B > (B v B)] v {~[~B . (~B v ~R)]}} v ~B} . B} v ~R}}} . {{{~{[(A v Q) v ~Q] . ~Q}} v (Q v Q)} > {{{[~A . (~Q . Q)] v Q} v (~A v Q)} > ~Q}}}} . {{~{A v {{[(~A . Q) v Q] v {[A v (~Q v Q)] > Q}} > ~Q}}} v {{{{{~B . [~(B . R)]} > ~B} v (~B v B)} . B} v ~R}}}}",
+    "difficulty": "Cosmic",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 10,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-065",
+    "premises": [],
+    "conclusion": "{~{{{{{{{(P > ~T) . [~(S v T)]} v {{S v [~(S > ~S)]} v [~P v (S > P)]}} v {{~{A v [~(A . Q)]}} v Q}} . {[(A > Q) > Q] v {{[(P > ~T) . (~T . ~S)] v [P > (~S v P)]} v [(S > ~S) > S]}}} . {{{{~{[~S > (S . S)] v [P > (P v ~S)]}} . {~[(~S . ~T) . (~T v ~P)]}} v {{{R > {~{[(~R v R) . ~R] v B}}} . ~R} v {{R > {{~[(R > R) . ~R]} . ~B}} . ~R}}} . {~{{[P > (~S v P)] v {~S > [~(~S v ~S)]}} v {(P > ~T) . [~(S v T)]}}}}} v {{{{{(T > ~P) . [~(S v T)]} v {{S v [~(S > ~S)]} v [(S > P) v ~P]}} v {{~{A v [~(A . Q)]}} v Q}} . {[(A > Q) > Q] v {{[(T > ~P) . (~S . ~T)] v [P > (~S v P)]} v [(~S v ~S) > S]}}} . {{{{~{[P > (~S v P)] v {~S > [~(~S v ~S)]}}} . {~[(~T v ~P) . (~S . ~T)]}} v {{R > {~{[(~R > ~R) . ~R] v B}}} . (~R v ~R)}} . [R . (B > R)]}}} . {{~{{~{[A > (A v ~Q)] > Q}} v {~{~Q > [~(Q v ~A)]}}}} > {{{{~R . {R > {~B . {~[(R > R) . ~R]}}}} v {{~B . {R v [~(~R > ~R)]}} v ~R}} . {{{R > {~B . {~[(R > R) . ~R]}}} . ~R} v ~R}} . [(B > R) . R]}}}} v {{{~R v {~B . {~[(R > R) . ~R]}}} . (~R v ~R)} . [R . (B > R)]}",
+    "difficulty": "Cosmic",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 10,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-066",
+    "premises": [],
+    "conclusion": "{~{{{{{{~[(P v ~B) . T]} . ~P} v P} v B} . {{{~{[(P v ~B) . T] v P}} v P} v {(P > A) > {[~(~T . B)] . ~A}}}} > {{~{{{S v [A . (S . A)]} > ~B} . (A . ~B)}} v ~T}}} > {~{{{{B . [B v (A v B)]} v [B v (B v A)]} > {{{[B v (A v B)] . B} v (T > T)} > {{~{{~{{~{[A . (S . A)] v S}} v ~B}} v [~A v (B v ~T)]}} > {~{(T . ~A) v [~(~R > A)]}}}}} . {{{{{B . {[~(~A > ~P)] v {~[A v (~T . B)]}}} v {~P > {~{[(P v ~B) . T] v P}}}} > {{~Q v {(~Q v ~A) . [~(B . B)]}} . {{{(~Q v ~A) . [~(B . B)]} v B} . {{[~(B . B)] . (~Q v ~A)} v (~T v A)}}}} . {~{{[(B v A) . (B v Q)] . {~{~Q . [B . (~A > ~T)]}}} > {~[(Q . A) v B]}}}} v {{{~{{{(~Q v ~A) . [~(B . B)]} v ~Q} . {{{(~Q v ~A) . [~(B . B)]} v B} . {{(~Q v ~A) . [~(B . B)]} v (~T v A)}}}} > {~{{B . {(~A > ~P) > {~[A v (~T . B)]}}} v {~P > {~{[(P v ~B) . T] v P}}}}}} . {[B v (A v B)] . {{[~(~A > R)] v (T . ~A)} . [B v (T > T)]}}}}}}",
+    "difficulty": "Cosmic",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 10,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-067",
+    "premises": [],
+    "conclusion": "{{~{(A . S) > {~[(~B . A) v ~T]}}} > {[(~T v T) . ~T] > [~(A > ~S)]}} v {~{{{{{{{~{{~[(B > P) v T]} v {[(~B . ~T) v P] . {(B . ~T) > {~[(T . B) > A]}}}}} v {{~{[T > (A . Q)] v (A v Q)}} > (B > T)}} . {{{~{[Q v (~B v T)] v {{(T v T) > [~(A > ~Q)]} v A}}} v {{[(~R v ~B) . B] > ~T} v [~(T . A)]}} . [(B . ~B) v (~A v T)]}} v {{~{{~[(B > P) v T]} v {{B > {~T > {~[T > (B > A)]}}} . [(~T . ~B) v P]}}} v {{{[T > (A . Q)] v A} v Q} v (~B v T)}}} . {{{{~{{~[(B > P) v T]} v {[(~B . ~T) v P] . {(B . ~T) > {~[T > (B > A)]}}}}} v {{[T > (A . Q)] v (A v Q)} v (B > T)}} . {{{~{[Q v (~B v T)] v {{(T v T) > [~(A > ~Q)]} v A}}} v {{[(~R v ~B) . B] > ~T} v [~(A . T)]}} . [(B . ~B) v (~A v T)]}} v {{{~{[Q v (~B v T)] v {{(~A v ~Q) > [~(T v T)]} v A}}} v {[~(A . T)] v {T > [(R . B) v ~B]}}} . {{~[Q v (~B v T)]} . {~{{[~(T v T)] v (A . Q)} v A}}}}}} . {{{{[(T v ~A) v B] . (~A v T)} v {~B . [(~A v T) v B]}} . {A > {T > {~{[B . (R > ~B)] . T}}}}} > {(S > ~A) > {{{[T > (A . ~B)] > (~S v ~A)} v [~(T > T)]} v T}}}} . {{~{{~{[~(~T . ~B)] > P}} v {~{[(T . B) > A] > [~(B . ~T)]}}}} v {~T . [~(~B v P)]}}}}",
+    "difficulty": "Cosmic",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 10,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-068",
+    "premises": [],
+    "conclusion": "{{{{{{~{{{{{[(B > B) v R] v ~R} . (~B > ~B)} v [(R > R) v (B > B)]} . {{{[(B > B) v R] v ~R} . (~B > ~B)} v (~R v ~R)}} > ~R}} > {~{{{T v {S > {~[S v (T > ~T)]}}} v {~[P . (T v ~S)]}} . [R > (R > B)]}}} . {[~(A . ~Q)] > {Q v {~{A v {{{~[(Q . A) > ~A]} v A} . {{~[(Q . A) > ~A]} v A}}}}}}} v {{~{{{{~R v [R v (B > B)]} . (B > B)} v {[(B > B) v (R v ~R)] . [~(R . R)]}} > ~R}} > {~{{{~[(T v ~S) . P]} v {T v {{~[S v (T > ~T)]} v ~S}}} . [R > (B v ~R)]}}}} . {{{[~(A . ~Q)] > {Q v {~{A v {(A . A) v {~[~Q v (~A v ~A)]}}}}}} . {{~{{{{[R v (B > B)] v ~R} . (B > B)} v {[(R v ~R) v (B > B)] . [~(R . R)]}} > ~R}} > {~{{{{S > {~[S v (T > ~T)]}} v T} v [~P v (~T . S)]} . [~R v (~R v B)]}}}} v {{~[P . (T v ~S)]} v {T v {~S v {[~(~T v ~T)] . ~S}}}}}} . {{{~Q > {{(A v A) v {~[A > (Q > ~A)]}} > [~(A > Q)]}} . {[~(B v ~R)] > ~R}} > {R > {~{(~B v B) v {[(~R v R) . ~R] v [(R v ~R) . ~R]}}}}}} > {{{(B > B) v [(R v ~R) . (~R v ~R)]} > ~R} v {~[~R v (R > B)]}}",
+    "difficulty": "Cosmic",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 10,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-069",
+    "premises": [],
+    "conclusion": "{{{{{{{{{A v [~(B . B)]} v P} . {[~(B . B)] v A}} v {A v [(B > ~B) v P]}} . {{[A v (~B v ~B)] v P} . [(~B v ~B) v A]}} v {{{[(A v ~B) v P] . {[~(B . B)] v A}} v {A v [P v (~B v ~B)]}} . A}} > {{[(A v ~B) v ~B] v [~P . (T > ~P)]} > {[(T > ~B) . A] v {{{T v [~(A > ~Q)]} > ~Q} > ~B}}}} . {{~{[(~T v ~B) . A] v {{Q > {[~(A . Q)] . ~T}} > ~B}}} v {{{T v {~B v [~(R v B)]}} . {[~(~R > ~T)] > [~(B > ~A)]}} . ~R}}} . {{{~{{A v {~{(B . S) . {[T . (~S . T)] v (~S v ~S)}}}} v {B . [~(~T > ~A)]}}} > {{R v {~[(T > R) v (A . B)]}} v {~{{~{~B v [~(R v B)]}} > T}}}} . {{{[(A v ~B) v ~B] v {~P . [~(T . P)]}} . (P . A)} v {{[(A v ~B) v ~B] v {~P . [~(T . P)]}} . [(~B v A) v ~B]}}}} > {{~{{{(B . S) . [T . (T . ~S)]} v (S . B)} . {(S > ~S) v {(S . B) . [T . (T . ~S)]}}}} v {A v {~[B > (A > T)]}}}",
+    "difficulty": "Cosmic",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 10,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-070",
+    "premises": [],
+    "conclusion": "{{[(~R > B) . ~B] . {~{B > {{[(B . ~B) v ~B] . (R v B)} . (R v ~B)}}}} > {~{{~[(~A . Q) > A]} > {~[(A . A) v ~A]}}}} v {~{{{{~P v {~{(T . S) > [(~P v ~T) v ~P]}}} v S} > {{{{~{~B . {[(B v R) . (B v ~B)] . ~R}}} . {~{[(B v R) . ~B] . [(B v ~B) . B]}}} v ~B} v {~{{[(A v A) v ~Q] v {[(~A . ~A) v ~A] . A}} v {{~[(A v A) . A]} . A}}}}} . {~S > {{{S > [(P > ~T) v ~P]} v ~T} > ~P}}}}",
+    "difficulty": "Cosmic",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 10,
+      "transforms_per_pass": 20,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-071",
+    "premises": [],
+    "conclusion": "{{~R > {[~(B . R)] v (~R v B)}} . [~(R > ~R)]} > {(R . B) > {{~{{{S v [(S > S) v (S v T)]} > {{{[~(T > P)] v P} > ~P} > {R > {R > {{~{R > {B > [R v (B v ~R)]}}} v (~R v ~B)}}}}} . {{{{{{{A > [(Q > ~A) > (Q . ~A)]} v {{P > {~[(~T v P) > P]}} . {{~[(S v T) v (S > S)]} > S}}} . {{{P v [~(T > P)]} > ~P} . {~S > [(S v ~S) v (S v T)]}}} v [Q v (~A v Q)]} . {{Q v {{{{~{[~(S > S)] > S}} > (S v T)} . {[(~T v P) > P] > ~P}} v {~A v [(Q > ~A) > (Q . ~A)]}}} . {Q v {{~S > [(S v T) v (~S v S)]} . {[~P . (~T v P)] v ~P}}}}} . {{{~{{[~(T > P)] v P} . P}} . {~S > {S v [T v (S > S)]}}} v {A > [(Q . A) v (Q . ~A)]}}} v {{{{{{{{{{~S > [(~S v S) v (S v T)]} . {P > {~{~P > [~(T > P)]}}}} v {[(Q . ~A) v ~A] v (Q . A)}} . {{~S > [(S > S) v (S v T)]} . {{P v [~(T > P)]} > ~P}}} v [Q v (~A v Q)]} . Q} v {{{{{S v [(S v ~S) v (S v T)]} . {{~{~P > [~(T > P)]}} v ~P}} v {~A v {(~Q v A) > [~(~Q v ~A)]}}} . {{~S > [(~S > ~S) v (S v T)]} . {~{{[~(T > P)] v P} . P}}}} v [Q v (~A v Q)]}} . {{{{{{{~S > [(S > S) v (S v T)]} . {{~P > [~(T > P)]} > ~P}} v {~A v [(~Q v A) > (Q . A)]}} . {{{~{[(~S > ~S) v S] v T}} > S} . {{P v [~(T > P)]} > ~P}}} v [Q v (~A v Q)]} . Q} v {{{{{~{~T . {~S . [~(~S > ~S)]}}} v S} . {[(T > P) > P] > ~P}} v {~A v [(Q > ~A) > (~A . Q)]}} . {{S v [(S v T) v (S > S)]} . {~{[(T . ~P) v P] . P}}}}}} . {{{{{{{~S > {S v [T v (S v ~S)]}} . {{P v [~(T > P)]} > ~P}} v {A > {[~(Q > ~A)] v (~A . Q)}}} . {~S > [(S v T) v (~S v S)]}} . ~P} v {{{{{S v [(S v T) v (S > S)]} . {{P v [~(T > P)]} > ~P}} v {A > {[~(Q > ~A)] v (~A . Q)}}} . {{~[(S v T) v (S > S)]} > S}} . ~P}} . ~P}} v {{{{{{{{{{S v [(S > S) v (S v T)]} . {{~P > [~(T > P)]} > ~P}} v ~A} v [(~Q v A) > (Q . A)]} . {{~S > [(S v ~S) v (S v T)]} . {{P v [~(T > P)]} > ~P}}} v [Q v (~A v Q)]} . Q} v {{{{[(S v T) v (S > S)] v S} . {[(T > P) > P] > ~P}} v {[A . (A > ~Q)] > (Q . ~A)}} . {{S v [(S v T) v (~S > ~S)]} . {P > {~[(T . ~P) v P]}}}}} . {{{{{{{~S > [(~S v S) v (S v T)]} . {P > {~{P v [~(~P > ~T)]}}}} v {~A v [(Q . ~A) v (A . Q)]}} . {{S v [(~S > ~S) v (S v T)]} . {{P v [~(T > P)]} > ~P}}} v [Q v (~A v Q)]} . Q} v {{{{{{S v [(S > S) v (S v T)]} . {{~P > [~(T > P)]} > ~P}} v {~A v {(~Q v A) > [~(~Q v ~A)]}}} . {{~S > [(~S > ~S) v (S v T)]} . {{[~(T > P)] v P} > ~P}}} v Q} v (~A v Q)}}} . {{{{{{{~S > [(S v T) v (~S > ~S)]} . {[(T . ~P) v P] > ~P}} v {A > {{[~(Q > ~A)] v ~A} . {[~(Q > ~A)] v Q}}}} . {~S > [(T v S) v (S > S)]}} . ~P} v {{{{{{P v [~(T > P)]} > ~P} . {{~[(S v T) v (S > S)]} > S}} v {A > {[~(Q > ~A)] v (~A . Q)}}} . {{~[(T v S) v (S > S)]} > S}} . ~P}} . (~T v P)}}}}}} v {~{{{~{[Q . (Q v ~A)] v (Q . Q)}} v {[~(R > ~R)] > {~{{R > {B > [~R > (~R v B)]}} . (B . R)}}}} v {A . {~{(~Q v A) > [~(Q > ~A)]}}}}}}}",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-072",
+    "premises": [],
+    "conclusion": "{{{{{[(~B . B) . ~B] v [~(B v B)]} . [(~R . ~B) . R]} v ~B} v {{{{T . [S . (S . S)]} v (~P . T)} v {S v {[~(A . Q)] . {{[(Q > A) . (A v Q)] v {~[(A > ~Q) v A]}} v ~A}}}} > R}} v {{{{~{{{{~B . {~B v [(~B > ~B) > ~B]}} . (B > ~B)} v {{{~[B > (B . ~B)]} v B} > ~B}} . {~B . {[~(B v B)] v {[(~B v B) > ~B] . ~B}}}}} . {~{[(~R . ~B) . R] . {{~B . {{~B v [(~B > ~B) > ~B]} . (B > ~B)}} v {B > {~{[(B . ~B) v ~B] > B}}}}}}} . ~R} . {{~{T > [(P . ~S) v (P . ~S)]}} v S}}} v {{~{{{[~(B v R)] . R} v ~B} . {{~B v [~B v (~B . B)]} . (~B v ~B)}}} . {~R . {{{[~Q v (~A > ~A)] > [(A v Q) . (A v ~Q)]} > Q} > ~A}}}",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-073",
+    "premises": [],
+    "conclusion": "{{S . {{{~{[(~S > ~P) . ~T] . T}} v {{{~[(T . P) v P]} v (~T v ~P)} . {{~[(T . P) v P]} v S}}} v ~P}} v {{~[~A v (~A v Q)]} v {{{(~Q v Q) v {~{R . {~B v [(B v R) . (B v R)]}}}} v B} v (~Q . ~A)}}} > {{{{{{~{[(~P v S) > T] v ~T}} . {~[~P v (S . ~T)]}} > ~P} . S} v {{~[(A > ~A) v Q]} . A}} v {{(A v Q) . {R . {~{{{{{{~[(B . B) v R]} v {B . {(B v ~R) . [B v (B > ~B)]}}} v B} . {{B v {~{R v [~(B > ~B)]}}} . B}} v {{{B . [B v (B > ~B)]} . (~R v B)} v [(~R . ~B) v B]}} . {B v {{{{{{[(B v ~R) . B] v [(~R v B) . (B > ~B)]} . B} v [~R . (~B v ~B)]} v B} . {(R > B) . [B v (B > ~B)]}} . B}}}}}} > (Q v ~Q)}}",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-074",
+    "premises": [],
+    "conclusion": "{{~R v {(~R v ~R) v {~{{{{{{{~[(A . ~Q) . (A v ~Q)]} . {~{[(A . Q) . ~Q] v [(A . Q) . A]}}} v {{~[(~Q . A) . (A v ~Q)]} . Q}} v {R > {{{~B . [~(R . R)]} . B} v {[(~R v ~R) . ~B] . ~R}}}} v {~{{~{T > [~P v (~S v T)]}} > {~{[(~P > ~S) . ~P] . [~(~P > ~P)]}}}}} . {{~{{{~[P > (T > T)]} . S} > [~(P . ~P)]}} > {[~(~P . P)] . (P v S)}}} . {(~Q . A) . {{{{{[Q v (~Q v A)] . ~Q} v [(Q > A) v Q]} . {{A v [Q v (~Q v A)]} . (~Q v A)}} v {[A v (~Q v Q)] v {[~Q v (A v Q)] . A}}} . {{[(Q > Q) v A] . (~A > ~Q)} v {{A . [~Q v (Q v A)]} v ~Q}}}}}}}} . {~{{{{{R > {{[~(R . R)] . ~B} . (B v ~R)}} v {{~[(A v ~Q) . (A . ~Q)]} . {Q v {[~(A . Q)] v [~(A v ~Q)]}}}} v {~{{{[(S > P) . ~P] . [~(~P > ~P)]} . T} > [P > (~S v T)]}}} . {{(~P . P) v [~(P v S)]} > {{~{{~{T v [~(T . P)]}} > (~P v P)}} > ~S}}} . {(~Q . A) . {{{{{{[Q v (~Q v A)] . ~Q} v [Q v (~Q v A)]} . {A v {[Q v (~Q v A)] . ~Q}}} v [(Q > A) v Q]} v {[(~Q v A) v Q] . A}} . {{(~A > ~Q) . [(A v ~Q) v Q]} v {{A . {[~(A v ~Q)] > Q}} v ~Q}}}}}}} v {{[~R v (~R v ~R)] v {{{~{{{{~{[(A . ~Q) . (A v ~Q)] v [(A . Q) . (~Q v A)]}} v {Q . {~[(~Q . A) . (A v ~Q)]}}} v {~R v {{[(~R v ~R) . ~B] . B} v {{[~(R . R)] . ~B} . ~R}}}} v {~{{[(P v ~S) . ~P] . [~(P > P)]} > {T > [~P v (~S v T)]}}}}} v {~{{~{{~[(P . T) > T]} > {S > [~(P . ~P)]}}} > {[~(~P . P)] . [~(~P . ~S)]}}}} v {~{(~Q . A) . {{{{[(~Q v A) v Q] . ~Q} v {A . [Q v (~A > ~Q)]}} v {[(~Q v A) v Q] v {[~Q v (A v Q)] . A}}} . {{(~A > ~Q) . [(~Q v Q) v A]} v {{A . [~Q v (Q v A)]} v ~Q}}}}}}} . {[R > (B v ~R)] . [~(B . R)]}}",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-075",
+    "premises": [],
+    "conclusion": "{~{{{[(Q v A) . (Q . Q)] . {~Q . {A v [~(Q . Q)]}}} v {~{{{~{B > {(B v ~B) v {B > [~(B v ~R)]}}}} . R} . R}}} > {~R v {(~B > ~B) v {[~(R . B)] v [(R . ~B) v ~B]}}}}} > {~{{{{{{Q v [~(Q v A)]} v {[(~Q v ~Q) v Q] . {[~(Q . Q)] v Q}}} . {{Q v [~(Q v A)]} v {~Q v [~(Q . A)]}}} v {{~[(P v T) . P]} v {S . {~{[(T . T) v T] . (~T v P)}}}}} . {{~{{~{B v {R > {~B v {~[(B v ~R) . B]}}}}} > ~B}} > ~R}} v {{{{{~{{{{~S v {[(T v T) . T] v (T . T)}} . {~[(S . T) . ~P]}} . P} . (P v T)}} v {{{~{{~[(~Q v ~Q) v (Q . Q)]} v (Q . A)}} v Q} v (~Q . ~A)}} . {{~{[~(T v T)] v [~(P v ~T)]}} v ~S}} . {{{[P . (P v T)] v P} v T} . {T v [(T v P) . P]}}} . P}}}",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-076",
+    "premises": [],
+    "conclusion": "{{{{{{{(P . T) v {(P . T) . [(T v P) . (~S . ~T)]}} . {~S v {{T . {{{(P . T) v [~(S v T)]} . [(P v T) v (P . T)]} . P}} v {{(T . P) v {(~P > T) . [~(T v S)]}} . (P . T)}}}} v {{{~{{[~(T . P)] > {(P . T) . {(P . T) v [(~S . ~T) . (P v T)]}}} . {{(P . T) . {[(P v T) . (~S . ~T)] v (T . P)}} v {{(P v T) . [~(S v T)]} v (P . T)}}}} > ~S} . T}} . R} v {B . {{{{[~S . (T . ~S)] v {~S . [(P . T) v (T . P)]}} . T} v {(P . T) v [(P . T) v (T . ~S)]}} . {{{[~S . (T . ~S)] v {~S . [(T . P) v (P . T)]}} . T} v {(P . T) v [(~S . ~T) . (~P > T)]}}}}} . {[R . (B > ~B)] . [~B . (B . R)]}} . ~B} v {{~{{{{{~S . [~T . (~T > P)]} v [T . (S > P)]} . {[~(T > ~P)] v [(P v ~S) . T]}} v {~{{{{(Q . A) > {~[A v (~A v Q)]}} . ~A} v {{Q . [(A v ~A) v Q]} > ~A}} . {{{(Q . A) > {~[A v (A > Q)]}} . ~A} v A}}}} . ~B}} v {{~{{{{~{{{~[B v (R > ~B)]} . B} v {{~B . [~(~R v ~B)]} . R}}} v {~{R . [~(B . B)]}}} v {~{(A > A) > {~{Q > {{~[(~A . A) . ~Q]} > ~A}}}}}} v B}} v {~{{[(B > ~B) . R] . {~B . [~(R > ~B)]}} . (B v R)}}}}",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-077",
+    "premises": [],
+    "conclusion": "{{{{(P > B) > [~P . (P . B)]} . {{{A . {{{~[A v (~B v ~T)]} v ~A} > [~(P > T)]}} > {{~{(P > B) > [~P . (B . P)]}} v {~{[~(Q . B)] > {[(A . ~T) > ~Q] > {{~[(~T . B) . Q]} v [~(Q . T)]}}}}}} . {{{(Q > ~B) . [~A v (~Q v T)]} . {{[B . (~T . Q)] . (Q . T)} . {[B . (A . R)] > [B v (R > B)]}}} > {{R v [(A . ~T) v (A . T)]} v R}}}} . {{{{{{~{{(~A > A) . {[~(~A v T)] > ~A}} > {~T > {~{{(A . R) . {~{~B > [~B > (B > ~R)]}}} v {R v {[A . (~T > ~T)] v R}}}}}}} > [~(B > ~S)]} . {{A . {(P . ~T) . {[~(T > A)] > ~B}}} v {A . [(~T . P) . (~T . P)]}}} v {{~{{{[~(A > ~R)] . {~{~B > [(B v ~R) v ~B]}}} v {R v {[(T > T) . A] v R}}} > T}} > {[~(S > ~B)] v {[~(~A > A)] v {~[A > (~A v T)]}}}}} . {{(B > ~S) > {{~{{{{{A . {R . {~{B > {~[(~B . ~B) . R]}}}}} v R} v [A . (T > T)]} v R} > T}} > {~{(A v A) . [A > (A > T)]}}}} . {A . {(~T . P) . {[~B v (A v ~T)] v (P . ~T)}}}}} v {{{{{~{{~{~T > {~{{[~(~R v ~A)] . {~[(~B . ~B) > (R > ~B)]}} v {R v {[A . (~T > ~T)] v R}}}}}} > {~{(~A > A) . [(~A v T) v ~A]}}}} > [~(B > ~S)]} . {A . {[(~T . P) . (~T . P)] v {(P . ~T) . {[~(~A > ~T)] > ~B}}}}} v {{~{{{[~(A > ~R)] . {~{~B > [(B v ~R) v ~B]}}} v {R v {[(T > T) . A] v R}}} > T}} > {[~(B > ~S)] v {~{[(~A > A) . ~A] v [(~A > A) . (~A v T)]}}}}} . {A . {{{{[~(T > A)] > ~B} v ~T} . {[(T . ~A) > ~B] v P}} . A}}}}} . (B > ~S)} > {(A v A) > {[(A . ~T) > ~A] > T}}",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-078",
+    "premises": [],
+    "conclusion": "{{{{{{{{[P . (T . T)] v (T . P)} . P} v {(T . T) . [(T . T) v T]}} > [~(~T v T)]} v S} . {~S . {(~T > ~T) . {(P v T) . {~{(~T v ~T) . [~(P . T)]}}}}}} . {{{~{{{[T . (T v P)] . T} v {[(T . T) v (P . T)] . P}} . ~S}} v (T . ~T)} v {{~S . {{(T > T) . [~(~T . ~P)]} . {[~(~T v ~T)] v (P . T)}}} . {{{~{{(T . T) v {{{[T . (T v T)] . P} . P} v T}} . {(T . T) v {[(T v T) . P] . P}}}} v [~(~T v T)]} v S}}}} v {{{{{~{(~T > ~T) . {{{{P . [T v (T . T)]} . P} v (T . T)} . {[(T . P) . P] v [(T . T) v T]}}}} v S} . {~S . {{~{{{(T > ~T) . [~(P . T)]} v ~P} . {[(T > ~T) . (P > ~T)] v ~T}}} . (T > T)}}} v {{{{{[T . (T v P)] . T} v {[(T . T) v T] . [(T . T) v P]}} . {{T . [T . (T v P)]} v P}} . ~S} > (T . ~T)}} . {{{A > {~{A . [~(A . ~A)]}}} . [(Q v ~Q) v A]} > {{~R . {(R . B) v {(R . B) v [(B v B) . B]}}} . [~(B v R)]}}}} > {{~{[~Q > (A v ~Q)] . {A > {A > [~(A > A)]}}}} v {~{{{~R > {~[(R . B) v B]}} v B} v R}}}",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-079",
+    "premises": [],
+    "conclusion": "{~{{{{{{(A . ~Q) v [~Q . (Q v ~Q)]} . A} v A} . {A . {(~Q . A) v {~{[~(Q v ~Q)] v Q}}}}} v {{A . {[(Q v ~Q) . ~Q] v (~Q . A)}} v A}} . {{~Q v {{{{{[(A . ~Q) v (Q v ~Q)] . [(~Q . A) v ~Q]} . A} v A} . A} . {(A . ~Q) v [~Q . (~Q v Q)]}}} . {{{{{[(A . ~Q) v (Q v ~Q)] . {[(~Q . A) v ~Q] . A}} v A} . A} . {(~Q . A) v [(~Q v Q) . ~Q]}} v ~A}}}} v {{{[T v (T > S)] . {~{~S v {[~(S > T)] v {{{{{{{~Q . [A . (~Q v Q)]} v {{[A . (~Q . A)] v ~Q} . {[A . (A . ~Q)] v ~A}}} > {{{{~A v [~(Q > Q)]} v Q} . [~(A v A)]} . {[~(Q v ~A)] > ~A}}} v (R . ~R)} . {{{{[A . (~Q v Q)] . ~Q} v {{[A . (~Q . A)] v ~Q} . {[A . (A . ~Q)] v ~A}}} > {{{{~A v [~(Q > Q)]} v Q} . [~(A v A)]} . {[~(Q v ~A)] > ~A}}} v [(~R . R) v R]}} v {{{{{R v [~(B > R)]} > B} v [(~R . R) v R]} . {~B > {~[(B > R) > R]}}} v {{{{R v [~(~R > ~B)]} > B} v [(~R . R) v R]} . B}}} v (P v ~T)}}}}} v {~{{S . {~{{~[(S > T) . T]} v P}}} . [(~S > ~T) v T]}}} v {{B v {~R . [~(~R . B)]}} v [(~R v B) . R]}}",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  },
+  {
+    "id": "v1-080",
+    "premises": [],
+    "conclusion": "{~{{{~{{{{{[(A . S) v (B v ~S)] > A} . {{T > [~(S . A)]} . [~T v (~B . S)]}} . ~A} v {{{A v {[~(B v ~S)] . [~(A . S)]}} . {~T v {~[(B v ~S) v (A . S)]}}} . (T . ~A)}} v {{{~{[(B v ~S) v (S . A)] . T}} . {{A . {R . [(T . R) v ~R]}} > B}} . {{[~(A . S)] . [~(~S v B)]} v A}}}} v {{[~(T > S)] . S} . ~A}} . {{{{~{{~{(~A v A) v {(~Q . T) v {{~[B > (B v A)]} > [~(~Q > ~B)]}}}} > [~(~Q v T)]}} v {{{{[~(R > ~T)] v ~R} . R} > {B v [~(A . A)]}} v [(T . ~A) v ~A]}} . {{{{{{T v {[~(T v A)] v P}} . P} v {{[(~T . ~A) v P] v T} . [(~P v A) . (A . ~P)]}} v {~T > [~(B v T)]}} > {(~A > ~A) v {~{{~{{(Q v ~B) > [~B v (B v A)]} v ~Q}} v {~{{[~(B v A)] > ~B} v {[~(~B v Q)] v T}}}}}}} v (Q . ~T)}} . {{{{{{{{[(~T . ~A) v (T v P)] . P} v {~{[~(T v P)] . (T v A)}}} . {{[(~T . ~A) v (T v P)] . P} v (~A > ~P)}} . P} v {{[(~P v A) v P] . [P v (~T . ~A)]} v {T . [(P > A) v P]}}} . {(~P . A) v {{{[(T v P) v (~T . ~A)] . P} v {{[~(T v A)] v (T v P)} . (P > A)}} . P}}} v [(T v B) > T]} . {{B v [S > (A . S)]} > [~(~A v T)]}}}}} v [(S . ~A) . (~S . T)]",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 7,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4,
+      "max_formula_nodes": 100000000
+    }
+  }
+]

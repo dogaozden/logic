@@ -112,6 +112,8 @@ export function initSchema(): void {
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       set_id     INTEGER NOT NULL REFERENCES theorem_sets(id) ON DELETE CASCADE,
       model_slug TEXT NOT NULL,
+      temperature REAL NOT NULL DEFAULT 0.2,
+      max_tokens  INTEGER NOT NULL DEFAULT 4096,
       started_at TEXT NOT NULL DEFAULT (datetime('now')),
       finished_at TEXT
     );
@@ -139,7 +141,6 @@ export function initSchema(): void {
 
     CREATE INDEX IF NOT EXISTS idx_results_set_model   ON results(set_id, model_slug);
     CREATE INDEX IF NOT EXISTS idx_results_set_theorem  ON results(set_id, theorem_id);
-    CREATE INDEX IF NOT EXISTS idx_results_run ON results(run_id);
   `);
 
   // Migration: add finish_reason column if missing
@@ -150,6 +151,19 @@ export function initSchema(): void {
   // Migration: add run_id column if missing
   try {
     db.exec(`ALTER TABLE results ADD COLUMN run_id INTEGER REFERENCES runs(id) ON DELETE CASCADE`);
+  } catch { /* column already exists */ }
+
+  // Create run_id index (must be after migration that adds the column)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_results_run ON results(run_id)`);
+
+  // Migration: add temperature column if missing
+  try {
+    db.exec(`ALTER TABLE runs ADD COLUMN temperature REAL NOT NULL DEFAULT 0.2`);
+  } catch { /* column already exists */ }
+
+  // Migration: add max_tokens column if missing
+  try {
+    db.exec(`ALTER TABLE runs ADD COLUMN max_tokens INTEGER NOT NULL DEFAULT 4096`);
   } catch { /* column already exists */ }
 
   db.exec(`
@@ -278,7 +292,7 @@ export function hasResult(setName: string, theoremId: string, modelSlug: string)
 // Runs management
 // ---------------------------------------------------------------------------
 
-export function createRun(setName: string, modelSlug: string): number {
+export function createRun(setName: string, modelSlug: string, temperature: number, maxTokens: number): number {
   const db = getDb();
 
   const setRow = db.prepare("SELECT id FROM theorem_sets WHERE name = ?").get(setName) as { id: number } | undefined;
@@ -287,11 +301,11 @@ export function createRun(setName: string, modelSlug: string): number {
   }
 
   const stmt = db.prepare(`
-    INSERT INTO runs (set_id, model_slug)
-    VALUES (?, ?)
+    INSERT INTO runs (set_id, model_slug, temperature, max_tokens)
+    VALUES (?, ?, ?, ?)
   `);
 
-  const info = stmt.run(setRow.id, modelSlug);
+  const info = stmt.run(setRow.id, modelSlug, temperature, maxTokens);
   return info.lastInsertRowid as number;
 }
 
@@ -310,6 +324,8 @@ export function getIndividualRuns(setName?: string): Array<{
   setName: string;
   modelSlug: string;
   modelDisplay: string;
+  temperature: number;
+  maxTokens: number;
   startedAt: string;
   finishedAt: string | null;
   stats: { total: number; valid: number; invalid: number; errors: number; };
@@ -331,6 +347,8 @@ export function getIndividualRuns(setName?: string): Array<{
       runs.id AS run_id,
       ts.name AS set_name,
       runs.model_slug,
+      runs.temperature,
+      runs.max_tokens,
       runs.started_at,
       runs.finished_at,
       COALESCE(r.model_display, '') AS model_display,
@@ -342,12 +360,14 @@ export function getIndividualRuns(setName?: string): Array<{
     JOIN theorem_sets ts ON ts.id = runs.set_id
     LEFT JOIN results r ON r.run_id = runs.id
     ${setFilter}
-    GROUP BY runs.id, ts.name, runs.model_slug, runs.started_at, runs.finished_at
+    GROUP BY runs.id, ts.name, runs.model_slug, runs.temperature, runs.max_tokens, runs.started_at, runs.finished_at
     ORDER BY runs.started_at DESC
   `).all(...params) as Array<{
     run_id: number;
     set_name: string;
     model_slug: string;
+    temperature: number;
+    max_tokens: number;
     model_display: string;
     started_at: string;
     finished_at: string | null;
@@ -362,6 +382,8 @@ export function getIndividualRuns(setName?: string): Array<{
     setName: row.set_name,
     modelSlug: row.model_slug,
     modelDisplay: row.model_display || row.model_slug,
+    temperature: row.temperature,
+    maxTokens: row.max_tokens,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
     stats: {

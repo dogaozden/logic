@@ -172,6 +172,8 @@ export interface IndividualRun {
   setName: string;
   modelSlug: string;
   modelDisplay: string;
+  temperature: number;
+  maxTokens: number;
   startedAt: string;
   finishedAt: string | null;
   stats: {

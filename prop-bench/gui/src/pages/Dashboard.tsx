@@ -34,6 +34,8 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"combined" | "individual">("combined");
   const [individualRuns, setIndividualRuns] = useState<IndividualRun[]>([]);
+  const [sortCol, setSortCol] = useState<string>("runId");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   // Fetch theorem sets on mount, auto-select the one with the latest run
   useEffect(() => {
@@ -108,6 +110,71 @@ function Dashboard() {
     ? overview.modelSummaries.reduce((s, m) => s + m.total_api_errors, 0)
     : 0;
 
+  // Handle column sorting
+  const handleSort = (col: string) => {
+    if (sortCol === col) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  };
+
+  // Sort individual runs
+  const sortedRuns = [...individualRuns].sort((a, b) => {
+    let aVal: any;
+    let bVal: any;
+
+    switch (sortCol) {
+      case "runId":
+        aVal = a.runId;
+        bVal = b.runId;
+        break;
+      case "model":
+        aVal = a.modelDisplay.toLowerCase();
+        bVal = b.modelDisplay.toLowerCase();
+        break;
+      case "temperature":
+        aVal = a.temperature;
+        bVal = b.temperature;
+        break;
+      case "maxTokens":
+        aVal = a.maxTokens;
+        bVal = b.maxTokens;
+        break;
+      case "started":
+        aVal = new Date(a.startedAt).getTime();
+        bVal = new Date(b.startedAt).getTime();
+        break;
+      case "finished":
+        aVal = a.finishedAt ? new Date(a.finishedAt).getTime() : 0;
+        bVal = b.finishedAt ? new Date(b.finishedAt).getTime() : 0;
+        break;
+      case "valid":
+        aVal = a.stats.valid;
+        bVal = b.stats.valid;
+        break;
+      case "invalid":
+        aVal = a.stats.invalid;
+        bVal = b.stats.invalid;
+        break;
+      case "errors":
+        aVal = a.stats.errors;
+        bVal = b.stats.errors;
+        break;
+      case "total":
+        aVal = a.stats.total;
+        bVal = b.stats.total;
+        break;
+      default:
+        return 0;
+    }
+
+    if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
+    if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+
   return (
     <div>
       {/* ── Header ──────────────────────────────────────────────────────── */}
@@ -167,19 +234,39 @@ function Dashboard() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Run ID</th>
-                  <th>Model</th>
-                  <th>Started At</th>
+                  <th className="sortable-header" onClick={() => handleSort("runId")} style={{ cursor: "pointer" }}>
+                    Run ID {sortCol === "runId" && (sortDir === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="sortable-header" onClick={() => handleSort("model")} style={{ cursor: "pointer" }}>
+                    Model {sortCol === "model" && (sortDir === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="sortable-header" onClick={() => handleSort("temperature")} style={{ cursor: "pointer" }}>
+                    Temperature {sortCol === "temperature" && (sortDir === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="sortable-header" onClick={() => handleSort("maxTokens")} style={{ cursor: "pointer" }}>
+                    Max Tokens {sortCol === "maxTokens" && (sortDir === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="sortable-header" onClick={() => handleSort("started")} style={{ cursor: "pointer" }}>
+                    Started At {sortCol === "started" && (sortDir === "asc" ? "▲" : "▼")}
+                  </th>
                   <th>Status</th>
-                  <th>Valid</th>
-                  <th>Invalid</th>
-                  <th>Errors</th>
-                  <th>Total</th>
+                  <th className="sortable-header" onClick={() => handleSort("valid")} style={{ cursor: "pointer" }}>
+                    Valid {sortCol === "valid" && (sortDir === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="sortable-header" onClick={() => handleSort("invalid")} style={{ cursor: "pointer" }}>
+                    Invalid {sortCol === "invalid" && (sortDir === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="sortable-header" onClick={() => handleSort("errors")} style={{ cursor: "pointer" }}>
+                    Errors {sortCol === "errors" && (sortDir === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="sortable-header" onClick={() => handleSort("total")} style={{ cursor: "pointer" }}>
+                    Total {sortCol === "total" && (sortDir === "asc" ? "▲" : "▼")}
+                  </th>
                   <th>Success Rate</th>
                 </tr>
               </thead>
               <tbody>
-                {individualRuns.map((run) => {
+                {sortedRuns.map((run) => {
                   const successRate = run.stats.total > 0
                     ? ((run.stats.valid / run.stats.total) * 100).toFixed(1)
                     : "0.0";
@@ -188,6 +275,8 @@ function Dashboard() {
                     <tr key={run.runId}>
                       <td className="number-cell">{run.runId}</td>
                       <td className="model-cell">{run.modelDisplay}</td>
+                      <td className="number-cell">{run.temperature}</td>
+                      <td className="number-cell">{run.maxTokens}</td>
                       <td>{new Date(run.startedAt).toLocaleString()}</td>
                       <td>
                         <span className={`run-status ${isFinished ? "finished" : "running"}`}>

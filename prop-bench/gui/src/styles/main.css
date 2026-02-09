@@ -834,6 +834,16 @@ body {
   color: var(--warning);
 }
 
+.sortable-header {
+  user-select: none;
+  transition: color 0.15s, background 0.15s;
+}
+
+.sortable-header:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover) !important;
+}
+
 /* --- Model Scorecards --- */
 .model-scorecard-grid {
   display: grid;
