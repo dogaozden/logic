@@ -155,7 +155,8 @@ PropBench is an LLM benchmark that measures proof efficiency in propositional lo
 | **logger.ts** | Structured JSONL logging of all API calls, responses, parse results, validation results, and errors |
 | **config.ts** | Shared TypeScript types and default benchmark parameters |
 | **src/main.rs** | Rust CLI binary with two commands: `generate` (theorem sets) and `validate` (proof checking) |
-| **gui/** | Web-based GUI for running benchmarks and viewing results; v2.5: many backend and frontend fixes |
+| **gui/** | Web-based GUI for running benchmarks and viewing results; v2.5: many backend and frontend fixes; v2.10: auto-select latest set, delete theorem sets, clearable numeric inputs, model display names in runner progress |
+| **db.ts** | SQLite database layer; provides query functions for results, stats, and theorem set management including cascading deletes |
 
 ## Data Flow
 
@@ -311,6 +312,28 @@ The GUI (`gui/`) provides a web interface for running benchmarks and viewing res
 
 **Vite Config (`gui/vite.config.ts`):**
 - Added SSE proxy buffering fix: sets `cache-control` and `x-accel-buffering` headers to prevent proxy buffering of SSE streams
+
+### GUI Improvements (v2.10)
+
+**Auto-Select Latest Theorem Set:**
+All three main pages (Dashboard, Theorem Explorer, Benchmark Runner) now auto-select the theorem set that has the most recent benchmark run. The `TheoremSetPicker` component handles this by sorting sets by latest run timestamp and selecting the first one on initial load. When a selected set is deleted, the picker resets to the new latest set.
+
+**Delete Theorem Set (`pages/TheoremExplorer.tsx`):**
+Users can delete a theorem set from the Theorem Explorer page. The delete operation cascades through all associated data:
+- Database: deletes the set, all theorems, results, runs, and reports via `deleteTheoremSet()` in `db.ts`
+- Disk: deletes the set's directory and all files within it
+- A two-step confirmation prevents accidental deletion
+- The DELETE endpoint is exposed via `server/routes/theoremSets.ts` and called by `deleteTheoremSet()` in `api/client.ts`
+- New CSS styles for danger buttons and delete confirmation UI added to `styles/main.css`
+
+**Clearable Numeric Inputs:**
+Numeric input fields across the GUI now use nullable types (`number | null`) and can be fully cleared/emptied:
+- Benchmark Runner: max tokens (default 16384, changed from 4096), parallel workers, start index
+- Generate Theorems: total count and all difficulty distribution tier counts (which now default to empty/0 instead of preset values)
+- When empty, fields show placeholder text indicating the default value
+
+**Model Display Names in Runner Progress (`components/RunProgress.tsx`):**
+The benchmark runner progress display now shows human-readable model names (e.g., "Gemini 2.5 Flash Lite" instead of "gemini") using a display name mapping that translates CLI model adapter slugs to user-friendly labels.
 
 ## Relationship to Logic Proof Trainer
 

@@ -174,7 +174,7 @@ interface DifficultySpec {
 The DifficultySpec system replaces the single `difficulty_value` for advanced tiers (Absurd, Cosmic, Mind) and custom generation. Each field directly controls:
 - **variables**: Number of propositional atoms (>5 uses the dynamic truth table engine)
 - **passes**: Multi-pass pipeline — each pass wraps the formula as a new tautology and applies transforms
-- **transforms_per_pass**: Random equivalence transformations per pass
+- **transforms_per_pass**: Random equivalence transformations per pass (each transform targets a single AST node via positional path replacement, so structurally-identical subtrees diverge independently)
 - **base_complexity**: `simple` uses 7 standard argument forms; `complex` adds ConstructiveDilemmaFull, NestedCP, Chain4
 - **substitution_depth**: Replaces simple atoms with complex sub-formulas (0 = none, 4 = deeply nested)
 
@@ -654,7 +654,7 @@ npx ts-node harness.ts --theorems <path> --models <list> [options]
 | `--propbench-bin <path>` | `propbench` | Path to the Rust CLI binary for validation |
 | `--workers <n>` | `1` | Number of parallel API workers (concurrent theorem processing) |
 | `--temperature <n>` | `0.2` | Temperature parameter passed to all models |
-| `--max-tokens <n>` | `4096` | Maximum output tokens for model responses |
+| `--max-tokens <n>` | `16384` | Maximum output tokens for model responses |
 | `--force` | off | Force new run — don't skip completed theorems |
 | `--no-retry-parse` | off | Don't retry parse errors — treat unparseable model output as a final result |
 
@@ -1269,7 +1269,7 @@ gui/
     └── routes/
         ├── benchmark.ts    # /api/benchmark/* (start/status/stop)
         ├── results.ts      # /api/runs/* (runs + stats + details + delete)
-        ├── theoremSets.ts  # /api/theorem-sets/*
+        ├── theoremSets.ts  # /api/theorem-sets/* (list, delete)
         ├── generate.ts     # /api/generate
         └── validate.ts     # /api/validate
 ```
@@ -1311,6 +1311,7 @@ These stats endpoints require SQLite availability and return `503` if `propbench
 **Dashboard (`pages/Dashboard.tsx`):**
 - Main results viewer displaying Elo rankings, difficulty breakdowns, and model comparisons
 - Multi-set support: dropdown selector for choosing benchmark theorem sets
+- Auto-selects the theorem set that has the most recent benchmark run
 - **Statistics sections:**
   - Elo Rankings Table — Models ranked by Elo rating
   - Difficulty Breakdown — Valid/invalid/error counts per model per difficulty tier
@@ -1326,6 +1327,8 @@ These stats endpoints require SQLite availability and return `503` if `propbench
 - Real-time progress tracking via SSE
 - Displays validCount, invalidCount, parseErrorCount, apiErrorCount, skippedCount counters
 - Progress bar and status messages
+- Default max tokens changed from 4096 to 16384
+- Numeric fields (max tokens, parallel workers, start index) use nullable types and can be fully cleared/emptied, showing placeholder text when empty instead of forcing a value
 
 **Proof Viewer (`components/ProofViewer.tsx`):**
 - Displays Fitch-style proofs with indentation and line numbers
@@ -1342,6 +1345,8 @@ These stats endpoints require SQLite availability and return `503` if `propbench
 - Includes a "Parallel Workers" field for configuring concurrent API calls
 - "Force new run" checkbox: when enabled, passes `--force` to the harness to skip resume logic and run all theorems fresh
 - "Don't retry parse errors" checkbox: when enabled, passes `--no-retry-parse` to the harness so unparseable model output is treated as a final result rather than retried (see [Retry Policy](#retry-policy) for design rationale)
+- Numeric fields (max tokens, workers, start index) use nullable types (`number | null`) and can be fully cleared/emptied; placeholder text is shown when empty
+- Auto-selects the theorem set that has the most recent benchmark run
 
 **Avg Lines by Difficulty Table (`components/AvgLinesByDifficultyTable.tsx`):**
 - Displays average proof line count per model per difficulty tier
@@ -1354,13 +1359,28 @@ These stats endpoints require SQLite availability and return `503` if `propbench
 **Generate Theorems (`components/GenerateTheorems.tsx`):**
 - Modal for generating new theorem sets with three generation modes (distribution, tier preset, custom spec)
 - **Distribution mode:** Supports all 9 difficulty tiers (Easy through Mind), allowing users to specify count for each tier
-- **Default distribution:** Easy 20, Medium 20, Hard 20, Expert 15, Nightmare 10, Marathon 7, Absurd 5, Cosmic 2, Mind 1 (totaling 100)
+- **Default distribution:** All tier counts default to empty (0); total count field can be fully cleared/emptied and shows placeholder text when empty
 - Distribution validation: Sum of all tier counts must equal the total count; displays sum status with color feedback (green if valid, red if invalid)
 - Sum calculation: Uses `Object.values(dist).reduce((a, b) => a + b, 0)` to dynamically compute total from all tiers
 - Distribution string builder: Dynamically constructs the distribution string from all tiers with count > 0 (e.g., `"20:easy,20:medium,20:hard,15:expert,10:nightmare,7:marathon,5:absurd,2:cosmic,1:mind"`)
 - Modal interaction: Modal only closes via X button or Cancel button (clicking backdrop does not close)
 - **Tier preset mode:** Generate all theorems using a single difficulty tier's preset spec
 - **Custom spec mode:** Full control over DifficultySpec parameters (variables, passes, transforms_per_pass, base_complexity, substitution_depth)
+
+**Theorem Explorer (`pages/TheoremExplorer.tsx`):**
+- Browse and explore theorems in a selected theorem set
+- Auto-selects the theorem set that has the most recent benchmark run
+- **Delete theorem set:** Users can delete a theorem set via a delete button. A confirmation step prevents accidental deletion. Deleting a set removes it from both the database (cascading to all theorems, results, runs, and reports) and from disk.
+
+**Theorem Set Picker (`components/TheoremSetPicker.tsx`):**
+- Shared dropdown component used by Dashboard, Theorem Explorer, and Benchmark Runner for selecting a theorem set
+- Auto-selects the theorem set with the most recent benchmark run on initial load
+- Handles the case where a selected set is deleted by resetting to the new latest set
+
+**Run Progress (`components/RunProgress.tsx`):**
+- Displays real-time benchmark runner progress during a run
+- Shows human-readable model display names instead of raw adapter slugs (e.g., "Gemini 2.5 Flash Lite" instead of "gemini")
+- Uses a model display name mapping to translate CLI model identifiers to user-friendly labels
 
 **Vite Proxy (`vite.config.ts`):**
 - **v2.5 fix:** Added SSE buffering fix by setting `cache-control` and `x-accel-buffering` headers in proxy configuration
@@ -1405,6 +1425,7 @@ PropBench uses SQLite (`propbench.db`) as the primary persistent storage layer f
 
 **Query Functions (`db.ts`):**
 - `getAvgLinesByDifficulty(setName?)` — Computes average proof line count per model per difficulty tier. Joins `results` with `theorems` to aggregate only valid proofs. Returns array of `{ model_slug, model_display, difficulty, avg_lines, count }`. Useful for analyzing which models produce shorter proofs at different difficulty levels.
+- `deleteTheoremSet(setName)` — Deletes a theorem set and all associated data. Performs a cascading delete: removes all results, theorems, runs, and reports associated with the set from the database, then deletes the set's directory from disk. Returns success/failure status.
 
 ---
 

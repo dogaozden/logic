@@ -639,6 +639,11 @@ export function deleteRun(runId: string): void {
   }
 }
 
+export function deleteTheoremSet(setName: string): void {
+  const db = getDb();
+  db.prepare("DELETE FROM theorem_sets WHERE name = ?").run(setName);
+}
+
 // ---------------------------------------------------------------------------
 // Report cache
 // ---------------------------------------------------------------------------

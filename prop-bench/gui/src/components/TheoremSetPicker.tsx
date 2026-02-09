@@ -25,8 +25,9 @@ export default function TheoremSetPicker({
     ])
       .then(([data, runs]) => {
         setSets(data);
-        // Auto-select the set with the most recent run
-        if (!selectedSet && data.length > 0) {
+        // Auto-select if none selected or current selection no longer exists
+        const currentExists = data.some((s) => s.name === selectedSet);
+        if ((!selectedSet || !currentExists) && data.length > 0) {
           const setNames = new Set(data.map((s) => s.name));
           let latestSet = "";
           let latestTime = "";

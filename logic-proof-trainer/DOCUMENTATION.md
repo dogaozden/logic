@@ -108,7 +108,7 @@ Each rule exposes: `all_conclusions()` (all valid conclusions), `apply()` (first
 | 18 | Tautology | Taut | p :: (p · p), p :: (p ∨ p) |
 | 19 | Equivalence | Equiv | (p ≡ q) :: [(p ⊃ q) · (q ⊃ p)] |
 
-All equivalence rules are bidirectional. Transformations can be applied to top-level formulas or to subformulas via `replace_subformula()`.
+All equivalence rules are bidirectional. Transformations can be applied to top-level formulas or to subformulas. The verifier uses `replace_subformula()` (structural equality matching) to validate user-applied equivalence rules. The generator uses `replace_at_path()` (positional path matching) to apply transforms to individual subtree occurrences during obfuscation, preventing identical subtrees from being transformed in lockstep.
 
 ### Proof Techniques
 
@@ -241,12 +241,25 @@ Key methods:
 - `atoms() -> HashSet<String>` — All atomic propositions
 - `depth() -> usize` — Nesting level
 - `main_connective() -> Option<&'static str>` — Top-level connective
-- `subformulas() -> Vec<Formula>` — All subformulas including self
+- `subformulas() -> Vec<Formula>` — All subformulas including self (cloned, no positional info)
+- `subformulas_with_paths() -> Vec<(Vec<PathStep>, &Formula)>` — All subformulas with their positional paths from root (used by the generator for targeted single-node replacement)
+- `replace_at_path(path, replacement) -> Formula` — Replace the node at a specific AST path, leaving all other nodes untouched (used by the generator to avoid lockstep replacement of structurally-identical subtrees)
 - `substitute(name, replacement) -> Formula` — Variable substitution
 - `negate() -> Formula` — Create negation
 - `truth_table() -> u32` — 32-bit truth table
 - `shared() / from_shared()` — Arc conversion methods
 - `is_negation()`, `negated_inner()`, `equals()` — Utility predicates
+
+**PathStep** (`models/formula.rs`):
+```rust
+pub enum PathStep {
+    Inner,  // into Not
+    Left,   // left child of binary op
+    Right,  // right child of binary op
+}
+```
+
+Used by `subformulas_with_paths()` and `replace_at_path()` to identify specific nodes in the formula AST by position rather than by structural equality. This enables the obfuscation generator to transform a single occurrence of a repeated subtree without affecting all other identical occurrences. The verifier continues to use structural equality via `replace_subformula()`.
 
 **Parser Safety Limits**:
 - Maximum input length: 10,000 characters (Unicode code points)
@@ -412,8 +425,11 @@ Key methods:
 **ObfuscateGen** (`services/obfuscate_gen.rs`):
 - 3-layer theorem generation for Medium+ difficulty:
   1. **Layer 1 — Base Forms**: Generate simple valid argument (MP, MT, HS, DS, Simp, Conj, CD; plus ConstructiveDilemmaFull, NestedCP, Chain4 for difficulty ≥70)
-  2. **Layer 3 — Atom Substitution** (difficulty ≥70): Replace atoms with complex formulas (depth 0: none; depth 1: simple A∨B; depth 2: nested (A∨B)⊃C)
+  2. **Layer 3 — Atom Substitution** (difficulty ≥70): Replace atoms with complex formulas built from remaining pool atoms (partitioned evenly among base atoms)
   3. **Layer 2 — Wrap + Transform**: Combine as (P₁∧P₂∧...)⊃C tautology, apply N random equivalence transformations
+- **Positional replacement**: Equivalence transforms use `subformulas_with_paths()` + `replace_at_path()` to target individual AST nodes by position. This ensures that when a formula contains multiple structurally-identical subtrees (common at high difficulty), each occurrence can be independently transformed, producing diverse output instead of repetitive patterns.
+- **Pool-based atom substitution**: The substitution layer uses remaining atoms from the configured atom pool (not a hardcoded A-Z sequence), partitioned evenly among the base form's atoms. Each replacement formula is randomly generated with 30% early termination at each recursion level, creating natural size variation.
+- **Complex-only base forms** (Hard+): When `base_complexity` is Complex, only CDFull, NestedCP, and Chain4 are used — standard forms (MP, Simp, etc.) are excluded to ensure harder proof structures.
 - **Gnarly combos** (difficulty ≥85): Forces hard patterns like Contraposition+DeMorgan chains, Implication+Distribution combos
 - Simplification pass collapses excessive negations (~~~~P → P)
 - Tautology protection: only allows contraction (P∨P → P), not expansion
@@ -706,7 +722,7 @@ Note: All portfolio and storage commands validate that `id` is a valid UUID form
 
 **Medium+ (obfuscation-based — 3 layers):**
 1. **Base Form**: Simple valid argument (7 standard + 3 complex for d≥70)
-2. **Atom Substitution** (d≥70): Replace atoms with complex subformulas at configurable depth
+2. **Atom Substitution** (d>=70): Replace atoms with complex subformulas from pool partitions (30% early termination, depth controlled by substitution_depth)
 3. **Wrap + Transform**: Combine as tautology, apply N equivalence transformations (gnarly combos at d≥85 force hard patterns like Contraposition+DeMorgan chains)
 
 **Tree Generation (dual-strategy with fallback):**

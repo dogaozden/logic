@@ -205,6 +205,13 @@ export const api = {
     return json<Theorem[]>(`/theorem-sets/${encodeURIComponent(name)}`);
   },
 
+  /** Delete a theorem set (DB + files) */
+  deleteTheoremSet(name: string): Promise<{ success: boolean }> {
+    return json<{ success: boolean }>(`/theorem-sets/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
+  },
+
   /** Validate a proof against a theorem */
   validate(theorem: Theorem, proof: ProofLine[]): Promise<ValidateResult> {
     return json<ValidateResult>("/validate", {

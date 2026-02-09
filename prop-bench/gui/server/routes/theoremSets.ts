@@ -1,7 +1,11 @@
 import { Router, Request, Response } from "express";
+import { createRequire } from "node:module";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { BENCHMARKS_DIR } from "../cli";
+
+const require_ = createRequire(import.meta.url);
+const dbModule: any = require_("../../../db");
 
 const router = Router();
 
@@ -66,6 +70,29 @@ router.get("/:name", (req: Request, res: Response) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[theorem-sets] ERROR for set ${req.params.name}:`, err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+/** DELETE /api/theorem-sets/:name — delete a theorem set (DB + files) */
+router.delete("/:name", (req: Request, res: Response) => {
+  try {
+    const name = String(req.params.name);
+    console.log(`[theorem-sets] DELETE /${name}`);
+
+    // Delete from DB (cascades to theorems, results, runs, reports)
+    dbModule.deleteTheoremSet(name);
+
+    // Delete the directory on disk
+    const setDir = path.join(BENCHMARKS_DIR, name);
+    if (fs.existsSync(setDir)) {
+      fs.rmSync(setDir, { recursive: true, force: true });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[theorem-sets] DELETE ERROR for ${req.params.name}:`, err);
     res.status(500).json({ error: msg });
   }
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { Theorem, Difficulty, BenchmarkResult } from "../types";
 import { api } from "../api/client";
 import TheoremList from "../components/TheoremList";
@@ -35,6 +35,7 @@ export default function TheoremExplorer() {
     setLoadingTheorems(true);
     setTheoremsError("");
     setSelectedTheorem(null);
+    setConfirmDelete(false);
 
     api
       .getTheorems(selectedSet)
@@ -96,6 +97,25 @@ export default function TheoremExplorer() {
     return Object.keys(map).length > 0 ? map : undefined;
   };
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback(async () => {
+    if (!selectedSet) return;
+    setDeleting(true);
+    try {
+      await api.deleteTheoremSet(selectedSet);
+      setSelectedSet("");
+      setTheorems([]);
+      setConfirmDelete(false);
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      setTheoremsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeleting(false);
+    }
+  }, [selectedSet]);
+
   const handleGenerated = (setName: string) => {
     setShowGenerate(false);
     setRefreshKey((k) => k + 1);
@@ -123,6 +143,33 @@ export default function TheoremExplorer() {
         >
           Generate New Set
         </button>
+        {selectedSet && !confirmDelete && (
+          <button
+            className="generate-btn generate-btn--danger"
+            onClick={() => setConfirmDelete(true)}
+          >
+            Delete Set
+          </button>
+        )}
+        {confirmDelete && (
+          <span className="delete-confirm">
+            <span className="delete-confirm-label">Delete "{selectedSet}"?</span>
+            <button
+              className="generate-btn generate-btn--danger"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Yes, Delete"}
+            </button>
+            <button
+              className="generate-btn generate-btn--secondary"
+              onClick={() => setConfirmDelete(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </button>
+          </span>
+        )}
       </div>
 
       <div className="file-picker">
