@@ -2,56 +2,56 @@
   "easy": {
     "variables": 3,
     "passes": 1,
-    "transforms_per_pass": 2,
-    "base_complexity": "simple",
-    "substitution_depth": 0
-  },
-  "medium": {
-    "variables": 3,
-    "passes": 1,
     "transforms_per_pass": 5,
     "base_complexity": "simple",
     "substitution_depth": 0
   },
-  "hard": {
+  "medium": {
     "variables": 4,
     "passes": 1,
     "transforms_per_pass": 10,
     "base_complexity": "complex",
     "substitution_depth": 0
   },
-  "expert": {
+  "hard": {
     "variables": 5,
     "passes": 1,
     "transforms_per_pass": 15,
     "base_complexity": "complex",
     "substitution_depth": 2
   },
-  "nightmare": {
+  "expert": {
     "variables": 5,
     "passes": 2,
     "transforms_per_pass": 12,
     "base_complexity": "complex",
     "substitution_depth": 3
   },
-  "marathon": {
+  "nightmare": {
     "variables": 5,
     "passes": 3,
     "transforms_per_pass": 15,
     "base_complexity": "complex",
     "substitution_depth": 4
   },
-  "absurd": {
+  "marathon": {
     "variables": 6,
     "passes": 5,
     "transforms_per_pass": 20,
     "base_complexity": "complex",
     "substitution_depth": 4
   },
-  "cosmic": {
+  "absurd": {
     "variables": 7,
     "passes": 10,
     "transforms_per_pass": 20,
+    "base_complexity": "complex",
+    "substitution_depth": 4
+  },
+  "cosmic": {
+    "variables": 7,
+    "passes": 20,
+    "transforms_per_pass": 24,
     "base_complexity": "complex",
     "substitution_depth": 4
   },

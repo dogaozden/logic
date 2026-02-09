@@ -904,6 +904,7 @@ PropBench consists of:
 - **Rust CLI** (`src/main.rs`) — Wraps the Logic Proof Trainer backend for validation
 - **Web GUI** (`gui/`) — React frontend + Express backend for running benchmarks visually
 - **Model adapters** (`models/`) — API clients for Gemini, Anthropic (Claude), and OpenAI (GPT)
+- **Tier presets** (`tier-presets.json`) — Editable difficulty tier configurations loaded by GUI and CLI
 
 ### Key Components
 
