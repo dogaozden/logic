@@ -23,7 +23,7 @@
   "expert": {
     "variables": 5,
     "passes": 2,
-    "transforms_per_pass": 12,
+    "transforms_per_pass": 15,
     "base_complexity": "complex",
     "substitution_depth": 3
   },
