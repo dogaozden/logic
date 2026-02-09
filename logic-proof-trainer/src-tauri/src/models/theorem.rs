@@ -46,15 +46,15 @@ pub enum DifficultyTier {
 impl DifficultySpec {
     pub fn from_tier(tier: DifficultyTier) -> Self {
         match tier {
-            DifficultyTier::Easy      => Self { variables: 2,  passes: 1,  transforms_per_pass: 2,  base_complexity: BaseComplexity::Simple,  substitution_depth: 0 },
-            DifficultyTier::Medium    => Self { variables: 3,  passes: 1,  transforms_per_pass: 5,  base_complexity: BaseComplexity::Simple,  substitution_depth: 0 },
-            DifficultyTier::Hard      => Self { variables: 4,  passes: 1,  transforms_per_pass: 10, base_complexity: BaseComplexity::Complex, substitution_depth: 0 },
-            DifficultyTier::Expert    => Self { variables: 5,  passes: 1,  transforms_per_pass: 15, base_complexity: BaseComplexity::Complex, substitution_depth: 2 },
-            DifficultyTier::Nightmare => Self { variables: 5,  passes: 2,  transforms_per_pass: 12, base_complexity: BaseComplexity::Complex, substitution_depth: 3 },
-            DifficultyTier::Marathon  => Self { variables: 5,  passes: 3,  transforms_per_pass: 15, base_complexity: BaseComplexity::Complex, substitution_depth: 4 },
-            DifficultyTier::Absurd    => Self { variables: 8,  passes: 5,  transforms_per_pass: 20, base_complexity: BaseComplexity::Complex, substitution_depth: 4 },
-            DifficultyTier::Cosmic    => Self { variables: 15, passes: 10, transforms_per_pass: 20, base_complexity: BaseComplexity::Complex, substitution_depth: 4 },
-            DifficultyTier::Mind      => Self { variables: 20, passes: 20, transforms_per_pass: 24, base_complexity: BaseComplexity::Complex, substitution_depth: 4 },
+            DifficultyTier::Easy      => Self { variables: 2, passes: 1,  transforms_per_pass: 2,  base_complexity: BaseComplexity::Simple,  substitution_depth: 0 },
+            DifficultyTier::Medium    => Self { variables: 3, passes: 1,  transforms_per_pass: 5,  base_complexity: BaseComplexity::Simple,  substitution_depth: 0 },
+            DifficultyTier::Hard      => Self { variables: 4, passes: 1,  transforms_per_pass: 10, base_complexity: BaseComplexity::Complex, substitution_depth: 0 },
+            DifficultyTier::Expert    => Self { variables: 5, passes: 1,  transforms_per_pass: 15, base_complexity: BaseComplexity::Complex, substitution_depth: 2 },
+            DifficultyTier::Nightmare => Self { variables: 5, passes: 2,  transforms_per_pass: 12, base_complexity: BaseComplexity::Complex, substitution_depth: 3 },
+            DifficultyTier::Marathon  => Self { variables: 5, passes: 3,  transforms_per_pass: 15, base_complexity: BaseComplexity::Complex, substitution_depth: 4 },
+            DifficultyTier::Absurd    => Self { variables: 6, passes: 5,  transforms_per_pass: 20, base_complexity: BaseComplexity::Complex, substitution_depth: 4 },
+            DifficultyTier::Cosmic    => Self { variables: 7, passes: 10, transforms_per_pass: 20, base_complexity: BaseComplexity::Complex, substitution_depth: 4 },
+            DifficultyTier::Mind      => Self { variables: 7, passes: 20, transforms_per_pass: 24, base_complexity: BaseComplexity::Complex, substitution_depth: 4 },
         }
     }
 

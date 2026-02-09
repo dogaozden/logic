@@ -62,17 +62,21 @@ This layer replaces the 3-4 simple atoms from the base form with randomly-genera
 **Example for Mind difficulty:**
 
 ```
-Pool:       [P, Q, R, S, T, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O]  (20 atoms)
-Base form:  NestedCP uses P, Q, R                                            (3 atoms)
-Remaining:  [S, T, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O]           (17 atoms)
-Partition:  P gets {S, T, A, B, C, D}
-            Q gets {E, F, G, H, I, J}
-            R gets {K, L, M, N, O}
+Pool:       [P, Q, R, S, T, A, B]  (7 atoms)
+Base form:  NestedCP uses P, Q, R  (3 atoms)
+Remaining:  [S, T, A, B]          (4 atoms)
+Partition:  P gets {S, T}
+            Q gets {A}
+            R gets {B}
 ```
 
-Each base atom's replacement is a randomly-generated formula tree of depth up to `substitution_depth` (4 for Mind), using only atoms from its partition. The random formula generator works recursively: at each level, it either terminates (30% chance, returns a random atom from the partition) or picks a random connective (~, ·, ∨, ⊃) and recurses into its children.
+Each base atom's replacement formula is **guaranteed to use every atom in its partition at least once**. The generator works in two stages:
 
-**The 30% early termination** means replacement formulas vary in size. Sometimes an atom gets replaced with just `S` (terminated immediately). Other times it becomes `((S · ~T) ∨ A) ⊃ (B · C)` (went deep). This is by design — it creates natural variation. But it also means not every atom in the partition is guaranteed to appear in the final formula.
+1. **Seed construction**: All atoms in the partition are shuffled and combined into a balanced binary tree using random connectives (·, ∨, ⊃). For a partition of 2 atoms, this produces a single binary connective joining them. For 3 atoms, a tree with 3 leaves. This guarantees every atom appears exactly once.
+
+2. **Random growth**: After the seed is built, the generator expands random leaf nodes by combining them with additional connectives and atoms from the same partition. The number of growth passes scales with `substitution_depth` (depth × 2 passes). Each expansion preserves the existing leaf, so coverage is never lost.
+
+The result is that replacement formulas vary in depth and structure due to the random growth phase, but always contain every atom from the partition.
 
 Since substitution is uniform (every occurrence of P becomes the same replacement formula), the logical validity is preserved. The formula just got much bigger and uses many more atoms.
 
@@ -155,13 +159,13 @@ Each tier maps to a set of generation parameters:
 | Expert | 5 | 1 | 15 | Complex | 2 |
 | Nightmare | 5 | 2 | 12 | Complex | 3 |
 | Marathon | 5 | 3 | 15 | Complex | 4 |
-| Absurd | 8 | 5 | 20 | Complex | 4 |
-| Cosmic | 15 | 10 | 20 | Complex | 4 |
-| Mind | 20 | 20 | 24 | Complex | 4 |
+| Absurd | 6 | 5 | 20 | Complex | 4 |
+| Cosmic | 7 | 10 | 20 | Complex | 4 |
+| Mind | 7 | 20 | 24 | Complex | 4 |
 
 **What each parameter does:**
 
-- **Variables**: Size of the atom pool. The base form uses 3-4 atoms; the rest become ingredients for atom substitution. A 20-variable pool with a 3-atom base form means 17 atoms are available for building replacement formulas. More variables = more distinct atoms in the final formula, which means larger truth tables and more room for complex substitutions.
+- **Variables**: Size of the atom pool. The base form uses 3-4 atoms; the rest become ingredients for atom substitution. With guaranteed coverage, every remaining atom appears in the final formula. Kept low (2-7) because more atoms spread the formula thinner and make truth table verification slower (O(2^n)), without adding proof difficulty. The real difficulty comes from obfuscation depth, not atom count.
 
 - **Passes**: How many times the transform pipeline runs. Each pass applies a fresh round of equivalence rewrites. More passes = more obfuscation layers stacked on top of each other.
 
@@ -169,7 +173,7 @@ Each tier maps to a set of generation parameters:
 
 - **Base Complexity**: Simple uses all 7 standard argument forms (1-2 step proofs underneath). Complex uses **only** the 3 complex forms — CDFull, NestedCP, Chain4 — which require multi-step proofs with case analysis or long inference chains. This is the primary control over the real proof difficulty hidden under the obfuscation.
 
-- **Substitution Depth**: Maximum nesting depth of replacement formulas. Depth 0 means no substitution (atoms stay as-is). Depth 4 means each atom can become a formula with up to 4 levels of connectives, though the 30% early termination at each level means actual depth varies.
+- **Substitution Depth**: Controls the complexity of replacement formulas. Depth 0 means no substitution (atoms stay as-is). Higher depth means more random growth passes are applied to the seed formula (depth × 2 passes), producing deeper and more complex trees. All atoms in each partition are guaranteed to appear regardless of depth.
 
 ---
 
@@ -191,7 +195,7 @@ Even with identical difficulty specs, two theorems from the same tier can differ
 
 1. **Base form selection**: CDFull (3 premises) vs Chain4 (4 premises) produce different starting sizes.
 
-2. **Substitution randomness**: The 30% early termination in the random formula generator means some atom replacements collapse to a single atom while others expand into deep trees. With 3-4 atoms being substituted, the cumulative effect can be large.
+2. **Substitution randomness**: All partition atoms are guaranteed to appear, but the random growth phase adds variable depth and structure. With 3-4 atoms being substituted, each getting a differently-shaped replacement tree, the cumulative effect can be large.
 
 3. **Transform rule selection**: Some equivalence rules expand formulas (Distribution duplicates a subformula), while others are size-neutral (Commutation, Association). A theorem that randomly hits Distribution repeatedly grows much faster.
 

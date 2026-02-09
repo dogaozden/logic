@@ -425,10 +425,10 @@ Key methods:
 **ObfuscateGen** (`services/obfuscate_gen.rs`):
 - 3-layer theorem generation for Medium+ difficulty:
   1. **Layer 1 — Base Forms**: Generate simple valid argument (MP, MT, HS, DS, Simp, Conj, CD; plus ConstructiveDilemmaFull, NestedCP, Chain4 for difficulty ≥70)
-  2. **Layer 3 — Atom Substitution** (difficulty ≥70): Replace atoms with complex formulas built from remaining pool atoms (partitioned evenly among base atoms)
+  2. **Layer 3 — Atom Substitution** (difficulty ≥70): Replace atoms with complex formulas built from remaining pool atoms (partitioned evenly, guaranteed coverage of all partition atoms)
   3. **Layer 2 — Wrap + Transform**: Combine as (P₁∧P₂∧...)⊃C tautology, apply N random equivalence transformations
 - **Positional replacement**: Equivalence transforms use `subformulas_with_paths()` + `replace_at_path()` to target individual AST nodes by position. This ensures that when a formula contains multiple structurally-identical subtrees (common at high difficulty), each occurrence can be independently transformed, producing diverse output instead of repetitive patterns.
-- **Pool-based atom substitution**: The substitution layer uses remaining atoms from the configured atom pool (not a hardcoded A-Z sequence), partitioned evenly among the base form's atoms. Each replacement formula is randomly generated with 30% early termination at each recursion level, creating natural size variation.
+- **Pool-based atom substitution with guaranteed coverage**: The substitution layer uses remaining atoms from the configured atom pool (not a hardcoded A-Z sequence), partitioned evenly among the base form's atoms. Each replacement formula guarantees every partition atom appears at least once via a seed + random growth approach. Variable counts are kept low (max 7) since more atoms spread formulas thinner without adding proof difficulty.
 - **Complex-only base forms** (Hard+): When `base_complexity` is Complex, only CDFull, NestedCP, and Chain4 are used — standard forms (MP, Simp, etc.) are excluded to ensure harder proof structures.
 - **Gnarly combos** (difficulty ≥85): Forces hard patterns like Contraposition+DeMorgan chains, Implication+Distribution combos
 - Simplification pass collapses excessive negations (~~~~P → P)
@@ -722,7 +722,7 @@ Note: All portfolio and storage commands validate that `id` is a valid UUID form
 
 **Medium+ (obfuscation-based — 3 layers):**
 1. **Base Form**: Simple valid argument (7 standard + 3 complex for d≥70)
-2. **Atom Substitution** (d>=70): Replace atoms with complex subformulas from pool partitions (30% early termination, depth controlled by substitution_depth)
+2. **Atom Substitution** (d>=70): Replace atoms with complex subformulas from pool partitions (guaranteed coverage, depth controlled by substitution_depth)
 3. **Wrap + Transform**: Combine as tautology, apply N equivalence transformations (gnarly combos at d≥85 force hard patterns like Contraposition+DeMorgan chains)
 
 **Tree Generation (dual-strategy with fallback):**

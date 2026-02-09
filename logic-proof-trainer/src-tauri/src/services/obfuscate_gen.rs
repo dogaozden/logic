@@ -673,35 +673,146 @@ impl ObfuscateGenerator {
     }
 
     /// Generate a random formula of given depth using the provided atoms.
-    /// At each level, there's a 30% chance of early termination (returning a
-    /// random atom). This creates natural size variance — some replacements
-    /// are shallow, others deep.
+    /// Guarantees that ALL atoms in the slice appear at least once.
+    ///
+    /// Strategy:
+    /// 1. Shuffle atoms and build a balanced binary tree (seed) using every atom once.
+    /// 2. Grow random leaf nodes deeper (controlled by `depth`) to add complexity.
     fn random_formula(&self, rng: &mut impl Rng, depth: usize, atoms: &[String]) -> Formula {
-        // Base case: return atom if depth is 0 or randomly (30% chance)
-        if depth == 0 || atoms.is_empty() || rng.gen_bool(0.3) {
-            let idx = rng.gen_range(0..atoms.len().max(1));
-            return if atoms.is_empty() {
-                Formula::Atom("X".to_string()) // fallback
-            } else {
-                Formula::Atom(atoms[idx].clone())
-            };
+        if atoms.is_empty() {
+            return Formula::Atom("X".to_string());
+        }
+        if atoms.len() == 1 {
+            return Formula::Atom(atoms[0].clone());
         }
 
-        // Pick random connective
-        match rng.gen_range(0..4) {
-            0 => Formula::Not(Box::new(self.random_formula(rng, depth - 1, atoms))),
-            1 => Formula::And(
-                Box::new(self.random_formula(rng, depth - 1, atoms)),
-                Box::new(self.random_formula(rng, depth - 1, atoms)),
-            ),
-            2 => Formula::Or(
-                Box::new(self.random_formula(rng, depth - 1, atoms)),
-                Box::new(self.random_formula(rng, depth - 1, atoms)),
-            ),
-            _ => Formula::Implies(
-                Box::new(self.random_formula(rng, depth - 1, atoms)),
-                Box::new(self.random_formula(rng, depth - 1, atoms)),
-            ),
+        // Step 1: Shuffle atoms
+        let mut shuffled: Vec<String> = atoms.to_vec();
+        for i in (1..shuffled.len()).rev() {
+            let j = rng.gen_range(0..=i);
+            shuffled.swap(i, j);
+        }
+
+        // Step 2: Build seed — pair atoms into a balanced binary tree
+        let mut formulas: Vec<Formula> = shuffled.iter()
+            .map(|a| Formula::Atom(a.clone()))
+            .collect();
+
+        while formulas.len() > 1 {
+            let mut next_level = Vec::new();
+            let mut i = 0;
+            while i + 1 < formulas.len() {
+                let left = formulas[i].clone();
+                let right = formulas[i + 1].clone();
+                let combined = Self::random_binary_connective(rng, left, right);
+                next_level.push(combined);
+                i += 2;
+            }
+            if i < formulas.len() {
+                next_level.push(formulas[i].clone());
+            }
+            formulas = next_level;
+        }
+
+        let mut seed = formulas.into_iter().next().unwrap();
+
+        // Step 3: Grow random leaves to add depth
+        if depth > 0 {
+            let growth_passes = depth * 2;
+            for _ in 0..growth_passes {
+                seed = Self::grow_random_leaf(rng, seed, atoms, depth);
+            }
+        }
+
+        seed
+    }
+
+    fn random_binary_connective(rng: &mut impl Rng, left: Formula, right: Formula) -> Formula {
+        match rng.gen_range(0..3) {
+            0 => Formula::And(Box::new(left), Box::new(right)),
+            1 => Formula::Or(Box::new(left), Box::new(right)),
+            _ => Formula::Implies(Box::new(left), Box::new(right)),
+        }
+    }
+
+    fn grow_random_leaf(rng: &mut impl Rng, formula: Formula, atoms: &[String], max_depth: usize) -> Formula {
+        let leaf_paths = Self::collect_leaf_paths(&formula, &[]);
+        if leaf_paths.is_empty() {
+            return formula;
+        }
+
+        let path = &leaf_paths[rng.gen_range(0..leaf_paths.len())];
+
+        if path.len() >= max_depth + 2 {
+            return formula;
+        }
+
+        let atom = &atoms[rng.gen_range(0..atoms.len())];
+        let new_atom = Formula::Atom(atom.clone());
+        let current_leaf = Self::formula_at_path(&formula, path);
+
+        // Expand leaf while preserving it (maintains guaranteed coverage)
+        let expansion = match rng.gen_range(0..4) {
+            0 => Formula::Not(Box::new(current_leaf)),
+            1 => Self::random_binary_connective(rng, current_leaf, new_atom),
+            2 => Self::random_binary_connective(rng, new_atom, current_leaf),
+            _ => Self::random_binary_connective(rng, current_leaf, Formula::Not(Box::new(new_atom))),
+        };
+
+        Self::replace_at_growth_path(&formula, path, &expansion)
+    }
+
+    fn collect_leaf_paths(formula: &Formula, current_path: &[usize]) -> Vec<Vec<usize>> {
+        match formula {
+            Formula::Atom(_) | Formula::Contradiction => vec![current_path.to_vec()],
+            Formula::Not(inner) => {
+                let mut p = current_path.to_vec();
+                p.push(0);
+                Self::collect_leaf_paths(inner, &p)
+            }
+            Formula::And(l, r) | Formula::Or(l, r) | Formula::Implies(l, r) | Formula::Biconditional(l, r) => {
+                let mut lp = current_path.to_vec();
+                lp.push(1);
+                let mut rp = current_path.to_vec();
+                rp.push(2);
+                let mut paths = Self::collect_leaf_paths(l, &lp);
+                paths.extend(Self::collect_leaf_paths(r, &rp));
+                paths
+            }
+        }
+    }
+
+    fn formula_at_path(formula: &Formula, path: &[usize]) -> Formula {
+        if path.is_empty() {
+            return formula.clone();
+        }
+        match (formula, path[0]) {
+            (Formula::Not(inner), 0) => Self::formula_at_path(inner, &path[1..]),
+            (Formula::And(l, _), 1) | (Formula::Or(l, _), 1) | (Formula::Implies(l, _), 1) | (Formula::Biconditional(l, _), 1) => {
+                Self::formula_at_path(l, &path[1..])
+            }
+            (Formula::And(_, r), 2) | (Formula::Or(_, r), 2) | (Formula::Implies(_, r), 2) | (Formula::Biconditional(_, r), 2) => {
+                Self::formula_at_path(r, &path[1..])
+            }
+            _ => formula.clone(),
+        }
+    }
+
+    fn replace_at_growth_path(formula: &Formula, path: &[usize], replacement: &Formula) -> Formula {
+        if path.is_empty() {
+            return replacement.clone();
+        }
+        match (formula, path[0]) {
+            (Formula::Not(inner), 0) => Formula::Not(Box::new(Self::replace_at_growth_path(inner, &path[1..], replacement))),
+            (Formula::And(l, r), 1) => Formula::And(Box::new(Self::replace_at_growth_path(l, &path[1..], replacement)), r.clone()),
+            (Formula::And(l, r), 2) => Formula::And(l.clone(), Box::new(Self::replace_at_growth_path(r, &path[1..], replacement))),
+            (Formula::Or(l, r), 1) => Formula::Or(Box::new(Self::replace_at_growth_path(l, &path[1..], replacement)), r.clone()),
+            (Formula::Or(l, r), 2) => Formula::Or(l.clone(), Box::new(Self::replace_at_growth_path(r, &path[1..], replacement))),
+            (Formula::Implies(l, r), 1) => Formula::Implies(Box::new(Self::replace_at_growth_path(l, &path[1..], replacement)), r.clone()),
+            (Formula::Implies(l, r), 2) => Formula::Implies(l.clone(), Box::new(Self::replace_at_growth_path(r, &path[1..], replacement))),
+            (Formula::Biconditional(l, r), 1) => Formula::Biconditional(Box::new(Self::replace_at_growth_path(l, &path[1..], replacement)), r.clone()),
+            (Formula::Biconditional(l, r), 2) => Formula::Biconditional(l.clone(), Box::new(Self::replace_at_growth_path(r, &path[1..], replacement))),
+            _ => formula.clone(),
         }
     }
 
@@ -1222,8 +1333,8 @@ mod tests {
         assert!(high_config.substitution_depth >= 1);
 
         // The legacy path has a small pool (5 atoms), so after the base form
-        // uses 3-4, only 1-2 remain for substitutions. With 30% early termination,
-        // results can be shallow. Run multiple times and check max values.
+        // uses 3-4, only 1-2 remain for substitutions. Guaranteed coverage
+        // ensures every partition atom appears at least once.
         let gen = ObfuscateGenerator::new(high_config);
         let mut max_depth = 0;
         let mut max_atoms = 0;
@@ -1266,25 +1377,34 @@ mod tests {
         let gen = ObfuscateGenerator::new(config);
         let mut rng = rand::thread_rng();
 
-        // Test that random formulas have expected properties
-        let atoms = vec!["A".to_string(), "B".to_string()];
-
+        // Test with 2 atoms — all must appear (guaranteed coverage)
+        let atoms2 = vec!["A".to_string(), "B".to_string()];
         for _ in 0..10 {
-            let formula = gen.random_formula(&mut rng, 2, &atoms);
+            let formula = gen.random_formula(&mut rng, 2, &atoms2);
             let formula_atoms = formula.atoms();
 
-            // All atoms should be from the provided list
             for atom in formula_atoms.iter() {
-                assert!(
-                    atoms.contains(atom),
-                    "Formula atom {} not in provided atoms {:?}",
-                    atom, atoms
-                );
+                assert!(atoms2.contains(atom), "Formula atom {} not in provided atoms {:?}", atom, atoms2);
             }
-
-            // Should have reasonable depth
-            assert!(formula.depth() <= 4, "Random formula depth should be bounded");
+            for atom in &atoms2 {
+                assert!(formula_atoms.contains(atom), "Atom {} missing from formula. Got: {:?}", atom, formula_atoms);
+            }
         }
+
+        // Test with 4 atoms — all must appear
+        let atoms4 = vec!["A".to_string(), "B".to_string(), "C".to_string(), "D".to_string()];
+        for _ in 0..10 {
+            let formula = gen.random_formula(&mut rng, 2, &atoms4);
+            let formula_atoms = formula.atoms();
+            for atom in &atoms4 {
+                assert!(formula_atoms.contains(atom), "Atom {} missing from 4-atom formula. Got: {:?}", atom, formula_atoms);
+            }
+        }
+
+        // Single atom edge case
+        let atoms1 = vec!["Z".to_string()];
+        let formula = gen.random_formula(&mut rng, 2, &atoms1);
+        assert!(formula.atoms().contains(&"Z".to_string()), "Single atom must appear");
     }
 
     // === DifficultySpec-based generation tests ===
