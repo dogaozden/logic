@@ -6,6 +6,18 @@ use std::sync::Arc;
 /// Use this when you need to share formulas across multiple owners without cloning
 pub type SharedFormula = Arc<Formula>;
 
+/// A step in a path through the formula AST.
+/// Paths identify a specific node by position, not by structural equality.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PathStep {
+    /// Go into the inner formula of a Not
+    Inner,
+    /// Go into the left child of a binary connective
+    Left,
+    /// Go into the right child of a binary connective
+    Right,
+}
+
 /// Represents a propositional logic formula
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
@@ -338,6 +350,95 @@ impl Formula {
             }
         }
         result
+    }
+
+    /// Get all subformulas with their positional paths from root.
+    /// Unlike `subformulas()`, this preserves positional identity —
+    /// two structurally identical subtrees get different paths,
+    /// allowing targeted replacement of a single occurrence.
+    pub fn subformulas_with_paths(&self) -> Vec<(Vec<PathStep>, &Formula)> {
+        let mut result = Vec::new();
+        self.collect_with_paths(&mut Vec::new(), &mut result);
+        result
+    }
+
+    fn collect_with_paths<'a>(
+        &'a self,
+        current_path: &mut Vec<PathStep>,
+        result: &mut Vec<(Vec<PathStep>, &'a Formula)>,
+    ) {
+        result.push((current_path.clone(), self));
+        match self {
+            Formula::Atom(_) | Formula::Contradiction => {}
+            Formula::Not(inner) => {
+                current_path.push(PathStep::Inner);
+                inner.collect_with_paths(current_path, result);
+                current_path.pop();
+            }
+            Formula::And(left, right)
+            | Formula::Or(left, right)
+            | Formula::Implies(left, right)
+            | Formula::Biconditional(left, right) => {
+                current_path.push(PathStep::Left);
+                left.collect_with_paths(current_path, result);
+                current_path.pop();
+                current_path.push(PathStep::Right);
+                right.collect_with_paths(current_path, result);
+                current_path.pop();
+            }
+        }
+    }
+
+    /// Replace the node at a specific path with a replacement formula.
+    /// Only the node at that exact position is replaced — other structurally
+    /// identical nodes elsewhere in the tree are left untouched.
+    pub fn replace_at_path(&self, path: &[PathStep], replacement: &Formula) -> Formula {
+        if path.is_empty() {
+            return replacement.clone();
+        }
+
+        let step = path[0];
+        let rest = &path[1..];
+
+        match (step, self) {
+            (PathStep::Inner, Formula::Not(inner)) => {
+                Formula::Not(Box::new(inner.replace_at_path(rest, replacement)))
+            }
+            (PathStep::Left, Formula::And(left, right)) => Formula::And(
+                Box::new(left.replace_at_path(rest, replacement)),
+                right.clone(),
+            ),
+            (PathStep::Right, Formula::And(left, right)) => Formula::And(
+                left.clone(),
+                Box::new(right.replace_at_path(rest, replacement)),
+            ),
+            (PathStep::Left, Formula::Or(left, right)) => Formula::Or(
+                Box::new(left.replace_at_path(rest, replacement)),
+                right.clone(),
+            ),
+            (PathStep::Right, Formula::Or(left, right)) => Formula::Or(
+                left.clone(),
+                Box::new(right.replace_at_path(rest, replacement)),
+            ),
+            (PathStep::Left, Formula::Implies(left, right)) => Formula::Implies(
+                Box::new(left.replace_at_path(rest, replacement)),
+                right.clone(),
+            ),
+            (PathStep::Right, Formula::Implies(left, right)) => Formula::Implies(
+                left.clone(),
+                Box::new(right.replace_at_path(rest, replacement)),
+            ),
+            (PathStep::Left, Formula::Biconditional(left, right)) => Formula::Biconditional(
+                Box::new(left.replace_at_path(rest, replacement)),
+                right.clone(),
+            ),
+            (PathStep::Right, Formula::Biconditional(left, right)) => Formula::Biconditional(
+                left.clone(),
+                Box::new(right.replace_at_path(rest, replacement)),
+            ),
+            // Path doesn't match formula structure — return unchanged
+            _ => self.clone(),
+        }
     }
 
     /// Substitute all occurrences of a variable with a replacement formula

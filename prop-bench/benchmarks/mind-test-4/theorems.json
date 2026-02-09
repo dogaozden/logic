@@ -1,0 +1,72 @@
+[
+  {
+    "id": "v1-001",
+    "premises": [],
+    "conclusion": "G v {{[(G v ~F) . B] v {(G v ~F) . {C v {{~{A . {[~(B v A)] . A}}} > {{[~(B v A)] . A} . ~B}}}}} > {{{{C v {{~{{~F > {A > {[~(B v A)] > ~A}}} . F}} . {{~{~F > {A > {[~(B v A)] > ~A}}}} v {{[~(B v A)] . A} . ~B}}}} v B} . {{{~{{~F > {A > {[~(B v A)] > ~A}}} . F}} . {{~{~F > {A > {[~(B v A)] > ~A}}}} v {{[~(B v A)] . A} . ~B}}} v ~F}} v {{C . {C v {{~{{~F > {A > {[~(B v A)] > ~A}}} . F}} . {{~{~F > {A > {[~(B v A)] > ~A}}}} v {{[~(B v A)] . A} . ~B}}}}} v (C . B)}}}",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 20,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4
+    }
+  },
+  {
+    "id": "v1-002",
+    "premises": [],
+    "conclusion": "{{~{{{~[D v (~D . D)]} v C} > {{{{{{{~{{{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . A} v {{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . ~B}}} . {{[~(~A . B)] > ~B} v ~A}} . {{[~(~A . B)] > ~B} v {~{{B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}} . {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}}} v ~B} . ~A} v {{{{~{{{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . A} v {{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . ~B}}} . {{[~(~A . B)] > ~B} v ~A}} . {{[~(~A . B)] > ~B} v {~{{B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}} . {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}}} v ~B}} . {{{{{{~{{{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . A} v {{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . ~B}}} . {{[~(~A . B)] > ~B} v ~A}} . {{[~(~A . B)] > ~B} v {~{{B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}} . {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}}} v ~B} . ~A} v {{{~{{{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . A} v {{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . ~B}}} . {{[~(~A . B)] > ~B} v ~A}} . {{[~(~A . B)] > ~B} v {~{{B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}} . {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}}}}}}} v {~{{~{[~D v (~D . D)] v C}} > {(E . E) v {E . [(F > E) v (E v F)]}}}}} v {{{E v [(F > E) v (E v F)]} . E} v {{{{{{{~{{{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . A} v {{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . ~B}}} . {{[~(~A . B)] > ~B} v ~A}} . {{[~(~A . B)] > ~B} v {~{{B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}} . {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}}} v ~B} . ~A} v {{{{~{{{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . A} v {{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . ~B}}} . {{[~(~A . B)] > ~B} v ~A}} . {{[~(~A . B)] > ~B} v {~{{B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}} . {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}}} v ~B}} . {{{{{{~{{{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . A} v {{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . ~B}}} . {{[~(~A . B)] > ~B} v ~A}} . {{[~(~A . B)] > ~B} v {~{{B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}} . {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}}} v ~B} . ~A} v {{{~{{{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . A} v {{~A . {{A v {B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}}} . {A v {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}} . ~B}}} . {{[~(~A . B)] > ~B} v ~A}} . {{[~(~A . B)] > ~B} v {~{{B v {{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}}} . {{{A > [~(~A > ~B)]} . {A > [~(~A > ~B)]}} v (B v ~A)}}}}}}}}",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 20,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4
+    }
+  },
+  {
+    "id": "v1-003",
+    "premises": [],
+    "conclusion": "{{{~F . {{[~(E v ~C)] v E} . {[~(E v ~C)] v C}}} v {{~F . {~{{{{{{{~{[~(B . E)] . ~B}} > {~{(B . E) v {~{{{{[~(B . E)] v E} . E} v {[~(B . E)] v E}} . {{{[~(B . E)] v E} . E} v ~B}}}}}} . {[~(B . E)] v E}} . E} v {{{{~{[~(B . E)] . ~B}} > {~{(B . E) v {~{{{{[~(B . E)] v E} . E} v {[~(B . E)] v E}} . {{{[~(B . E)] v E} . E} v ~B}}}}}} . {[~(B . E)] v E}} . ~B}} . [~(B . E)]} v {{{{{~{[~(B . E)] . ~B}} > {~{(B . E) v {~{{{{[~(B . E)] v E} . E} v {[~(B . E)] v E}} . {{{[~(B . E)] v E} . E} v ~B}}}}}} . {[~(B . E)] v E}} . E} v {{{{~{[~(B . E)] . ~B}} > {~{(B . E) v {~{{{{[~(B . E)] v E} . E} v {[~(B . E)] v E}} . {{{[~(B . E)] v E} . E} v ~B}}}}}} . {[~(B . E)] v E}} . ~B}}}}} v [~(B v C)]}} v F} v (E . ~E)",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 20,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4
+    }
+  },
+  {
+    "id": "v1-004",
+    "premises": [],
+    "conclusion": "{{{{{{{{~{[(A > A) > C] . ~B}} . {~{[(A > A) > C] . C}}} v A} . (A > A)} . ~C} v {{{~{[(A > A) > C] . ~B}} . {~{[(A > A) > C] . C}}} v A}} . {{{{{{{~{[(A > A) > C] . ~B}} . {~{[(A > A) > C] . C}}} v A} . (A > A)} . ~C} v B} . {~C v {{{{{~{[(A > A) > C] . ~B}} . {~{[(A > A) > C] . C}}} v A} . (A > A)} . ~C}}}} v {~{[~(~A > B)] > {{{[(A > A) > C] . ~B} v {[(A > A) > C] . C}} . ~A}}}} v C",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 20,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4
+    }
+  },
+  {
+    "id": "v1-005",
+    "premises": [],
+    "conclusion": "{{{{{{{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {~B . [~(B v A)]}} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}} v {{~B . [~(B v A)]} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}} . {{{{{{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {~B . [~(B v A)]}} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}} v [(~B v ~A) . ~B]} . {{{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {~B . [~(B v A)]}} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}}} v {{{{{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {~B . [~(B v A)]}} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}} v [(~B v ~A) . ~B]} . (B > ~B)}}} v [(~A . ~B) . ~A]} . (C v D)} v {{{{{{{{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {~B . [~(B v A)]}} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}} v {{~B . [~(B v A)]} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}} . {{{{{{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {~B . [~(B v A)]}} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}} v [(~B v ~A) . ~B]} . {{{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {~B . [~(B v A)]}} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}}} v {{{{{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {~B . [~(B v A)]}} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}} v [(~B v ~A) . ~B]} . (B > ~B)}}} v [(~A . ~B) . ~A]} . ~D} v {[(C v D) v ~D] > {~{{{{{{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {~B . [~(B v A)]}} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}} v {{~B . [~(B v A)]} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}} . {{{{{{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {~B . [~(B v A)]}} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}} v [(~B v ~A) . ~B]} . {{{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {~B . [~(B v A)]}} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}}} v {{{{{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {~B . [~(B v A)]}} v {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} . {{[A v (~B v A)] . {[~(B . ~A)] v [~(~A . ~B)]}} v [~(B v A)]}}} v [(~B v ~A) . ~B]} . (B > ~B)}}} v [(~A . ~B) . ~A]}}}}",
+    "difficulty": "Mind",
+    "difficulty_value": 100,
+    "difficulty_spec": {
+      "variables": 20,
+      "passes": 20,
+      "transforms_per_pass": 24,
+      "base_complexity": "complex",
+      "substitution_depth": 4
+    }
+  }
+]

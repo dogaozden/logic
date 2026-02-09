@@ -791,9 +791,9 @@ impl ObfuscateGenerator {
         }
     }
 
-    /// Try to apply a specific equivalence rule to some subformula
+    /// Try to apply a specific equivalence rule to some subformula (positional)
     fn try_apply_specific_rule(&self, formula: &Formula, rule: EquivalenceRule, rng: &mut impl Rng) -> Option<Formula> {
-        let subformulas = formula.subformulas();
+        let subformulas = formula.subformulas_with_paths();
         if subformulas.is_empty() {
             return None;
         }
@@ -806,12 +806,12 @@ impl ObfuscateGenerator {
         }
 
         for &idx in &indices {
-            let subformula = &subformulas[idx];
+            let (path, subformula) = &subformulas[idx];
             let equivalents = rule.equivalent_forms(subformula);
 
             if !equivalents.is_empty() {
                 let equivalent = &equivalents[rng.gen_range(0..equivalents.len())];
-                let result = EquivalenceRule::replace_subformula(formula, subformula, equivalent);
+                let result = formula.replace_at_path(path, equivalent);
 
                 if self.check_tautology(&result) {
                     return Some(result);
@@ -822,10 +822,12 @@ impl ObfuscateGenerator {
         None
     }
 
-    /// Try to apply a random equivalence transformation to some subformula
+    /// Try to apply a random equivalence transformation to a single subformula (positional).
+    /// Uses path-based replacement so only the selected occurrence is transformed,
+    /// allowing structurally identical subtrees to diverge across passes.
     fn try_apply_random_equivalence(&self, formula: &Formula, rng: &mut impl Rng) -> Option<Formula> {
-        // Get all subformulas
-        let subformulas = formula.subformulas();
+        // Get all subformulas with positional paths
+        let subformulas = formula.subformulas_with_paths();
         if subformulas.is_empty() {
             return None;
         }
@@ -839,7 +841,7 @@ impl ObfuscateGenerator {
 
         // For each subformula, try to find an applicable rule
         for &idx in &indices {
-            let subformula = &subformulas[idx];
+            let (path, subformula) = &subformulas[idx];
 
             // Get all applicable rules for this subformula
             let applicable = self.find_applicable_rules(subformula);
@@ -850,8 +852,8 @@ impl ObfuscateGenerator {
             // Pick a random applicable rule
             let (_rule, equivalent) = &applicable[rng.gen_range(0..applicable.len())];
 
-            // Apply the transformation
-            let result = EquivalenceRule::replace_subformula(formula, subformula, equivalent);
+            // Apply the transformation at this specific position only
+            let result = formula.replace_at_path(path, equivalent);
 
             // Sanity check: the result should still be a tautology
             if self.check_tautology(&result) {
