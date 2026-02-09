@@ -24,6 +24,7 @@ export interface GenerateOpts {
   distribution?: string;   // legacy distribution mode
   tier?: string;            // tier preset mode
   spec?: DifficultySpec;    // custom spec mode
+  maxNodes?: number;        // max AST node count for obfuscation pipeline
 }
 
 export interface GenerateResult {

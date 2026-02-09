@@ -57,6 +57,10 @@ enum Commands {
         #[arg(long)]
         substitution: Option<u8>,
 
+        /// Maximum formula nodes (default: 20000) for custom spec
+        #[arg(long)]
+        max_nodes: Option<u32>,
+
         /// Output file path
         #[arg(short, long, default_value = "theorems.json")]
         output: PathBuf,
@@ -211,17 +215,22 @@ fn resolve_generate_mode(
     transforms: &Option<u8>,
     base: &Option<String>,
     substitution: &Option<u8>,
+    max_nodes: &Option<u32>,
     distribution: &Option<String>,
 ) -> Result<GenerateMode, String> {
     // Mode 1: --tier
     if let Some(tier_name) = tier {
         let dt = DifficultyTier::from_str(tier_name)
             .ok_or_else(|| format!("Unknown tier: '{}'. Use easy/medium/hard/expert/nightmare/marathon/absurd/cosmic/mind.", tier_name))?;
-        return Ok(GenerateMode::Tier(DifficultySpec::from_tier(dt), dt.label().to_string()));
+        let mut spec = DifficultySpec::from_tier(dt);
+        if let Some(nodes) = max_nodes {
+            spec.max_formula_nodes = Some(*nodes);
+        }
+        return Ok(GenerateMode::Tier(spec, dt.label().to_string()));
     }
 
     // Mode 2: any custom spec flag
-    if variables.is_some() || passes.is_some() || transforms.is_some() || base.is_some() || substitution.is_some() {
+    if variables.is_some() || passes.is_some() || transforms.is_some() || base.is_some() || substitution.is_some() || max_nodes.is_some() {
         let spec = DifficultySpec {
             variables: variables.unwrap_or(3).clamp(2, 20),
             passes: passes.unwrap_or(1).clamp(1, 20),
@@ -231,6 +240,7 @@ fn resolve_generate_mode(
                 _ => BaseComplexity::Simple,
             },
             substitution_depth: substitution.unwrap_or(0).clamp(0, 4),
+            max_formula_nodes: *max_nodes,
         };
         return Ok(GenerateMode::CustomSpec(spec));
     }
@@ -250,9 +260,10 @@ fn cmd_generate(
     transforms: &Option<u8>,
     base: &Option<String>,
     substitution: &Option<u8>,
+    max_nodes: &Option<u32>,
     output: &PathBuf,
 ) -> Result<(), String> {
-    let mode = resolve_generate_mode(tier, variables, passes, transforms, base, substitution, distribution)?;
+    let mode = resolve_generate_mode(tier, variables, passes, transforms, base, substitution, max_nodes, distribution)?;
 
     let mut rng = rand::thread_rng();
     let mut theorems: Vec<BenchTheorem> = Vec::with_capacity(count);
@@ -640,6 +651,7 @@ fn main() {
             transforms,
             base,
             substitution,
+            max_nodes,
             output,
         } => {
             cmd_generate(
@@ -651,6 +663,7 @@ fn main() {
                 &transforms,
                 &base,
                 &substitution,
+                &max_nodes,
                 &output,
             )
         }

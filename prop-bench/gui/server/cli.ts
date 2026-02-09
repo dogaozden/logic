@@ -49,6 +49,7 @@ export interface GenerateOpts {
   distribution?: string;   // legacy distribution mode
   tier?: string;            // tier preset mode
   spec?: DifficultySpec;    // custom spec mode
+  maxNodes?: number;        // max AST node count for obfuscation pipeline
 }
 
 export async function generate(opts: GenerateOpts): Promise<{ path: string; theorems: unknown[] }> {
@@ -76,6 +77,10 @@ export async function generate(opts: GenerateOpts): Promise<{ path: string; theo
     args.push("--difficulty-distribution", opts.distribution);
   }
   // If none set, CLI uses its own default distribution
+
+  if (opts.maxNodes !== undefined) {
+    args.push("--max-nodes", String(opts.maxNodes));
+  }
 
   const { stderr } = await execFileAsync(PROPBENCH_BIN, args, {
     timeout: 120_000,

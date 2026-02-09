@@ -28,15 +28,15 @@ const TIER_OPTIONS = [
 ] as const;
 
 const TIER_PRESETS: Record<string, DifficultySpec> = {
-  easy:      { variables: 2,  passes: 1,  transforms_per_pass: 2,  base_complexity: "simple",  substitution_depth: 0 },
-  medium:    { variables: 3,  passes: 1,  transforms_per_pass: 5,  base_complexity: "simple",  substitution_depth: 0 },
-  hard:      { variables: 4,  passes: 1,  transforms_per_pass: 10, base_complexity: "complex", substitution_depth: 0 },
-  expert:    { variables: 5,  passes: 1,  transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 2 },
-  nightmare: { variables: 5,  passes: 2,  transforms_per_pass: 12, base_complexity: "complex", substitution_depth: 3 },
-  marathon:  { variables: 5,  passes: 3,  transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 4 },
-  absurd:    { variables: 8,  passes: 5,  transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
-  cosmic:    { variables: 15, passes: 10, transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
-  mind:      { variables: 20, passes: 20, transforms_per_pass: 24, base_complexity: "complex", substitution_depth: 4 },
+  easy:      { variables: 2, passes: 1,  transforms_per_pass: 2,  base_complexity: "simple",  substitution_depth: 0 },
+  medium:    { variables: 3, passes: 1,  transforms_per_pass: 5,  base_complexity: "simple",  substitution_depth: 0 },
+  hard:      { variables: 4, passes: 1,  transforms_per_pass: 10, base_complexity: "complex", substitution_depth: 0 },
+  expert:    { variables: 5, passes: 1,  transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 2 },
+  nightmare: { variables: 5, passes: 2,  transforms_per_pass: 12, base_complexity: "complex", substitution_depth: 3 },
+  marathon:  { variables: 5, passes: 3,  transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 4 },
+  absurd:    { variables: 6, passes: 5,  transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
+  cosmic:    { variables: 7, passes: 10, transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
+  mind:      { variables: 7, passes: 20, transforms_per_pass: 24, base_complexity: "complex", substitution_depth: 4 },
 };
 
 export default function GenerateTheorems({
@@ -64,6 +64,9 @@ export default function GenerateTheorems({
     substitution_depth: 0,
   });
 
+  // Max nodes (optional AST node limit)
+  const [maxNodes, setMaxNodes] = useState<number | null>(null);
+
   const sum = Object.values(dist).reduce<number>((a, b) => a + (b ?? 0), 0);
 
   const isValid = (() => {
@@ -78,17 +81,18 @@ export default function GenerateTheorems({
     setError("");
 
     const count = total ?? DEFAULT_TOTAL;
+    const opts = { count, name, ...(maxNodes != null && { maxNodes }) };
     try {
       if (mode === "distribution") {
         const distribution = Object.entries(dist)
           .filter(([, c]) => (c ?? 0) > 0)
           .map(([tier, c]) => `${c}:${tier}`)
           .join(",");
-        await api.generate({ count, distribution, name });
+        await api.generate({ ...opts, distribution });
       } else if (mode === "tier") {
-        await api.generate({ count, tier, name });
+        await api.generate({ ...opts, tier });
       } else {
-        await api.generate({ count, spec, name });
+        await api.generate({ ...opts, spec });
       }
       onGenerated(name);
     } catch (err) {
@@ -143,6 +147,22 @@ export default function GenerateTheorems({
               disabled={generating}
               placeholder="100"
             />
+          </label>
+
+          <label className="generate-field">
+            <span className="generate-label">Max Formula Nodes (optional)</span>
+            <input
+              type="number"
+              className="theorem-search"
+              min={1000}
+              value={maxNodes ?? ""}
+              onChange={(e) => setMaxNodes(e.target.value === "" ? null : parseInt(e.target.value, 10))}
+              disabled={generating}
+              placeholder="20000 (default)"
+            />
+            <span style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+              AST node limit for obfuscation pipeline
+            </span>
           </label>
 
           {/* Mode selector tabs */}

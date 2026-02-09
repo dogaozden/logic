@@ -5,7 +5,7 @@ const router = Router();
 
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const { count, distribution, tier, spec, name } = req.body;
+    const { count, distribution, tier, spec, name, maxNodes } = req.body;
 
     console.log(`[generate] POST / - Generating ${count} theorems for set '${name}' (mode: ${tier ? "tier" : spec ? "spec" : "distribution"})`);
 
@@ -35,7 +35,12 @@ router.post("/", async (req: Request, res: Response) => {
       return;
     }
 
-    const result = await generate({ count, name, distribution, tier, spec });
+    if (maxNodes !== undefined && (typeof maxNodes !== "number" || maxNodes < 1)) {
+      res.status(400).json({ error: "maxNodes must be a positive number" });
+      return;
+    }
+
+    const result = await generate({ count, name, distribution, tier, spec, maxNodes });
     console.log(`[generate] Successfully generated ${result.theorems.length} theorems at ${result.path}`);
     res.json({ success: true, path: result.path, theorems: result.theorems });
   } catch (err) {

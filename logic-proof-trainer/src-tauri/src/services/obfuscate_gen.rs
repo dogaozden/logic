@@ -103,7 +103,7 @@ impl ObfuscateConfig {
 
 /// Safety bounds for formula complexity
 const MAX_FORMULA_DEPTH: usize = 100;
-const MAX_FORMULA_NODES: usize = 10_000;
+const MAX_FORMULA_NODES: usize = 20_000;
 
 /// Build an atom pool of `n` unique atom names.
 /// 1-5: P, Q, R, S, T
@@ -298,9 +298,10 @@ impl ObfuscateGenerator {
         );
 
         // Multi-pass pipeline
+        let max_nodes = spec.max_formula_nodes.unwrap_or(MAX_FORMULA_NODES as u32) as usize;
         for _pass in 0..spec.passes {
             // Safety check: skip if formula too large
-            if formula.depth() >= MAX_FORMULA_DEPTH || node_count(&formula) >= MAX_FORMULA_NODES {
+            if formula.depth() >= MAX_FORMULA_DEPTH || node_count(&formula) >= max_nodes {
                 break;
             }
 
@@ -1555,6 +1556,7 @@ mod tests {
             transforms_per_pass: 2,
             base_complexity: BaseComplexity::Complex,
             substitution_depth: 2,
+            max_formula_nodes: None,
         });
         let gen = ObfuscateGenerator::new(config);
         let mut rng = rand::thread_rng();
