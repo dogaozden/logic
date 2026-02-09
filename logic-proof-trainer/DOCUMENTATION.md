@@ -428,7 +428,7 @@ Key methods:
   2. **Layer 3 — Atom Substitution** (difficulty ≥70): Replace atoms with complex formulas built from remaining pool atoms (partitioned evenly, guaranteed coverage of all partition atoms)
   3. **Layer 2 — Wrap + Transform**: Combine as (P₁∧P₂∧...)⊃C tautology, apply N random equivalence transformations
 - **Positional replacement**: Equivalence transforms use `subformulas_with_paths()` + `replace_at_path()` to target individual AST nodes by position. This ensures that when a formula contains multiple structurally-identical subtrees (common at high difficulty), each occurrence can be independently transformed, producing diverse output instead of repetitive patterns.
-- **Pool-based atom substitution with guaranteed coverage**: The substitution layer uses remaining atoms from the configured atom pool (not a hardcoded A-Z sequence), partitioned evenly among the base form's atoms. Each replacement formula guarantees every partition atom appears at least once via a seed + random growth approach. Variable counts are kept low (max 7) since more atoms spread formulas thinner without adding proof difficulty.
+- **Pool-based atom substitution with guaranteed coverage**: The substitution layer uses remaining atoms from the configured atom pool (not a hardcoded A-Z sequence), partitioned evenly among the base form's atoms. Each partition includes its original base atom (e.g., P's partition is {P, S, T}), ensuring the base atoms are preserved in the final formula alongside the new ones. Each replacement formula guarantees every partition atom appears at least once via a seed + random growth approach. Variable counts are kept low (max 7) since more atoms spread formulas thinner without adding proof difficulty.
 - **Complex-only base forms** (Hard+): When `base_complexity` is Complex, only CDFull, NestedCP, and Chain4 are used — standard forms (MP, Simp, etc.) are excluded to ensure harder proof structures.
 - **Gnarly combos** (difficulty ≥85): Forces hard patterns like Contraposition+DeMorgan chains, Implication+Distribution combos
 - Simplification pass collapses excessive negations (~~~~P → P)
@@ -772,7 +772,7 @@ cd src-tauri && cargo test
 # - proof_tree.rs: 17 tests (tree structure, validation, pretty printing)
 # - truth_table.rs: 48 tests (semantic checks, forcing conditions, dynamic bitvector engine)
 # - proof_search.rs: 27 tests (backward search, difficulty requirements, subproof detection)
-# - obfuscate_gen.rs: 25 tests (config scaling, tautology preservation, substitution layers, spec-based generation)
+# - obfuscate_gen.rs: 28 tests (config scaling, tautology preservation, substitution layers, spec-based generation, variable coverage for Mind/Cosmic tiers)
 # - dependency.rs: 4 tests (cascade invalidation, cycle detection, topological order)
 # - commands.rs: 3 tests (classic theorems, generation, proof completion)
 # - tree_gen/builder.rs: 6 tests (generation per difficulty, premises, multiple)

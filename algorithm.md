@@ -56,8 +56,8 @@ This layer replaces the 3-4 simple atoms from the base form with randomly-genera
 
 1. The base form used 3-4 atoms from the pool (e.g., P, Q, R for a NestedCP)
 2. The remaining atoms in the pool become available for substitutions. For Mind difficulty with a 20-atom pool and a 3-atom base form, that's 17 remaining atoms.
-3. These remaining atoms are **partitioned evenly** among the base atoms. With 3 base atoms and 17 remaining: the first gets 6, the second gets 6, the third gets 5.
-4. Each base atom is replaced with a randomly-generated formula built from its dedicated partition of atoms.
+3. These remaining atoms are **partitioned evenly** among the base atoms. Each partition also **includes the base atom itself**, so that the original atom is preserved in the final formula. With 3 base atoms and 4 remaining atoms: P gets {P, S, T}, Q gets {Q, A}, R gets {R, B}.
+4. Each base atom is replaced with a randomly-generated formula built from its dedicated partition of atoms (which includes itself).
 
 **Example for Mind difficulty:**
 
@@ -65,10 +65,12 @@ This layer replaces the 3-4 simple atoms from the base form with randomly-genera
 Pool:       [P, Q, R, S, T, A, B]  (7 atoms)
 Base form:  NestedCP uses P, Q, R  (3 atoms)
 Remaining:  [S, T, A, B]          (4 atoms)
-Partition:  P gets {S, T}
-            Q gets {A}
-            R gets {B}
+Partition:  P gets {P, S, T}      (base atom + 2 remaining)
+            Q gets {Q, A}         (base atom + 1 remaining)
+            R gets {R, B}         (base atom + 1 remaining)
 ```
+
+All 7 atoms appear in the final formula: the 3 base atoms (P, Q, R) are preserved in their partitions, and the 4 remaining atoms (S, T, A, B) are distributed among them.
 
 Each base atom's replacement formula is **guaranteed to use every atom in its partition at least once**. The generator works in two stages:
 

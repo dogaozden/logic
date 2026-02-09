@@ -626,20 +626,30 @@ impl ObfuscateGenerator {
 
         // Partition remaining atoms evenly among base atoms so each
         // replacement formula uses a distinct set of variables.
+        // IMPORTANT: Each group also includes the base atom it replaces,
+        // so that the original atom is preserved in the substituted formula.
+        // Without this, a 7-variable spec with a 3-atom base form would
+        // end up with only 4 atoms (the remaining pool), losing the original 3.
         let sub_atom_groups: Vec<Vec<String>> = if remaining.is_empty() {
             // Fallback: create atoms from A-Z (safety net for tiny pools)
             let sub_atoms: Vec<String> = ('A'..='Z')
                 .take(base_atoms.len() * 2)
                 .map(|c| c.to_string())
                 .collect();
-            base_atoms.iter().enumerate().map(|(i, _)| {
+            base_atoms.iter().enumerate().map(|(i, base_atom)| {
                 let start = i * 2;
                 let end = (start + 2).min(sub_atoms.len());
-                sub_atoms[start..end].to_vec()
+                let mut group = vec![base_atom.clone()];
+                group.extend_from_slice(&sub_atoms[start..end]);
+                group
             }).collect()
         } else if remaining.len() < base_atoms.len() {
-            // Not enough to partition: give each base atom the full pool
-            base_atoms.iter().map(|_| remaining.clone()).collect()
+            // Not enough to partition: give each base atom the full pool + itself
+            base_atoms.iter().map(|base_atom| {
+                let mut group = vec![base_atom.clone()];
+                group.extend(remaining.clone());
+                group
+            }).collect()
         } else {
             // Partition evenly, distributing leftovers to the first groups
             let chunk_size = remaining.len() / base_atoms.len();
@@ -648,8 +658,10 @@ impl ObfuscateGenerator {
             let mut offset = 0;
             for i in 0..base_atoms.len() {
                 let size = chunk_size + if i < leftover { 1 } else { 0 };
-                groups.push(remaining[offset..offset + size].to_vec());
+                let mut group = vec![base_atoms[i].clone()];
+                group.extend_from_slice(&remaining[offset..offset + size]);
                 offset += size;
+                groups.push(group);
             }
             groups
         };
@@ -1472,6 +1484,116 @@ mod tests {
             assert!(spec.variables >= 2 && spec.variables <= 5);
             assert!(spec.passes >= 1);
             assert!(spec.transforms_per_pass >= 1);
+        }
+    }
+
+    #[test]
+    fn test_mind_tier_uses_all_7_variables() {
+        use crate::models::theorem::{DifficultySpec, DifficultyTier};
+
+        let spec = DifficultySpec::from_tier(DifficultyTier::Mind);
+        assert_eq!(spec.variables, 7);
+        assert_eq!(spec.substitution_depth, 4);
+
+        let mut rng = rand::thread_rng();
+        let mut max_atoms = 0;
+
+        // Run multiple times due to randomness
+        for _ in 0..10 {
+            let theorem = ObfuscateGenerator::generate_with_spec(&spec, &mut rng);
+            assert!(
+                is_tautology_dynamic(&theorem.conclusion),
+                "Mind spec should produce tautology"
+            );
+            let atom_count = theorem.conclusion.atoms().len();
+            max_atoms = max_atoms.max(atom_count);
+        }
+
+        // Mind tier has 7 variables. The base form uses 3-4 atoms, and
+        // substitution should incorporate the remaining atoms while preserving
+        // the original ones. We should see at least 5 distinct atoms.
+        assert!(
+            max_atoms >= 5,
+            "Mind tier should use at least 5 of 7 atoms, but max was {}",
+            max_atoms
+        );
+    }
+
+    #[test]
+    fn test_cosmic_tier_uses_many_variables() {
+        use crate::models::theorem::{DifficultySpec, DifficultyTier};
+
+        let spec = DifficultySpec::from_tier(DifficultyTier::Cosmic);
+        assert_eq!(spec.variables, 7);
+
+        let mut rng = rand::thread_rng();
+        let mut max_atoms = 0;
+
+        for _ in 0..10 {
+            let theorem = ObfuscateGenerator::generate_with_spec(&spec, &mut rng);
+            assert!(
+                is_tautology_dynamic(&theorem.conclusion),
+                "Cosmic spec should produce tautology"
+            );
+            max_atoms = max_atoms.max(theorem.conclusion.atoms().len());
+        }
+
+        assert!(
+            max_atoms >= 5,
+            "Cosmic tier should use at least 5 of 7 atoms, but max was {}",
+            max_atoms
+        );
+    }
+
+    #[test]
+    fn test_substitution_preserves_base_atoms() {
+        // Verify that after substitution, the base atoms are still present
+        // (not replaced entirely by new atoms).
+        let config = ObfuscateConfig::from_spec(&DifficultySpec {
+            variables: 7,
+            passes: 1,
+            transforms_per_pass: 2,
+            base_complexity: BaseComplexity::Complex,
+            substitution_depth: 2,
+        });
+        let gen = ObfuscateGenerator::new(config);
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..10 {
+            let (premises, conclusion) = gen.generate_base_theorem_with_complexity(&mut rng, true);
+
+            // Collect base atoms
+            let mut base_atoms = std::collections::HashSet::new();
+            for p in &premises {
+                base_atoms.extend(p.atoms());
+            }
+            base_atoms.extend(conclusion.atoms());
+
+            // Apply substitutions
+            let (new_premises, new_conclusion) = gen.apply_substitutions(premises, conclusion, &mut rng);
+
+            // Collect atoms after substitution
+            let mut result_atoms = std::collections::HashSet::new();
+            for p in &new_premises {
+                result_atoms.extend(p.atoms());
+            }
+            result_atoms.extend(new_conclusion.atoms());
+
+            // The original base atoms should still be present
+            for base_atom in &base_atoms {
+                assert!(
+                    result_atoms.contains(base_atom),
+                    "Base atom '{}' missing after substitution. Base: {:?}, Result: {:?}",
+                    base_atom, base_atoms, result_atoms
+                );
+            }
+
+            // We should have more atoms than the base (substitution added new ones)
+            assert!(
+                result_atoms.len() > base_atoms.len(),
+                "Substitution should add new atoms. Base: {:?}, Result: {:?}",
+                base_atoms, result_atoms
+            );
         }
     }
 }
