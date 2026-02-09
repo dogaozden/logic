@@ -204,8 +204,8 @@ enum GenerateMode {
     Tier(DifficultySpec, String),
     /// --variables/--passes/... custom spec
     CustomSpec(DifficultySpec),
-    /// --difficulty-distribution or default
-    Distribution(String),
+    /// --difficulty-distribution or default, with optional max_nodes override
+    Distribution(String, Option<u32>),
 }
 
 fn resolve_generate_mode(
@@ -229,17 +229,17 @@ fn resolve_generate_mode(
         return Ok(GenerateMode::Tier(spec, dt.label().to_string()));
     }
 
-    // Mode 2: any custom spec flag
-    if variables.is_some() || passes.is_some() || transforms.is_some() || base.is_some() || substitution.is_some() || max_nodes.is_some() {
+    // Mode 2: any custom spec flag (except max_nodes which is orthogonal)
+    if variables.is_some() || passes.is_some() || transforms.is_some() || base.is_some() || substitution.is_some() {
         let spec = DifficultySpec {
-            variables: variables.unwrap_or(3).clamp(2, 20),
-            passes: passes.unwrap_or(1).clamp(1, 20),
-            transforms_per_pass: transforms.unwrap_or(5).clamp(1, 24),
+            variables: variables.unwrap_or(3),
+            passes: passes.unwrap_or(1),
+            transforms_per_pass: transforms.unwrap_or(5),
             base_complexity: match base.as_deref() {
                 Some("complex") => BaseComplexity::Complex,
                 _ => BaseComplexity::Simple,
             },
-            substitution_depth: substitution.unwrap_or(0).clamp(0, 4),
+            substitution_depth: substitution.unwrap_or(0),
             max_formula_nodes: *max_nodes,
         };
         return Ok(GenerateMode::CustomSpec(spec));
@@ -248,7 +248,7 @@ fn resolve_generate_mode(
     // Mode 3: --difficulty-distribution or default
     let dist_str = distribution.clone()
         .unwrap_or_else(|| "30:easy,30:medium,20:hard,15:expert,5:nightmare".to_string());
-    Ok(GenerateMode::Distribution(dist_str))
+    Ok(GenerateMode::Distribution(dist_str, *max_nodes))
 }
 
 fn cmd_generate(
@@ -299,7 +299,7 @@ fn cmd_generate(
             }
         }
 
-        GenerateMode::Distribution(dist_str) => {
+        GenerateMode::Distribution(dist_str, max_nodes_override) => {
             let entries = parse_difficulty_distribution(&dist_str)?;
             let total: usize = entries.iter().map(|e| match e {
                 DistributionEntry::Range { count, .. } => *count,
@@ -327,9 +327,14 @@ fn cmd_generate(
                         }
                     }
                     DistributionEntry::Spec { count: tier_count, spec, tier_name } => {
+                        // Apply max_nodes override if provided
+                        let mut spec = spec.clone();
+                        if let Some(nodes) = max_nodes_override {
+                            spec.max_formula_nodes = Some(nodes);
+                        }
                         eprintln!("Generating {} {} theorems via spec...", tier_count, tier_name);
                         for _ in 0..*tier_count {
-                            let theorem = ObfuscateGenerator::generate_with_spec(spec, &mut rng);
+                            let theorem = ObfuscateGenerator::generate_with_spec(&spec, &mut rng);
                             let mut bench = BenchTheorem::from(&theorem);
                             bench.id = format!("v1-{:03}", theorem_id);
                             bench.difficulty = tier_name.clone();

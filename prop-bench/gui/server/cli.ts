@@ -31,6 +31,37 @@ export const BENCHMARKS_DIR = path.join(PROJECT_ROOT, "benchmarks");
 /** Results directory */
 export const RESULTS_DIR = path.join(PROJECT_ROOT, "results");
 
+/** Path to the tier presets configuration file */
+const TIER_PRESETS_PATH = path.join(PROJECT_ROOT, "tier-presets.json");
+
+// ---------------------------------------------------------------------------
+// Tier preset management
+// ---------------------------------------------------------------------------
+
+export function loadTierPresets(): Record<string, DifficultySpec> {
+  // Read from file, fall back to hardcoded defaults if file doesn't exist
+  try {
+    return JSON.parse(fs.readFileSync(TIER_PRESETS_PATH, "utf-8"));
+  } catch {
+    // Hardcoded defaults matching the JSON file
+    return {
+      easy: { variables: 2, passes: 1, transforms_per_pass: 2, base_complexity: "simple", substitution_depth: 0 },
+      medium: { variables: 3, passes: 1, transforms_per_pass: 5, base_complexity: "simple", substitution_depth: 0 },
+      hard: { variables: 4, passes: 1, transforms_per_pass: 10, base_complexity: "complex", substitution_depth: 0 },
+      expert: { variables: 5, passes: 1, transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 2 },
+      nightmare: { variables: 5, passes: 2, transforms_per_pass: 12, base_complexity: "complex", substitution_depth: 3 },
+      marathon: { variables: 5, passes: 3, transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 4 },
+      absurd: { variables: 6, passes: 5, transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
+      cosmic: { variables: 7, passes: 10, transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
+      mind: { variables: 7, passes: 20, transforms_per_pass: 24, base_complexity: "complex", substitution_depth: 4 },
+    };
+  }
+}
+
+export function saveTierPresets(presets: Record<string, DifficultySpec>): void {
+  fs.writeFileSync(TIER_PRESETS_PATH, JSON.stringify(presets, null, 2), "utf-8");
+}
+
 // ---------------------------------------------------------------------------
 // Generate theorems
 // ---------------------------------------------------------------------------
@@ -58,42 +89,139 @@ export async function generate(opts: GenerateOpts): Promise<{ path: string; theo
 
   fs.mkdirSync(outDir, { recursive: true });
 
-  // Build CLI args based on mode
-  const args: string[] = [
-    "generate",
-    "--count", String(opts.count),
-    "--output", outFile,
+  const presets = loadTierPresets();
+
+  // Helper to build spec args
+  const specArgs = (spec: DifficultySpec): string[] => [
+    "--variables", String(spec.variables),
+    "--passes", String(spec.passes),
+    "--transforms", String(spec.transforms_per_pass),
+    "--base", spec.base_complexity,
+    "--substitution", String(spec.substitution_depth),
   ];
 
+  // Helper to run one generation call
+  const generateBatch = async (count: number, extraArgs: string[], tmpFile: string): Promise<unknown[]> => {
+    const args = ["generate", "--count", String(count), "--output", tmpFile, ...extraArgs];
+    if (opts.maxNodes !== undefined) {
+      args.push("--max-nodes", String(opts.maxNodes));
+    }
+    const { stderr } = await execFileAsync(PROPBENCH_BIN, args, {
+      timeout: 120_000,
+      cwd: PROJECT_ROOT,
+    });
+    if (stderr) console.log("[generate]", stderr.trim());
+    return JSON.parse(fs.readFileSync(tmpFile, "utf-8"));
+  };
+
+  let allTheorems: unknown[] = [];
+
   if (opts.tier) {
-    args.push("--tier", opts.tier);
+    // Tier mode: resolve from config
+    const tierSpec = presets[opts.tier];
+    if (tierSpec) {
+      allTheorems = await generateBatch(opts.count, specArgs(tierSpec), outFile);
+      // Fix difficulty label (CLI sets it to "Custom" when using spec args)
+      const label = opts.tier.charAt(0).toUpperCase() + opts.tier.slice(1);
+      for (const t of allTheorems as any[]) {
+        (t as any).difficulty = label;
+        (t as any).difficulty_spec = tierSpec;
+      }
+    } else {
+      // Fallback to CLI's hardcoded tier
+      allTheorems = await generateBatch(opts.count, ["--tier", opts.tier], outFile);
+    }
   } else if (opts.spec) {
-    args.push("--variables", String(opts.spec.variables));
-    args.push("--passes", String(opts.spec.passes));
-    args.push("--transforms", String(opts.spec.transforms_per_pass));
-    args.push("--base", opts.spec.base_complexity);
-    args.push("--substitution", String(opts.spec.substitution_depth));
+    // Custom spec mode: pass directly
+    allTheorems = await generateBatch(opts.count, specArgs(opts.spec), outFile);
   } else if (opts.distribution) {
-    args.push("--difficulty-distribution", opts.distribution);
+    // Distribution mode: parse and resolve each tier from config
+    const segments = opts.distribution.split(",").map(s => {
+      const parts = s.trim().split(":");
+      return { count: parseInt(parts[0], 10), tier: parts[1].trim() };
+    });
+
+    let batchIdx = 0;
+    for (const seg of segments) {
+      const tmpFile = path.join(outDir, `_tmp_batch_${batchIdx}.json`);
+      const tierSpec = presets[seg.tier];
+      let extraArgs: string[];
+      if (tierSpec) {
+        extraArgs = specArgs(tierSpec);
+      } else {
+        // Fallback for unknown tiers
+        extraArgs = ["--tier", seg.tier];
+      }
+      const batch = await generateBatch(seg.count, extraArgs, tmpFile);
+
+      // Set difficulty label and spec on each theorem
+      const label = seg.tier.charAt(0).toUpperCase() + seg.tier.slice(1);
+      for (const t of batch as any[]) {
+        (t as any).difficulty = label;
+        if (tierSpec) {
+          (t as any).difficulty_spec = tierSpec;
+        }
+      }
+
+      allTheorems.push(...batch);
+      // Clean up temp file
+      try { fs.unlinkSync(tmpFile); } catch {}
+      batchIdx++;
+    }
+
+    // Renumber IDs after merging
+    allTheorems.forEach((t: any, i: number) => {
+      t.id = `v1-${String(i + 1).padStart(3, '0')}`;
+    });
+
+    // Write merged result
+    fs.writeFileSync(outFile, JSON.stringify(allTheorems, null, 2), "utf-8");
+  } else {
+    // No mode specified: use default distribution
+    const defaultDist = "30:easy,30:medium,20:hard,15:expert,5:nightmare";
+    // Parse and resolve the default distribution too
+    const segments = defaultDist.split(",").map(s => {
+      const parts = s.trim().split(":");
+      return { count: parseInt(parts[0], 10), tier: parts[1].trim() };
+    });
+
+    let batchIdx = 0;
+    for (const seg of segments) {
+      const tmpFile = path.join(outDir, `_tmp_batch_${batchIdx}.json`);
+      const tierSpec = presets[seg.tier];
+      let extraArgs: string[];
+      if (tierSpec) {
+        extraArgs = specArgs(tierSpec);
+      } else {
+        extraArgs = ["--tier", seg.tier];
+      }
+      const batch = await generateBatch(seg.count, extraArgs, tmpFile);
+
+      // Set difficulty label and spec on each theorem
+      const label = seg.tier.charAt(0).toUpperCase() + seg.tier.slice(1);
+      for (const t of batch as any[]) {
+        (t as any).difficulty = label;
+        if (tierSpec) {
+          (t as any).difficulty_spec = tierSpec;
+        }
+      }
+
+      allTheorems.push(...batch);
+      // Clean up temp file
+      try { fs.unlinkSync(tmpFile); } catch {}
+      batchIdx++;
+    }
+
+    // Renumber IDs after merging
+    allTheorems.forEach((t: any, i: number) => {
+      t.id = `v1-${String(i + 1).padStart(3, '0')}`;
+    });
+
+    // Write merged result
+    fs.writeFileSync(outFile, JSON.stringify(allTheorems, null, 2), "utf-8");
   }
-  // If none set, CLI uses its own default distribution
 
-  if (opts.maxNodes !== undefined) {
-    args.push("--max-nodes", String(opts.maxNodes));
-  }
-
-  const { stderr } = await execFileAsync(PROPBENCH_BIN, args, {
-    timeout: 120_000,
-    cwd: PROJECT_ROOT,
-  });
-
-  if (stderr) {
-    // propbench writes progress to stderr, not errors
-    console.log("[generate]", stderr.trim());
-  }
-
-  const theorems = JSON.parse(fs.readFileSync(outFile, "utf-8"));
-  return { path: outFile, theorems };
+  return { path: outFile, theorems: allTheorems };
 }
 
 // ---------------------------------------------------------------------------

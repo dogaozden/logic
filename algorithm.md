@@ -20,6 +20,8 @@ Pick one of 9 hand-crafted argument patterns (Modus Ponens, Modus Tollens, etc.)
 
 This is where the interesting algorithm lives. It has **three layers** plus a **multi-pass pipeline**.
 
+**Note on max_nodes parameter:** The `max_nodes` parameter (formula size cap) is independent of generation mode and can be applied to any mode. When specified, the generator will reject any formula that exceeds the node limit and retry. This parameter does not affect which mode is selected — it only acts as a post-generation filter.
+
 ---
 
 ## The Obfuscation Pipeline
@@ -167,6 +169,12 @@ Each tier maps to a set of generation parameters:
 | Absurd | 6 | 5 | 20 | Complex | 4 |
 | Cosmic | 7 | 10 | 20 | Complex | 4 |
 | Mind | 7 | 20 | 24 | Complex | 4 |
+
+**Tier Configuration:**
+
+Tier presets are stored in `prop-bench/tier-presets.json` and can be edited via the GUI (which loads them through `GET /api/tier-presets` and saves via `PUT /api/tier-presets`). The Rust binary's `from_tier()` serves as a fallback for direct CLI usage when the config file is unavailable.
+
+When using the GUI or API, all parameters are uncapped (up to u8::MAX = 255). Custom spec inputs accept any value within this range, not just the tier defaults shown above.
 
 **What each parameter does:**
 

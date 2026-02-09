@@ -14,6 +14,7 @@ import validateRoutes from "./routes/validate";
 import theoremSetRoutes from "./routes/theoremSets";
 import benchmarkRoutes from "./routes/benchmark";
 import resultsRoutes from "./routes/results";
+import tierPresetsRoutes from "./routes/tierPresets";
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
@@ -28,6 +29,7 @@ app.use("/api/validate", validateRoutes);
 app.use("/api/theorem-sets", theoremSetRoutes);
 app.use("/api/benchmark", benchmarkRoutes);
 app.use("/api/runs", resultsRoutes);
+app.use("/api/tier-presets", tierPresetsRoutes);
 
 // Health check
 app.get("/api/health", (_req, res) => {

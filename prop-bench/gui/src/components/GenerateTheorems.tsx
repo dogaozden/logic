@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "../api/client";
 import type { DifficultySpec, BaseComplexity } from "../types";
 
@@ -27,18 +27,6 @@ const TIER_OPTIONS = [
   "marathon", "absurd", "cosmic", "mind",
 ] as const;
 
-const TIER_PRESETS: Record<string, DifficultySpec> = {
-  easy:      { variables: 2, passes: 1,  transforms_per_pass: 2,  base_complexity: "simple",  substitution_depth: 0 },
-  medium:    { variables: 3, passes: 1,  transforms_per_pass: 5,  base_complexity: "simple",  substitution_depth: 0 },
-  hard:      { variables: 4, passes: 1,  transforms_per_pass: 10, base_complexity: "complex", substitution_depth: 0 },
-  expert:    { variables: 5, passes: 1,  transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 2 },
-  nightmare: { variables: 5, passes: 2,  transforms_per_pass: 12, base_complexity: "complex", substitution_depth: 3 },
-  marathon:  { variables: 5, passes: 3,  transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 4 },
-  absurd:    { variables: 6, passes: 5,  transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
-  cosmic:    { variables: 7, passes: 10, transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
-  mind:      { variables: 7, passes: 20, transforms_per_pass: 24, base_complexity: "complex", substitution_depth: 4 },
-};
-
 export default function GenerateTheorems({
   onClose,
   onGenerated,
@@ -48,6 +36,13 @@ export default function GenerateTheorems({
   const [mode, setMode] = useState<GenerateMode>("distribution");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
+
+  // Tier presets state
+  const [tierPresets, setTierPresets] = useState<Record<string, DifficultySpec> | null>(null);
+  const [presetsLoading, setPresetsLoading] = useState(true);
+  const [presetsDirty, setPresetsDirty] = useState(false);
+  const [presetsSaving, setPresetsSaving] = useState(false);
+  const [presetsError, setPresetsError] = useState("");
 
   // Distribution mode state
   const [dist, setDist] = useState({ ...DEFAULT_DIST });
@@ -66,6 +61,13 @@ export default function GenerateTheorems({
 
   // Max nodes (optional AST node limit)
   const [maxNodes, setMaxNodes] = useState<number | null>(null);
+
+  // Load tier presets from API on mount
+  useEffect(() => {
+    api.getTierPresets()
+      .then(p => { setTierPresets(p); setPresetsLoading(false); })
+      .catch(err => { setPresetsError(String(err)); setPresetsLoading(false); });
+  }, []);
 
   const sum = Object.values(dist).reduce<number>((a, b) => a + (b ?? 0), 0);
 
@@ -106,7 +108,7 @@ export default function GenerateTheorems({
     setDist((prev) => ({ ...prev, [t]: value }));
   };
 
-  const tierPreview = TIER_PRESETS[tier];
+  const tierPreview = tierPresets?.[tier];
 
   return (
     <div className="generate-modal-backdrop">
@@ -226,7 +228,7 @@ export default function GenerateTheorems({
                 className="difficulty-filter"
                 value={tier}
                 onChange={(e) => setTier(e.target.value)}
-                disabled={generating}
+                disabled={generating || presetsLoading}
                 style={{ width: "100%", marginBottom: 12 }}
               >
                 {TIER_OPTIONS.map((t) => (
@@ -235,29 +237,142 @@ export default function GenerateTheorems({
                   </option>
                 ))}
               </select>
-              {tierPreview && (
-                <div className="generate-spec-preview">
-                  <div className="generate-spec-row">
-                    <span className="generate-spec-label">Variables</span>
-                    <span className="generate-spec-value">{tierPreview.variables}</span>
-                  </div>
-                  <div className="generate-spec-row">
-                    <span className="generate-spec-label">Passes</span>
-                    <span className="generate-spec-value">{tierPreview.passes}</span>
-                  </div>
-                  <div className="generate-spec-row">
-                    <span className="generate-spec-label">Transforms/pass</span>
-                    <span className="generate-spec-value">{tierPreview.transforms_per_pass}</span>
-                  </div>
-                  <div className="generate-spec-row">
-                    <span className="generate-spec-label">Base complexity</span>
-                    <span className="generate-spec-value">{tierPreview.base_complexity}</span>
-                  </div>
-                  <div className="generate-spec-row">
-                    <span className="generate-spec-label">Substitution depth</span>
-                    <span className="generate-spec-value">{tierPreview.substitution_depth}</span>
-                  </div>
+
+              {presetsLoading && (
+                <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 8 }}>
+                  Loading presets...
                 </div>
+              )}
+
+              {presetsError && (
+                <div className="generate-error" style={{ marginTop: 8 }}>
+                  Failed to load presets: {presetsError}
+                </div>
+              )}
+
+              {tierPresets && tierPreview && (
+                <>
+                  <div className="generate-spec-grid" style={{ marginTop: 12 }}>
+                    <label className="generate-spec-input-item">
+                      <span className="generate-spec-label">Variables (2+)</span>
+                      <input
+                        type="number"
+                        className="theorem-search"
+                        min={2}
+                        value={tierPreview.variables}
+                        onChange={(e) => {
+                          const val = Math.max(2, parseInt(e.target.value) || 2);
+                          setTierPresets(prev => prev ? {
+                            ...prev,
+                            [tier]: { ...prev[tier], variables: val }
+                          } : prev);
+                          setPresetsDirty(true);
+                        }}
+                        disabled={generating}
+                      />
+                    </label>
+                    <label className="generate-spec-input-item">
+                      <span className="generate-spec-label">Passes (1+)</span>
+                      <input
+                        type="number"
+                        className="theorem-search"
+                        min={1}
+                        value={tierPreview.passes}
+                        onChange={(e) => {
+                          const val = Math.max(1, parseInt(e.target.value) || 1);
+                          setTierPresets(prev => prev ? {
+                            ...prev,
+                            [tier]: { ...prev[tier], passes: val }
+                          } : prev);
+                          setPresetsDirty(true);
+                        }}
+                        disabled={generating}
+                      />
+                    </label>
+                    <label className="generate-spec-input-item">
+                      <span className="generate-spec-label">Transforms/pass (1+)</span>
+                      <input
+                        type="number"
+                        className="theorem-search"
+                        min={1}
+                        value={tierPreview.transforms_per_pass}
+                        onChange={(e) => {
+                          const val = Math.max(1, parseInt(e.target.value) || 1);
+                          setTierPresets(prev => prev ? {
+                            ...prev,
+                            [tier]: { ...prev[tier], transforms_per_pass: val }
+                          } : prev);
+                          setPresetsDirty(true);
+                        }}
+                        disabled={generating}
+                      />
+                    </label>
+                    <label className="generate-spec-input-item">
+                      <span className="generate-spec-label">Base complexity</span>
+                      <div className="generate-radio-group">
+                        {(["simple", "complex"] as const).map((bc) => (
+                          <label key={bc} className="generate-radio-item">
+                            <input
+                              type="radio"
+                              name="base_complexity"
+                              checked={tierPreview.base_complexity === bc}
+                              onChange={() => {
+                                setTierPresets(prev => prev ? {
+                                  ...prev,
+                                  [tier]: { ...prev[tier], base_complexity: bc as BaseComplexity }
+                                } : prev);
+                                setPresetsDirty(true);
+                              }}
+                              disabled={generating}
+                            />
+                            <span>{bc}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </label>
+                    <label className="generate-spec-input-item">
+                      <span className="generate-spec-label">Substitution depth (0+)</span>
+                      <input
+                        type="number"
+                        className="theorem-search"
+                        min={0}
+                        value={tierPreview.substitution_depth}
+                        onChange={(e) => {
+                          const val = Math.max(0, parseInt(e.target.value) || 0);
+                          setTierPresets(prev => prev ? {
+                            ...prev,
+                            [tier]: { ...prev[tier], substitution_depth: val }
+                          } : prev);
+                          setPresetsDirty(true);
+                        }}
+                        disabled={generating}
+                      />
+                    </label>
+                  </div>
+
+                  {presetsDirty && (
+                    <button
+                      className="generate-btn generate-btn--secondary"
+                      style={{ marginTop: 12, width: "100%" }}
+                      onClick={async () => {
+                        if (!tierPresets) return;
+                        setPresetsSaving(true);
+                        setPresetsError("");
+                        try {
+                          await api.saveTierPresets(tierPresets);
+                          setPresetsDirty(false);
+                        } catch (err) {
+                          setPresetsError(err instanceof Error ? err.message : String(err));
+                        } finally {
+                          setPresetsSaving(false);
+                        }
+                      }}
+                      disabled={presetsSaving}
+                    >
+                      {presetsSaving ? "Saving..." : "Save Preset Changes"}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -268,43 +383,40 @@ export default function GenerateTheorems({
               <span className="generate-label">Custom Spec</span>
               <div className="generate-spec-grid">
                 <label className="generate-spec-input-item">
-                  <span className="generate-spec-label">Variables (2-20)</span>
+                  <span className="generate-spec-label">Variables (2+)</span>
                   <input
                     type="number"
                     className="theorem-search"
                     min={2}
-                    max={20}
                     value={spec.variables}
                     onChange={(e) =>
-                      setSpec((s) => ({ ...s, variables: Math.max(2, Math.min(20, parseInt(e.target.value) || 2)) }))
+                      setSpec((s) => ({ ...s, variables: Math.max(2, parseInt(e.target.value) || 2) }))
                     }
                     disabled={generating}
                   />
                 </label>
                 <label className="generate-spec-input-item">
-                  <span className="generate-spec-label">Passes (1-20)</span>
+                  <span className="generate-spec-label">Passes (1+)</span>
                   <input
                     type="number"
                     className="theorem-search"
                     min={1}
-                    max={20}
                     value={spec.passes}
                     onChange={(e) =>
-                      setSpec((s) => ({ ...s, passes: Math.max(1, Math.min(20, parseInt(e.target.value) || 1)) }))
+                      setSpec((s) => ({ ...s, passes: Math.max(1, parseInt(e.target.value) || 1) }))
                     }
                     disabled={generating}
                   />
                 </label>
                 <label className="generate-spec-input-item">
-                  <span className="generate-spec-label">Transforms/pass (1-24)</span>
+                  <span className="generate-spec-label">Transforms/pass (1+)</span>
                   <input
                     type="number"
                     className="theorem-search"
                     min={1}
-                    max={24}
                     value={spec.transforms_per_pass}
                     onChange={(e) =>
-                      setSpec((s) => ({ ...s, transforms_per_pass: Math.max(1, Math.min(24, parseInt(e.target.value) || 1)) }))
+                      setSpec((s) => ({ ...s, transforms_per_pass: Math.max(1, parseInt(e.target.value) || 1) }))
                     }
                     disabled={generating}
                   />
@@ -329,15 +441,14 @@ export default function GenerateTheorems({
                   </div>
                 </label>
                 <label className="generate-spec-input-item">
-                  <span className="generate-spec-label">Substitution depth (0-4)</span>
+                  <span className="generate-spec-label">Substitution depth (0+)</span>
                   <input
                     type="number"
                     className="theorem-search"
                     min={0}
-                    max={4}
                     value={spec.substitution_depth}
                     onChange={(e) =>
-                      setSpec((s) => ({ ...s, substitution_depth: Math.max(0, Math.min(4, parseInt(e.target.value) || 0)) }))
+                      setSpec((s) => ({ ...s, substitution_depth: Math.max(0, parseInt(e.target.value) || 0) }))
                     }
                     disabled={generating}
                   />

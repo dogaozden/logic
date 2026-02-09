@@ -287,11 +287,11 @@ Default difficulty midpoints: Easy=13, Medium=35, Hard=58, Expert=85. 13 classic
 pub enum BaseComplexity { Simple, Complex }
 
 pub struct DifficultySpec {
-    pub variables: u8,              // 2-20
-    pub passes: u8,                 // 1-20
-    pub transforms_per_pass: u8,    // 1-24
+    pub variables: u8,              // 2-255 (u8 max, uncapped)
+    pub passes: u8,                 // 1-255 (u8 max, uncapped)
+    pub transforms_per_pass: u8,    // 1-255 (u8 max, uncapped)
     pub base_complexity: BaseComplexity,
-    pub substitution_depth: u8,     // 0-4
+    pub substitution_depth: u8,     // 0-255 (u8 max, uncapped)
 }
 
 pub enum DifficultyTier {
@@ -299,7 +299,7 @@ pub enum DifficultyTier {
 }
 ```
 
-DifficultySpec provides fine-grained control over theorem generation parameters. `DifficultySpec::from_tier()` maps each of 9 tiers to preset parameters. `DifficultySpec::from_difficulty_value()` bridges the legacy 1-100 scale. These types do NOT modify the existing `Difficulty` enum used by the Tauri app.
+DifficultySpec provides fine-grained control over theorem generation parameters. `DifficultySpec::from_tier()` maps each of 9 tiers to preset parameters (used as fallback for direct CLI usage). Tier presets are also stored in `prop-bench/tier-presets.json` and served via API for GUI usage. `DifficultySpec::from_difficulty_value()` bridges the legacy 1-100 scale. These types do NOT modify the existing `Difficulty` enum used by the Tauri app.
 
 **Proof** (`models/proof.rs`):
 ```rust
@@ -947,6 +947,16 @@ PropBench consists of:
 - `TheoremDetail.tsx`: Passes rawResponse and latencyMs to ProofViewer
 - `theorems.css`: Added styles for raw response viewer
 - `vite.config.ts`: Added SSE proxy buffering fix (cache-control, x-accel-buffering headers)
+
+**Tier Presets Configuration**:
+- `tier-presets.json`: Stores difficulty tier presets (Easy through Mind), loaded by GUI and CLI
+- API endpoints:
+  - `GET /api/tier-presets` — Returns current tier presets configuration
+  - `PUT /api/tier-presets` — Saves updated tier presets
+- GUI allows editing and saving tier presets with custom values for variables, passes, transforms_per_pass, base_complexity, and substitution_depth
+- All custom spec inputs are uncapped (u8 max = 255) for variables, passes, transforms_per_pass, and substitution_depth
+- When generating theorems via GUI, presets are resolved from `tier-presets.json` rather than hardcoded Rust values
+- Rust binary's `DifficultySpec::from_tier()` remains as fallback for direct CLI usage
 
 ### Results
 

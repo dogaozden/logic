@@ -311,4 +311,18 @@ export const api = {
       : "/runs/individual";
     return json<IndividualRun[]>(path);
   },
+
+  /** Get tier presets */
+  getTierPresets(): Promise<Record<string, DifficultySpec>> {
+    return json<Record<string, DifficultySpec>>("/tier-presets");
+  },
+
+  /** Save tier presets */
+  saveTierPresets(presets: Record<string, DifficultySpec>): Promise<{ success: boolean }> {
+    return json<{ success: boolean }>("/tier-presets", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(presets),
+    });
+  },
 };
