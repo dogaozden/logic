@@ -1016,8 +1016,27 @@ impl ObfuscateGenerator {
                 continue;
             }
 
-            // Pick a random applicable rule
-            let (_rule, equivalent) = &applicable[rng.gen_range(0..applicable.len())];
+            // Weighted selection - de-weight size-exploding rules
+            // Distribution and Equivalence duplicate entire subtrees, causing exponential growth
+            let weights: Vec<f64> = applicable.iter().map(|(rule, _)| {
+                match rule {
+                    EquivalenceRule::Distribution | EquivalenceRule::Equivalence => 0.2,
+                    _ => 1.0,
+                }
+            }).collect();
+
+            let total_weight: f64 = weights.iter().sum();
+            let mut roll = rng.gen::<f64>() * total_weight;
+            let mut chosen_idx = 0;
+            for (i, &w) in weights.iter().enumerate() {
+                roll -= w;
+                if roll <= 0.0 {
+                    chosen_idx = i;
+                    break;
+                }
+            }
+
+            let (_rule, equivalent) = &applicable[chosen_idx];
 
             // Apply the transformation at this specific position only
             let result = formula.replace_at_path(path, equivalent);

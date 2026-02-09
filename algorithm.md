@@ -110,7 +110,10 @@ This is the core obfuscation engine. For each **pass** (1 to N, where N depends 
    - List every subformula in the AST with its **positional path** (see below)
    - Shuffle the list and try subformulas in random order
    - For the chosen subformula, find all applicable equivalence rules (DN, DeM, Comm, Assoc, Dist, Contra, Impl, Exp, Equiv)
-   - Pick one at random and apply it **at that specific position only**
+   - Pick one using **weighted random selection** and apply it **at that specific position only**
+     - **Distribution** and **Equivalence** rules have weight 0.2 (selected 5x less often)
+     - All other rules have weight 1.0
+     - This prevents exponential formula growth from size-exploding rules while still allowing them occasionally
    - Verify the result is still a tautology (sanity check)
    - If successful, accept the transformation and move on
    - If no applicable rule works on any subformula, the attempt is wasted

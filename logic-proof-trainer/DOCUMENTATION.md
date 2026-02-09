@@ -723,7 +723,7 @@ Note: All portfolio and storage commands validate that `id` is a valid UUID form
 **Medium+ (obfuscation-based — 3 layers):**
 1. **Base Form**: Simple valid argument (7 standard + 3 complex for d≥70)
 2. **Atom Substitution** (d>=70): Replace atoms with complex subformulas from pool partitions (guaranteed coverage, depth controlled by substitution_depth)
-3. **Wrap + Transform**: Combine as tautology, apply N equivalence transformations (gnarly combos at d≥85 force hard patterns like Contraposition+DeMorgan chains)
+3. **Wrap + Transform**: Combine as tautology, apply N equivalence transformations (gnarly combos at d≥85 force hard patterns like Contraposition+DeMorgan chains). **Weighted rule selection**: Distribution and Equivalence rules have 0.2 probability (vs 1.0 for others) to prevent exponential formula growth from duplicating entire subtrees
 
 **Tree Generation (dual-strategy with fallback):**
 1. First 25 attempts: backward construction (goal-directed)
