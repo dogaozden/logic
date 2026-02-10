@@ -6,7 +6,7 @@ const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 1000;
 
 export class OpenAIAdapter implements ModelAdapter {
-  name = "openai";
+  name = "gpt-4o";
   displayName = "GPT-4o";
 
   async callModel(prompt: string, config: ModelConfig): Promise<ModelResponse> {

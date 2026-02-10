@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../api/client";
-import type { TheoremSetInfo } from "../api/client";
+import type { TheoremSetInfo, IndividualRun } from "../api/client";
 
 export interface RunConfigValues {
   models: string[];
@@ -12,14 +12,18 @@ export interface RunConfigValues {
   count: string;
   force: boolean;
   noRetryParse: boolean;
+  runs: number;
+  continueRunId: number | null;
 }
 
 const MODEL_OPTIONS = [
-  { key: "gemini", label: "Gemini Flash Lite", envVar: "GEMINI_API_KEY", model: "gemini-2.5-flash-lite-preview-09-2025" },
-  { key: "gemini-3-flash", label: "Gemini 3 Flash", envVar: "GEMINI_API_KEY", model: "gemini-3-flash-preview" },
-  { key: "gemini-3-pro", label: "Gemini 3 Pro", envVar: "GEMINI_API_KEY", model: "gemini-3-pro-preview" },
-  { key: "claude", label: "Claude", envVar: "ANTHROPIC_API_KEY", model: "claude-sonnet-4-5-20250929" },
-  { key: "gpt", label: "GPT", envVar: "OPENAI_API_KEY", model: "gpt-4o" },
+  { key: "gemini-2.5-pro", label: "Gemini 2.5 Pro", envVar: "GEMINI_API_KEY" },
+  { key: "gemini-2.5-flash", label: "Gemini 2.5 Flash", envVar: "GEMINI_API_KEY" },
+  { key: "gemini-2.5-flash-lite-preview-09-2025", label: "Gemini 2.5 Flash Lite", envVar: "GEMINI_API_KEY" },
+  { key: "gemini-3-flash-preview", label: "Gemini 3 Flash", envVar: "GEMINI_API_KEY" },
+  { key: "gemini-3-pro-preview", label: "Gemini 3 Pro", envVar: "GEMINI_API_KEY" },
+  { key: "claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5", envVar: "ANTHROPIC_API_KEY" },
+  { key: "gpt-4o", label: "GPT-4o", envVar: "OPENAI_API_KEY" },
 ] as const;
 
 interface RunConfigProps {
@@ -52,12 +56,17 @@ function buildCommand(cfg: RunConfigValues): string {
   if (cfg.noRetryParse) {
     parts.push("--no-retry-parse");
   }
+  if (cfg.runs > 1) {
+    parts.push(`--runs ${cfg.runs}`);
+  }
   return parts.join(" \\\n  ");
 }
 
 function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
   const [theoremSets, setTheoremSets] = useState<TheoremSetInfo[]>([]);
   const [showCommand, setShowCommand] = useState(false);
+  const [incompleteRuns, setIncompleteRuns] = useState<IndividualRun[]>([]);
+  const [continueMode, setContinueMode] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -85,6 +94,29 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Fetch incomplete runs when continue mode is enabled
+  useEffect(() => {
+    if (continueMode) {
+      api.getIndividualRuns().then((runs) => {
+        setIncompleteRuns(runs.filter((r) => r.status === "Incomplete"));
+      }).catch(() => setIncompleteRuns([]));
+    }
+  }, [continueMode]);
+
+  const handleContinueModeToggle = (enabled: boolean) => {
+    setContinueMode(enabled);
+    if (!enabled) {
+      onChange({ ...config, continueRunId: null });
+    }
+  };
+
+  const handleContinueRunSelect = (runId: number) => {
+    onChange({ ...config, continueRunId: runId });
+  };
+
+  const selectedContinueRun = incompleteRuns.find((r) => r.runId === config.continueRunId);
+  const continueLocked = continueMode && config.continueRunId != null;
+
   const toggleModel = (key: string) => {
     const next = config.models.includes(key)
       ? config.models.filter((m) => m !== key)
@@ -96,6 +128,54 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
     <div className="run-config">
       <h3 className="run-config-title">Run Configuration</h3>
 
+      {/* Continue incomplete run */}
+      <div className="config-section">
+        <label className="model-checkbox">
+          <input
+            type="checkbox"
+            checked={continueMode}
+            onChange={(e) => handleContinueModeToggle(e.target.checked)}
+            disabled={running}
+          />
+          <span className="model-checkbox-name">Continue incomplete run</span>
+          <span className="model-checkbox-detail">Resume a previously interrupted run</span>
+        </label>
+
+        {continueMode && (
+          <div style={{ marginTop: "0.5rem" }}>
+            {incompleteRuns.length === 0 ? (
+              <div className="config-detail">No incomplete runs found</div>
+            ) : (
+              <>
+                <select
+                  className="config-input"
+                  value={config.continueRunId ?? ""}
+                  onChange={(e) => handleContinueRunSelect(parseInt(e.target.value, 10))}
+                  disabled={running}
+                >
+                  <option value="" disabled>Select an incomplete run...</option>
+                  {incompleteRuns.map((r) => (
+                    <option key={r.runId} value={r.runId}>
+                      #{r.runId} — {r.modelDisplay} on {r.setName} ({r.stats.total} done, {r.startedAt.slice(0, 16).replace("T", " ")})
+                    </option>
+                  ))}
+                </select>
+
+                {selectedContinueRun && (
+                  <div className="continue-run-info" style={{ marginTop: "0.5rem", padding: "0.5rem", background: "var(--surface-2, #1a1a2e)", borderRadius: "6px", fontSize: "0.85rem" }}>
+                    <div><strong>Model:</strong> {selectedContinueRun.modelDisplay}</div>
+                    <div><strong>Theorem set:</strong> {selectedContinueRun.setName}</div>
+                    <div><strong>Temperature:</strong> {selectedContinueRun.temperature}</div>
+                    <div><strong>Max tokens:</strong> {selectedContinueRun.maxTokens}</div>
+                    <div><strong>Progress:</strong> {selectedContinueRun.stats.total} theorems completed ({selectedContinueRun.stats.valid} valid, {selectedContinueRun.stats.invalid} invalid, {selectedContinueRun.stats.errors} errors)</div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Model selection */}
       <div className="config-section">
         <label className="config-label">Models</label>
@@ -106,10 +186,10 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
                 type="checkbox"
                 checked={config.models.includes(m.key)}
                 onChange={() => toggleModel(m.key)}
-                disabled={running}
+                disabled={running || continueLocked}
               />
               <span className="model-checkbox-name">{m.label}</span>
-              <span className="model-checkbox-detail">{m.model}</span>
+              <span className="model-checkbox-detail">{m.key}</span>
               <span
                 className="api-dot api-dot--missing"
                 title={`${m.envVar}: check server env`}
@@ -130,7 +210,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
             className="config-input"
             value={config.theoremSet}
             onChange={(e) => onChange({ ...config, theoremSet: e.target.value })}
-            disabled={running}
+            disabled={running || continueLocked}
           >
             {theoremSets.map((s) => (
               <option key={s.name} value={s.name}>
@@ -145,7 +225,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
             type="text"
             value={config.theoremSet}
             onChange={(e) => onChange({ ...config, theoremSet: e.target.value })}
-            disabled={running}
+            disabled={running || continueLocked}
             placeholder="v1"
           />
         )}
@@ -167,7 +247,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
           onChange={(e) =>
             onChange({ ...config, temperature: parseFloat(e.target.value) })
           }
-          disabled={running}
+          disabled={running || continueLocked}
         />
       </div>
 
@@ -189,7 +269,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
               maxTokens: e.target.value === "" ? null : parseInt(e.target.value, 10),
             })
           }
-          disabled={running}
+          disabled={running || continueLocked}
           placeholder="default"
         />
       </div>
@@ -235,7 +315,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
                 startIndex: e.target.value === "" ? null : parseInt(e.target.value, 10),
               })
             }
-            disabled={running}
+            disabled={running || continueLocked}
             placeholder="0"
           />
         </div>
@@ -250,7 +330,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
             placeholder="all"
             value={config.count}
             onChange={(e) => onChange({ ...config, count: e.target.value })}
-            disabled={running}
+            disabled={running || continueLocked}
           />
         </div>
       </div>
@@ -262,7 +342,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
             type="checkbox"
             checked={config.force}
             onChange={(e) => onChange({ ...config, force: e.target.checked })}
-            disabled={running}
+            disabled={running || continueLocked}
           />
           <span className="model-checkbox-name">Force new run</span>
           <span className="model-checkbox-detail">Don't skip completed theorems</span>
@@ -272,20 +352,44 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
             type="checkbox"
             checked={config.noRetryParse}
             onChange={(e) => onChange({ ...config, noRetryParse: e.target.checked })}
-            disabled={running}
+            disabled={running || continueLocked}
           />
           <span className="model-checkbox-name">Don't retry parse errors</span>
           <span className="model-checkbox-detail">Treat unparseable output as final</span>
         </label>
       </div>
 
+      {/* Sequential runs */}
+      <div className="config-section">
+        <label className="config-label" htmlFor="cfg-runs">
+          Sequential Runs
+        </label>
+        <input
+          id="cfg-runs"
+          className="config-input config-input--sm"
+          type="number"
+          min={1}
+          max={100}
+          value={config.runs}
+          onChange={(e) =>
+            onChange({
+              ...config,
+              runs: Math.max(1, parseInt(e.target.value, 10) || 1),
+            })
+          }
+          disabled={running || continueLocked}
+          placeholder="1"
+        />
+        <span className="config-detail">Run the benchmark N times back-to-back</span>
+      </div>
+
       {/* Start button */}
       <button
         className="btn-start"
-        disabled={running || config.models.length === 0}
+        disabled={running || (continueLocked ? false : config.models.length === 0) || (continueMode && config.continueRunId == null)}
         onClick={onStart}
       >
-        {running ? "Running..." : "Start Benchmark"}
+        {running ? "Running..." : continueLocked ? "Continue Run" : "Start Benchmark"}
       </button>
 
       {/* CLI command reference (collapsible) */}

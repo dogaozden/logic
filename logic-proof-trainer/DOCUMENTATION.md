@@ -16,6 +16,10 @@ A cross-platform desktop application for practicing propositional logic proofs u
 8. [Theorem Generation Pipeline](#theorem-generation-pipeline)
 9. [Building and Running](#building-and-running)
 10. [Dependencies](#dependencies)
+11. [Theme System](#theme-system)
+12. [Portfolio System](#portfolio-system)
+13. [Security](#security)
+14. [PropBench: LLM Benchmark Tool](#propbench-llm-benchmark-tool)
 
 ---
 
@@ -37,7 +41,7 @@ A cross-platform desktop application for practicing propositional logic proofs u
 ├───────────────────────┼─────────────────────────────────────────┤
 │  Backend (Rust)       │                                         │
 │  ┌────────────────────┴──────────────────────┐                  │
-│  │             Commands (28 IPC)             │                  │
+│  │             Commands (27 IPC)             │                  │
 │  └────────────────────┬──────────────────────┘                  │
 │       ┌───────────────┼───────────────┐                         │
 │  ┌────┴────┐    ┌─────┴─────┐    ┌────┴────┐                    │
@@ -89,7 +93,7 @@ Brackets `()`, `[]`, `{}` are all accepted interchangeably by the parser.
 | 6 | Hypothetical Syllogism | HS | p ⊃ q, q ⊃ r ∴ p ⊃ r | Tries both orderings |
 | 7 | Addition | Add | p ∴ p ∨ q | Returns both p∨q and q∨p; requires additional formula input |
 | 8 | Constructive Dilemma | CD | p ∨ q, p ⊃ r, q ⊃ s ∴ r ∨ s | Tries all 6 permutations of 3 premises |
-| 9 | Negation Elimination | NegE | p, ~p ∴ ⊥ | Tries both orderings |
+| 9 | Contradiction Introduction | NegE | p, ~p ∴ ⊥ | Tries both orderings |
 
 Each rule exposes: `all_conclusions()` (all valid conclusions), `apply()` (first valid), `verify()` (check specific conclusion).
 
@@ -134,8 +138,8 @@ logic-proof-trainer/
 │   ├── tauri.conf.json
 │   └── src/
 │       ├── main.rs                  # Entry point → lib::run()
-│       ├── lib.rs                   # Command registration (28 commands)
-│       ├── commands.rs              # 28 IPC command handlers
+│       ├── lib.rs                   # Command registration (27 commands)
+│       ├── commands.rs              # 27 IPC command handlers
 │       ├── models/
 │       │   ├── mod.rs               # Re-exports all models
 │       │   ├── formula.rs           # Formula AST, parser, SharedFormula
@@ -157,7 +161,7 @@ logic-proof-trainer/
 │           │   ├── backward.rs      # Backward construction algorithm
 │           │   ├── builder.rs       # ProofTreeGenerator (dual-strategy + fallback)
 │           │   └── templates.rs     # FallbackTemplates (10 hand-crafted patterns)
-│           ├── proof_tree.rs        # ProofNode/ProofTree + DegenerateProofError (15 types)
+│           ├── proof_tree.rs        # ProofNode/ProofTree + DegenerateProofError (14 types)
 │           ├── fragments.rs         # 12 composable proof fragments + FragmentSpec
 │           ├── truth_table.rs       # 32-bit semantic validation + forcing functions
 │           ├── proof_search.rs      # Backward proof search + difficulty analysis
@@ -172,7 +176,8 @@ logic-proof-trainer/
 │   │   ├── index.ts                 # TypeScript types + formulaToString + display helpers
 │   │   └── index.test.ts            # Unit tests (13 tests)
 │   ├── utils/
-│   │   └── proofCommandParser.ts    # Unified proof command parser (40+ aliases)
+│   │   ├── proofCommandParser.ts    # Unified proof command parser (40+ aliases)
+│   │   └── proofReorder.ts          # Drag-drop validation + line reordering logic
 │   ├── hooks/
 │   │   ├── useProof.ts              # Proof state (18 actions, Zustand)
 │   │   ├── useProof.test.ts         # Unit tests (19 tests)
@@ -209,7 +214,11 @@ logic-proof-trainer/
 ├── package.json
 ├── tsconfig.json
 ├── vitest.config.ts                 # Vitest: jsdom environment, globals, setup file
-└── vite.config.ts                   # Port 1420, HMR on 1421, ignores src-tauri/
+├── vite.config.ts                   # Port 1420, HMR on 1421, ignores src-tauri/
+├── architecture.md                  # 3-layer theorem generation architecture overview
+├── CLONE_OPTIMIZATION.md            # Performance optimization notes
+├── problems.md                      # Known issues
+└── issues.md                        # Issue tracking
 ```
 
 ---
@@ -248,6 +257,7 @@ Key methods:
 - `negate() -> Formula` — Create negation
 - `truth_table() -> u32` — 32-bit truth table
 - `shared() / from_shared()` — Arc conversion methods
+- `replace_subformula(target, replacement) -> Formula` — Replace all occurrences of target subformula with replacement (structural equality matching, used by the verifier for equivalence rule validation)
 - `is_negation()`, `negated_inner()`, `equals()` — Utility predicates
 
 **PathStep** (`models/formula.rs`):
@@ -274,24 +284,43 @@ pub struct Theorem {
     pub conclusion: Formula,
     pub difficulty: Difficulty,      // Easy, Medium, Hard, Expert
     pub difficulty_value: u8,        // 1-100
-    pub theme: Option<Theme>,       // 13 theme variants
+    pub theme: Option<Theme>,       // 13 theme variants (see below)
     pub name: Option<String>,
     pub is_classic: bool,
 }
 ```
 
-Default difficulty midpoints: Easy=13, Medium=35, Hard=58, Expert=85. 13 classic theorems provided via `get_classic_theorems()`.
+Default difficulty midpoints: Easy=13, Medium=35, Hard=58, Expert=85.
+
+**Theme enum** (13 variants): ModusPonens, ModusTollens, HypotheticalSyllogism, DisjunctiveSyllogism, ConstructiveDilemma, Conjunction, Disjunction, DoubleNegation, Biconditional, ConditionalProof, IndirectProof, Equivalence, Mixed. Each theme corresponds to the primary proof technique or rule demonstrated by the theorem.
+
+**Classic Theorems** (`get_classic_theorems()` — 13 theorems):
+1. Modus Ponens: P ⊃ Q, P ⊢ Q (Easy)
+2. Modus Tollens: P ⊃ Q, ~Q ⊢ ~P (Easy)
+3. Hypothetical Syllogism: P ⊃ Q, Q ⊃ R ⊢ P ⊃ R (Easy)
+4. Disjunctive Syllogism: P ∨ Q, ~P ⊢ Q (Easy)
+5. Constructive Dilemma: (P ⊃ Q) · (R ⊃ S), P ∨ R ⊢ Q ∨ S (Medium)
+6. Law of Excluded Middle: ⊢ P ∨ ~P (Medium, requires IP)
+7. Double Negation Elimination: ~~P ⊢ P (Easy)
+8. Contraposition: P ⊃ Q ⊢ ~Q ⊃ ~P (Medium, requires CP)
+9. De Morgan (And to Or): ~(P · Q) ⊢ ~P ∨ ~Q (Hard)
+10. De Morgan (Or to And): ~(P ∨ Q) ⊢ ~P · ~Q (Hard)
+11. Material Implication: P ⊃ Q ⊢ ~P ∨ Q (Medium)
+12. Exportation: (P · Q) ⊃ R ⊢ P ⊃ (Q ⊃ R) (Hard, requires CP)
+13. Peirce's Law: ⊢ ((P ⊃ Q) ⊃ P) ⊃ P (Expert, requires IP)
 
 **DifficultySpec** (`models/theorem.rs` — used by PropBench CLI):
 ```rust
 pub enum BaseComplexity { Simple, Complex }
 
 pub struct DifficultySpec {
-    pub variables: u8,              // 2-255 (u8 max, uncapped)
-    pub passes: u8,                 // 1-255 (u8 max, uncapped)
-    pub transforms_per_pass: u8,    // 1-255 (u8 max, uncapped)
+    pub variables: u8,                      // 2-255 (u8 max, uncapped)
+    pub passes: u8,                         // 1-255 (u8 max, uncapped)
+    pub transforms_per_pass: u8,            // 1-255 (u8 max, uncapped)
     pub base_complexity: BaseComplexity,
-    pub substitution_depth: u8,     // 0-255 (u8 max, uncapped)
+    pub substitution_depth: u8,             // 0-255 (u8 max, uncapped)
+    pub max_formula_nodes: Option<u32>,     // None = default (20,000)
+    pub bridge_atoms: Option<u8>,           // None = default for tier, Some(n) = n bridge atoms
 }
 
 pub enum DifficultyTier {
@@ -299,7 +328,9 @@ pub enum DifficultyTier {
 }
 ```
 
-DifficultySpec provides fine-grained control over theorem generation parameters. `DifficultySpec::from_tier()` maps each of 9 tiers to preset parameters (used as fallback for direct CLI usage). Tier presets are also stored in `prop-bench/tier-presets.json` and served via API for GUI usage. `DifficultySpec::from_difficulty_value()` bridges the legacy 1-100 scale. These types do NOT modify the existing `Difficulty` enum used by the Tauri app.
+DifficultySpec provides fine-grained control over theorem generation parameters. Tier presets are stored in `prop-bench/tier-presets.json` and served via API for GUI usage (see table below). `DifficultySpec::from_tier()` provides Rust-side fallback defaults for direct CLI usage (values differ slightly from tier-presets.json). `DifficultySpec::from_difficulty_value()` bridges the legacy 1-100 scale. These types do NOT modify the existing `Difficulty` enum used by the Tauri app.
+
+**Bridge atoms**: During obfuscation, the substitution layer partitions remaining atoms into groups, with each group replacing one base form atom. Bridge atoms are special variables that appear in multiple partition groups (typically 2), creating cross-zone logical dependencies. This prevents LLMs from decomposing theorems into independent subproblems, forcing integrated reasoning across the entire formula.
 
 **Proof** (`models/proof.rs`):
 ```rust
@@ -347,7 +378,7 @@ Key methods:
 
 **Generator** (`services/generator.rs`):
 - Dual-mode theorem generation orchestrator
-- Easy difficulty: legacy template-based generation (9 theme templates)
+- Easy difficulty: legacy template-based generation (8 theme templates)
 - Medium+: obfuscation-based generation via `ObfuscateGenerator`
 - `GeneratedTheorem` struct pairs a `Theorem` with its `ProofTree`
 - Difficulty value mapping: 1-25 Easy, 26-45 Medium, 46-70 Hard, 71-100 Expert
@@ -390,7 +421,7 @@ Key methods:
 - `ProofTree`: root node + fragment_count + max_nesting
   - `validate()` / `validate_with_difficulty()` — Delegates to truth table validation
   - `pretty_print()` — Indented tree structure for debugging
-- `DegenerateProofError` (15 variants): ContradictoryPremises, TautologicalConclusion, TautologicalPremise, SinglePremiseEntails, NegationOfConclusionAvailable, ConditionalTrivialViaExplosion, RedundantPremises, UnnecessaryPremise, InvalidTheorem, TooEasy, NoSubproofRequired, DoesNotForceCP, DoesNotForceCaseSplit, DoesNotForceIP
+- `DegenerateProofError` (14 variants): ContradictoryPremises, TautologicalConclusion, TautologicalPremise, SinglePremiseEntails, NegationOfConclusionAvailable, ConditionalTrivialViaExplosion, RedundantPremises, UnnecessaryPremise, InvalidTheorem, TooEasy, NoSubproofRequired, DoesNotForceCP, DoesNotForceCaseSplit, DoesNotForceIP
 
 **Fragments** (`services/fragments.rs`):
 - 12 composable proof fragments: 8 basic (MP, MT, HS, DS, Simp, Conj, Add, CD) + 4 nesting (CP, IP, NegIntro, CaseSplit)
@@ -429,6 +460,7 @@ Key methods:
   3. **Layer 2 — Wrap + Transform**: Combine as (P₁∧P₂∧...)⊃C tautology, apply N random equivalence transformations
 - **Positional replacement**: Equivalence transforms use `subformulas_with_paths()` + `replace_at_path()` to target individual AST nodes by position. This ensures that when a formula contains multiple structurally-identical subtrees (common at high difficulty), each occurrence can be independently transformed, producing diverse output instead of repetitive patterns.
 - **Pool-based atom substitution with guaranteed coverage**: The substitution layer uses remaining atoms from the configured atom pool (not a hardcoded A-Z sequence), partitioned evenly among the base form's atoms. Each partition includes its original base atom (e.g., P's partition is {P, S, T}), ensuring the base atoms are preserved in the final formula alongside the new ones. Each replacement formula guarantees every partition atom appears at least once via a seed + random growth approach. Variable counts are kept low (max 7) since more atoms spread formulas thinner without adding proof difficulty.
+- **Bridge atoms**: When `bridge_atoms > 0`, the substitution layer selects N atoms from the remaining pool as 'bridges'. After partitioning non-bridge atoms evenly, each bridge atom is added to 2 randomly-chosen distinct partition groups. This creates cross-zone logical interdependencies, preventing LLMs from decomposing the problem into independent subproblems. Bridge atom scaling by tier: 0 for Easy-Expert, 1 for Nightmare/Marathon/Absurd, 2 for Cosmic/Mind.
 - **Complex-only base forms** (Hard+): When `base_complexity` is Complex, only CDFull, NestedCP, and Chain4 are used — standard forms (MP, Simp, etc.) are excluded to ensure harder proof structures.
 - **Gnarly combos** (difficulty ≥85): Forces hard patterns like Contraposition+DeMorgan chains, Implication+Distribution combos
 - Simplification pass collapses excessive negations (~~~~P → P)
@@ -475,7 +507,7 @@ The `formulaToString` function renders formulas with appropriate bracketing for 
 
 ### Command Parser (`utils/proofCommandParser.ts`)
 
-Unified parser supporting 4 command formats with 40+ rule aliases:
+Unified parser supporting 6 command formats with 40+ rule aliases:
 
 **Inference aliases** (15+): MP, modus, ponens, MT, tollens, DS, disj, HS, hyp, syl, Simp, Conj, Add, CD, NegE, contradiction...
 **Equivalence aliases** (11+): DN, DeM, demorgan, morgan, dm, Comm, Assoc, Dist, Contra, contrap, trans, Impl, Exp, Taut, Equiv...
@@ -490,6 +522,14 @@ Unified parser supporting 4 command formats with 40+ rule aliases:
 6. Legacy `//` format → parsed appropriately
 
 `isKnownRule(abbrev)` utility returns `'inference' | 'equivalence' | 'technique' | null`.
+
+### Proof Reorder (`utils/proofReorder.ts`)
+
+Drag-and-drop validation and line reordering logic for FitchBox:
+- `canMoveLine(proof, fromLineNumber, toPosition) -> { valid, reason? }` — Validates move constraints
+- `reorderLines(proof, fromLineNumber, toPosition) -> Proof | null` — Performs reorder with renumbering
+
+**Constraints**: Cannot move premises, assumptions, or subproof conclusions. Line must remain after its dependencies. Dependent lines must remain after the moved line. Line cannot leave its subproof scope. After reorder, all line numbers and justification references are updated.
 
 ### State Management (Zustand)
 
@@ -577,7 +617,7 @@ App (ErrorBoundary wraps all)
 
 **ProofLine / SortableProofLine**: Renders line number, formula (via FormulaDisplay), justification, scope brackets. SortableProofLine wraps with drag handle (⋮⋮) only for draggable lines. Shows validation errors in red with tooltip. Goal badge above line if present.
 
-**RulePalette**: Three sections: Valid Argument Forms (1-8), Equivalence Forms (9-18), Conditional & Indirect Proof. Toggle selection (click deselects). Cross-category deselection. Shows "(click to close)" for open subproof techniques. `subproof-open` CSS class for visual indication.
+**RulePalette**: Three sections: Valid Argument Forms (1-9, including NegE/Contradiction), Equivalence Forms (10-19), Conditional & Indirect Proof. Toggle selection (click deselects). Cross-category deselection. Shows "(click to close)" for open subproof techniques. `subproof-open` CSS class for visual indication.
 
 **FormulaInput**: Controlled input with auto-symbol replacement (two-character first: `<>` → `≡`, then single: `>` → `⊃`, `v`/`V` → `∨`, `&` → `·`, `!` → `~`). Enter submits. Symbol toolbar inserts at cursor position via `inputRef` + `setTimeout` for cursor repositioning.
 
@@ -585,7 +625,7 @@ App (ErrorBoundary wraps all)
 
 **Portfolio**: Three-column layout (entry list | detail | global notepad). Two tabs: Completed (Review + Retry from scratch) and Incomplete (Resume). Incomplete entries have orange left border. Global notepad with 500ms debounced auto-save via `saveTimeoutRef`. Inline name editing with Enter/Escape support. Direct delete without confirmation. Time formatted as "Xm Ys".
 
-**Settings**: Theme selection (Dark, High Contrast). Bracket settings (all conditional on coloredBrackets being enabled): colored brackets toggle, bracket lines toggle, collapsible brackets toggle. Bracket color legend showing all 8 colors. Example formula preview.
+**Settings**: Theme selection (Light Mode, High Contrast). Note: the `'dark'` theme key displays as "Light Mode" in the UI. Bracket settings (all conditional on coloredBrackets being enabled): colored brackets toggle, bracket lines toggle, collapsible brackets toggle. Bracket color legend showing all 8 colors. Example formula preview.
 
 ---
 
@@ -597,7 +637,7 @@ App (ErrorBoundary wraps all)
 | `get_classic_theorems` | - | `Vec<Theorem>` (13 theorems) |
 | `generate_theorem` | `difficulty: Difficulty` | `Theorem` |
 | `generate_theorem_with_value` | `difficulty_value: u8 (1-100)` | `Result<Theorem>` |
-| `generate_theorem_with_proof` | `difficulty: Difficulty` | `GeneratedTheorem` (theorem + proof tree) |
+| `generate_theorem_with_proof` | `difficulty: Difficulty` | `GeneratedTheorem` (theorem + proof tree) | **Note: defined in commands.rs but not registered in lib.rs invoke_handler — currently inaccessible from frontend** |
 
 ### Proof Commands
 | Command | Parameters | Returns |
@@ -707,22 +747,32 @@ Note: All portfolio and storage commands validate that `id` is a valid UUID form
 
 ### Difficulty System
 
-| Tier | Value | Atoms | Transforms | Substitution Depth | Techniques |
-|------|-------|-------|------------|-------------------|------------|
-| Easy | 1-25 | 2 | 1-3 | 0 | None |
-| Medium | 26-45 | 2-3 | 3-6 | 0 | CP optional |
-| Hard | 46-70 | 3-4 | 6-11 | 0 | CP required |
-| Expert | 71-85 | 4-5 | 11-16 | 1 (simple) | CP + CaseSplit |
-| Nightmare | 86-95 | 5 | 16-20 | 2 (nested) | All + gnarly combos |
-| Marathon | 96-100 | 5 | 20-24 | 2 (nested) | All + gnarly combos |
+The following tier presets are defined in `prop-bench/tier-presets.json` and used by the PropBench GUI and API:
+
+| Tier | Atoms | Passes | Transforms | Base Complexity | Substitution Depth | Bridge Atoms | Notes |
+|------|-------|--------|------------|----------------|-------------------|--------------|-------|
+| Easy | 3 | 1 | 5 | Simple | 0 | 0 | Template-based in Tauri app |
+| Medium | 4 | 1 | 10 | Complex | 0 | 0 | Obfuscation-based |
+| Hard | 5 | 1 | 15 | Complex | 2 | 0 | CP required |
+| Expert | 5 | 2 | 15 | Complex | 3 | 0 | CP + CaseSplit |
+| Nightmare | 5 | 3 | 15 | Complex | 4 | 1 | Gnarly combos |
+| Marathon | 6 | 5 | 20 | Complex | 4 | 1 | Gnarly combos |
+| Absurd | 7 | 10 | 20 | Complex | 4 | 1 | Spec-based |
+| Cosmic | 7 | 20 | 24 | Complex | 4 | 2 | Spec-based |
+| Mind | 7 | 50 | 50 | Complex | 10 | 2 | Spec-based, max difficulty |
+
+Note: `DifficultySpec::from_tier()` in Rust provides slightly different fallback values for direct CLI usage without tier-presets.json.
 
 ### Generation Modes
 
-**Easy (template-based):** 9 theme templates (MP, MT, HS, DS, Conj, CP, IP, Mixed) with random atoms.
+**Easy (template-based):** 8 theme templates (MP, MT, HS, DS, Conj, CP, IP, Mixed) with random atoms.
 
 **Medium+ (obfuscation-based — 3 layers):**
 1. **Base Form**: Simple valid argument (7 standard + 3 complex for d≥70)
 2. **Atom Substitution** (d>=70): Replace atoms with complex subformulas from pool partitions (guaranteed coverage, depth controlled by substitution_depth)
+   - **Partition system**: Remaining pool atoms (after base form) are partitioned evenly among base atoms. Each partition includes its original base atom plus assigned pool atoms.
+   - **Bridge atoms**: When `bridge_atoms > 0`, N atoms from the remaining pool are selected as bridges and placed into 2 randomly-chosen distinct partition groups each. This creates shared variables across zones, forcing integrated reasoning instead of decomposition.
+   - **Guaranteed coverage**: Each replacement formula ensures all partition atoms appear at least once via seed + growth strategy.
 3. **Wrap + Transform**: Combine as tautology, apply N equivalence transformations (gnarly combos at d≥85 force hard patterns like Contraposition+DeMorgan chains). **Weighted rule selection**: Distribution and Equivalence rules have 0.2 probability (vs 1.0 for others) to prevent exponential formula growth from duplicating entire subtrees
 
 **Tree Generation (dual-strategy with fallback):**
@@ -732,7 +782,7 @@ Note: All portfolio and storage commands validate that `id` is a valid UUID form
 
 ### Semantic Validation
 
-All generated theorems pass 15 degenerate proof checks:
+All generated theorems pass 14 degenerate proof checks:
 - No contradictory premises or tautological conclusions
 - No single-premise entailment or redundant premises
 - Conclusion negation not directly available
@@ -765,17 +815,26 @@ npm run tauri build  # TypeScript compile + Vite build + Rust build + bundle
 # Backend tests
 cd src-tauri && cargo test
 
-# Service layer tests:
-# - verifier.rs: 18 tests (line validation, scope access, rule verification, case-sensitivity)
-# - storage.rs: 21 tests (security/path traversal, CRUD, export/import, length limits)
-# - generator.rs: 15 tests (config, difficulty mapping, theorem generation)
-# - proof_tree.rs: 17 tests (tree structure, validation, pretty printing)
+# 236 total backend tests:
 # - truth_table.rs: 48 tests (semantic checks, forcing conditions, dynamic bitvector engine)
-# - proof_search.rs: 27 tests (backward search, difficulty requirements, subproof detection)
-# - obfuscate_gen.rs: 28 tests (config scaling, tautology preservation, substitution layers, spec-based generation, variable coverage for Mind/Cosmic tiers)
-# - dependency.rs: 4 tests (cascade invalidation, cycle detection, topological order)
-# - commands.rs: 3 tests (classic theorems, generation, proof completion)
+# - obfuscate_gen.rs: 27 tests (config scaling, tautology preservation, substitution layers, bridge atoms, spec-based generation)
+# - storage.rs: 21 tests (security/path traversal, CRUD, export/import, length limits)
+# - formula.rs: 20 tests (parsing, display, bracket hierarchy, path operations)
+# - verifier.rs: 18 tests (line validation, scope access, rule verification, case-sensitivity)
+# - proof_tree.rs: 17 tests (tree structure, validation, pretty printing)
+# - proof_search.rs: 16 tests (backward search, difficulty requirements, subproof detection)
+# - generator.rs: 15 tests (config, difficulty mapping, theorem generation)
+# - inference.rs: 8 tests (all 9 rules, permutation matching)
+# - equivalence.rs: 8 tests (all 10 rules, bidirectional transforms)
+# - technique.rs: 8 tests (CP, IP, contradiction detection)
 # - tree_gen/builder.rs: 6 tests (generation per difficulty, premises, multiple)
+# - scope.rs: 4 tests (nested scopes, accessibility)
+# - proof.rs: 4 tests (subproofs, auto-close, scope management)
+# - fragments.rs: 4 tests (fragment classification)
+# - dependency.rs: 4 tests (cascade invalidation, cycle detection, topological order)
+# - commands.rs: 4 tests (classic theorems, generation, proof completion)
+# - theorem.rs: 2 tests (difficulty tiers, classic theorems)
+# - statistics.rs: 2 tests (stats tracking, streaks)
 
 # Frontend tests
 npm run test        # Watch mode (Vitest)

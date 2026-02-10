@@ -32,6 +32,7 @@ export interface DifficultySpec {
   transforms_per_pass: number;
   base_complexity: BaseComplexity;
   substitution_depth: number;
+  bridge_atoms?: number;
 }
 
 export interface Theorem {

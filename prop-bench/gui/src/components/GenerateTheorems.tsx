@@ -57,6 +57,7 @@ export default function GenerateTheorems({
     transforms_per_pass: 5,
     base_complexity: "simple",
     substitution_depth: 0,
+    bridge_atoms: 0,
   });
 
   // Max nodes (optional AST node limit)
@@ -348,6 +349,25 @@ export default function GenerateTheorems({
                         disabled={generating}
                       />
                     </label>
+                    <label className="generate-spec-input-item">
+                      <span className="generate-spec-label">Bridge atoms (0+)</span>
+                      <input
+                        type="number"
+                        className="theorem-search"
+                        min={0}
+                        max={5}
+                        value={tierPreview.bridge_atoms ?? 0}
+                        onChange={(e) => {
+                          const val = Math.max(0, parseInt(e.target.value) || 0);
+                          setTierPresets(prev => prev ? {
+                            ...prev,
+                            [tier]: { ...prev[tier], bridge_atoms: val }
+                          } : prev);
+                          setPresetsDirty(true);
+                        }}
+                        disabled={generating}
+                      />
+                    </label>
                   </div>
 
                   {presetsDirty && (
@@ -449,6 +469,20 @@ export default function GenerateTheorems({
                     value={spec.substitution_depth}
                     onChange={(e) =>
                       setSpec((s) => ({ ...s, substitution_depth: Math.max(0, parseInt(e.target.value) || 0) }))
+                    }
+                    disabled={generating}
+                  />
+                </label>
+                <label className="generate-spec-input-item">
+                  <span className="generate-spec-label">Bridge atoms (0+)</span>
+                  <input
+                    type="number"
+                    className="theorem-search"
+                    min={0}
+                    max={5}
+                    value={spec.bridge_atoms ?? 0}
+                    onChange={(e) =>
+                      setSpec((s) => ({ ...s, bridge_atoms: Math.max(0, parseInt(e.target.value) || 0) }))
                     }
                     disabled={generating}
                   />

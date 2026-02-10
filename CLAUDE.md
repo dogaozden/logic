@@ -18,7 +18,7 @@ After implementing any new feature or fix, always build and install the release 
 
 ## Update Documentation
 
-After implementing any new feature or fix, always update documentation.md in /logic-proof-trainer
+After implementing any new feature or fix, *ALWAYS* update documentation.md in /logic-proof-trainer
 
 ## PropBench: Keep GUI in sync with CLI
 

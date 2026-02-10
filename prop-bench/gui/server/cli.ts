@@ -45,15 +45,15 @@ export function loadTierPresets(): Record<string, DifficultySpec> {
   } catch {
     // Hardcoded defaults matching the JSON file
     return {
-      easy: { variables: 2, passes: 1, transforms_per_pass: 2, base_complexity: "simple", substitution_depth: 0 },
-      medium: { variables: 3, passes: 1, transforms_per_pass: 5, base_complexity: "simple", substitution_depth: 0 },
-      hard: { variables: 4, passes: 1, transforms_per_pass: 10, base_complexity: "complex", substitution_depth: 0 },
-      expert: { variables: 5, passes: 1, transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 2 },
-      nightmare: { variables: 5, passes: 2, transforms_per_pass: 12, base_complexity: "complex", substitution_depth: 3 },
-      marathon: { variables: 5, passes: 3, transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 4 },
-      absurd: { variables: 6, passes: 5, transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
-      cosmic: { variables: 7, passes: 10, transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
-      mind: { variables: 7, passes: 20, transforms_per_pass: 24, base_complexity: "complex", substitution_depth: 4 },
+      easy: { variables: 2, passes: 1, transforms_per_pass: 2, base_complexity: "simple", substitution_depth: 0, bridge_atoms: 0 },
+      medium: { variables: 3, passes: 1, transforms_per_pass: 5, base_complexity: "simple", substitution_depth: 0, bridge_atoms: 0 },
+      hard: { variables: 4, passes: 1, transforms_per_pass: 10, base_complexity: "complex", substitution_depth: 0, bridge_atoms: 0 },
+      expert: { variables: 5, passes: 1, transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 2, bridge_atoms: 0 },
+      nightmare: { variables: 5, passes: 2, transforms_per_pass: 12, base_complexity: "complex", substitution_depth: 3, bridge_atoms: 1 },
+      marathon: { variables: 5, passes: 3, transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 4, bridge_atoms: 1 },
+      absurd: { variables: 6, passes: 5, transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4, bridge_atoms: 1 },
+      cosmic: { variables: 7, passes: 10, transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4, bridge_atoms: 2 },
+      mind: { variables: 7, passes: 20, transforms_per_pass: 24, base_complexity: "complex", substitution_depth: 4, bridge_atoms: 2 },
     };
   }
 }
@@ -72,6 +72,7 @@ export interface DifficultySpec {
   transforms_per_pass: number;
   base_complexity: "simple" | "complex";
   substitution_depth: number;
+  bridge_atoms?: number;
 }
 
 export interface GenerateOpts {
@@ -92,13 +93,19 @@ export async function generate(opts: GenerateOpts): Promise<{ path: string; theo
   const presets = loadTierPresets();
 
   // Helper to build spec args
-  const specArgs = (spec: DifficultySpec): string[] => [
-    "--variables", String(spec.variables),
-    "--passes", String(spec.passes),
-    "--transforms", String(spec.transforms_per_pass),
-    "--base", spec.base_complexity,
-    "--substitution", String(spec.substitution_depth),
-  ];
+  const specArgs = (spec: DifficultySpec): string[] => {
+    const args = [
+      "--variables", String(spec.variables),
+      "--passes", String(spec.passes),
+      "--transforms", String(spec.transforms_per_pass),
+      "--base", spec.base_complexity,
+      "--substitution", String(spec.substitution_depth),
+    ];
+    if (spec.bridge_atoms !== undefined && spec.bridge_atoms > 0) {
+      args.push("--bridge-atoms", String(spec.bridge_atoms));
+    }
+    return args;
+  };
 
   // Helper to run one generation call
   const generateBatch = async (count: number, extraArgs: string[], tmpFile: string): Promise<unknown[]> => {
@@ -277,6 +284,8 @@ export interface HarnessOpts {
   count?: number;
   force?: boolean;
   noRetryParse?: boolean;
+  runs?: number;
+  continueRunId?: number;
 }
 
 export function spawnHarness(opts: HarnessOpts): ChildProcess {
@@ -316,6 +325,12 @@ export function spawnHarness(opts: HarnessOpts): ChildProcess {
   }
   if (opts.noRetryParse) {
     args.push("--no-retry-parse");
+  }
+  if (opts.runs !== undefined && opts.runs > 1) {
+    args.push("--runs", String(opts.runs));
+  }
+  if (opts.continueRunId !== undefined) {
+    args.push("--continue-run", String(opts.continueRunId));
   }
 
   // Build child env: inherit process.env and also load .env from project root

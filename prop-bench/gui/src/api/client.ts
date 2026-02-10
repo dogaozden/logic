@@ -55,6 +55,8 @@ export interface StartBenchmarkOpts {
   count?: number;
   force?: boolean;
   noRetryParse?: boolean;
+  runs?: number;
+  continueRunId?: number;
 }
 
 export interface RunInfo {
@@ -176,6 +178,7 @@ export interface IndividualRun {
   maxTokens: number;
   startedAt: string;
   finishedAt: string | null;
+  status?: "Running" | "Finished" | "Incomplete";
   stats: {
     total: number;
     valid: number;

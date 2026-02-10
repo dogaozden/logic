@@ -221,6 +221,10 @@ export class Scorer {
           if (!ra || !rb) continue; // one model didn't attempt this theorem
 
           const scoreA = this.matchScore(ra, rb);
+
+          // Skip Elo update if both models failed (null = no-game)
+          if (scoreA === null) continue;
+
           const scoreB = 1 - scoreA;
 
           const ratingA = ratings.get(a)!;
@@ -239,15 +243,15 @@ export class Scorer {
 
   /**
    * Determine the match score for model A vs B on a single theorem.
-   * Returns 1 for A wins, 0 for B wins, 0.5 for tie.
+   * Returns 1 for A wins, 0 for B wins, 0.5 for tie, null for no-game (both invalid).
    */
-  private matchScore(a: TheoremResult, b: TheoremResult): number {
+  private matchScore(a: TheoremResult, b: TheoremResult): number | null {
     // If one succeeded and the other didn't, success wins
     if (a.valid && !b.valid) return 1;
     if (!a.valid && b.valid) return 0;
 
-    // If both failed, it's a tie
-    if (!a.valid && !b.valid) return 0.5;
+    // If both failed, it's a no-game (skip Elo update)
+    if (!a.valid && !b.valid) return null;
 
     // Both valid — fewer lines wins
     const linesA = a.lineCount!;
@@ -271,6 +275,10 @@ export class Scorer {
           if (!ra || !rb) continue;
 
           const score = this.matchScore(ra, rb);
+
+          // Skip if both models failed (null = no-game)
+          if (score === null) continue;
+
           let winner: string | "tie";
           if (score === 1) winner = a;
           else if (score === 0) winner = b;

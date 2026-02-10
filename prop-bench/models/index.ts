@@ -24,14 +24,13 @@ export interface ModelAdapter {
 }
 
 const ADAPTER_ALIASES: Record<string, () => ModelAdapter> = {
-  gemini: () => new GeminiAdapter(),
-  "gemini-flash": () => new GeminiAdapter(),
-  "gemini-3-flash": () => new GeminiAdapter("gemini-3-flash", "Gemini 3 Flash", "gemini-3-flash-preview"),
-  "gemini-3-pro": () => new GeminiAdapter("gemini-3-pro", "Gemini 3 Pro", "gemini-3-pro-preview"),
-  claude: () => new AnthropicAdapter(),
-  anthropic: () => new AnthropicAdapter(),
-  gpt: () => new OpenAIAdapter(),
-  openai: () => new OpenAIAdapter(),
+  "gemini-2.5-pro": () => new GeminiAdapter("gemini-2.5-pro", "Gemini 2.5 Pro", "gemini-2.5-pro"),
+  "gemini-2.5-flash": () => new GeminiAdapter("gemini-2.5-flash", "Gemini 2.5 Flash", "gemini-2.5-flash"),
+  "gemini-2.5-flash-lite-preview-09-2025": () => new GeminiAdapter(),
+  "gemini-3-flash-preview": () => new GeminiAdapter("gemini-3-flash-preview", "Gemini 3 Flash", "gemini-3-flash-preview"),
+  "gemini-3-pro-preview": () => new GeminiAdapter("gemini-3-pro-preview", "Gemini 3 Pro", "gemini-3-pro-preview"),
+  "claude-sonnet-4-5-20250929": () => new AnthropicAdapter(),
+  "gpt-4o": () => new OpenAIAdapter(),
 };
 
 export function getModel(name: string): ModelAdapter {

@@ -23,6 +23,8 @@ pub struct ObfuscateConfig {
     pub difficulty_value: u8,
     /// Depth of formula substitutions (0 = no substitution, 1-2 = complex formulas)
     pub substitution_depth: usize,
+    /// Number of bridge atoms that appear in multiple substitution partitions
+    pub bridge_atoms: usize,
 }
 
 impl ObfuscateConfig {
@@ -76,6 +78,7 @@ impl ObfuscateConfig {
             difficulty: Self::preset_for_value(d),
             difficulty_value: d,
             substitution_depth,
+            bridge_atoms: 0,
         }
     }
 
@@ -97,6 +100,7 @@ impl ObfuscateConfig {
             difficulty: Difficulty::Expert, // All spec-based generation uses Expert as base
             difficulty_value: 100, // Max value — spec controls actual complexity
             substitution_depth: spec.substitution_depth as usize,
+            bridge_atoms: spec.bridge_atoms.unwrap_or(0) as usize,
         }
     }
 }
@@ -652,18 +656,64 @@ impl ObfuscateGenerator {
                 group
             }).collect()
         } else {
-            // Partition evenly, distributing leftovers to the first groups
-            let chunk_size = remaining.len() / base_atoms.len();
-            let leftover = remaining.len() % base_atoms.len();
+            // Separate bridge atoms from remaining pool
+            let bridge_count = self.config.bridge_atoms.min(remaining.len());
+            let (bridges, non_bridge): (Vec<String>, Vec<String>) = if bridge_count > 0 && base_atoms.len() >= 2 {
+                // Shuffle remaining and take first bridge_count as bridges
+                let mut shuffled_remaining = remaining.clone();
+                for i in (1..shuffled_remaining.len()).rev() {
+                    let j = rng.gen_range(0..=i);
+                    shuffled_remaining.swap(i, j);
+                }
+                let bridges: Vec<String> = shuffled_remaining[..bridge_count].to_vec();
+                let non_bridge: Vec<String> = shuffled_remaining[bridge_count..].to_vec();
+                (bridges, non_bridge)
+            } else {
+                (vec![], remaining.clone())
+            };
+
+            // Partition non_bridge atoms evenly, distributing leftovers to the first groups
+            let partition_source = &non_bridge;
             let mut groups = Vec::new();
-            let mut offset = 0;
-            for i in 0..base_atoms.len() {
-                let size = chunk_size + if i < leftover { 1 } else { 0 };
-                let mut group = vec![base_atoms[i].clone()];
-                group.extend_from_slice(&remaining[offset..offset + size]);
-                offset += size;
-                groups.push(group);
+            if partition_source.is_empty() {
+                // All remaining atoms are bridges; each group gets just its base atom
+                for i in 0..base_atoms.len() {
+                    groups.push(vec![base_atoms[i].clone()]);
+                }
+            } else if partition_source.len() < base_atoms.len() {
+                // Not enough non-bridge atoms to partition: give each base atom the full non-bridge pool + itself
+                for i in 0..base_atoms.len() {
+                    let mut group = vec![base_atoms[i].clone()];
+                    group.extend(partition_source.clone());
+                    groups.push(group);
+                }
+            } else {
+                let chunk_size = partition_source.len() / base_atoms.len();
+                let leftover = partition_source.len() % base_atoms.len();
+                let mut offset = 0;
+                for i in 0..base_atoms.len() {
+                    let size = chunk_size + if i < leftover { 1 } else { 0 };
+                    let mut group = vec![base_atoms[i].clone()];
+                    group.extend_from_slice(&partition_source[offset..offset + size]);
+                    offset += size;
+                    groups.push(group);
+                }
             }
+
+            // Add each bridge atom to 2 randomly-chosen distinct groups
+            for bridge in &bridges {
+                if groups.len() >= 2 {
+                    let mut indices: Vec<usize> = (0..groups.len()).collect();
+                    // Shuffle and pick first 2
+                    for i in (1..indices.len()).rev() {
+                        let j = rng.gen_range(0..=i);
+                        indices.swap(i, j);
+                    }
+                    groups[indices[0]].push(bridge.clone());
+                    groups[indices[1]].push(bridge.clone());
+                }
+            }
+
             groups
         };
 
@@ -1576,6 +1626,7 @@ mod tests {
             base_complexity: BaseComplexity::Complex,
             substitution_depth: 2,
             max_formula_nodes: None,
+            bridge_atoms: None,
         });
         let gen = ObfuscateGenerator::new(config);
         let mut rng = rand::thread_rng();
@@ -1616,5 +1667,69 @@ mod tests {
                 base_atoms, result_atoms
             );
         }
+    }
+
+    #[test]
+    fn test_bridge_atoms_create_cross_zone_atoms() {
+        use crate::models::theorem::{DifficultySpec, BaseComplexity};
+
+        let spec = DifficultySpec {
+            variables: 7,
+            passes: 1,
+            transforms_per_pass: 2,
+            base_complexity: BaseComplexity::Complex,
+            substitution_depth: 2,
+            max_formula_nodes: None,
+            bridge_atoms: Some(2),
+        };
+
+        let config = ObfuscateConfig::from_spec(&spec);
+        assert_eq!(config.bridge_atoms, 2);
+
+        let mut rng = rand::thread_rng();
+        // Generate several theorems and verify they're all valid tautologies
+        for _ in 0..10 {
+            let theorem = ObfuscateGenerator::generate_with_spec(&spec, &mut rng);
+            assert!(
+                is_tautology_dynamic(&theorem.conclusion),
+                "Bridge atoms should not break tautology preservation"
+            );
+        }
+    }
+
+    #[test]
+    fn test_bridge_atoms_zero_matches_no_bridge() {
+        use crate::models::theorem::{DifficultySpec, BaseComplexity};
+
+        let spec = DifficultySpec {
+            variables: 5,
+            passes: 1,
+            transforms_per_pass: 5,
+            base_complexity: BaseComplexity::Simple,
+            substitution_depth: 1,
+            max_formula_nodes: None,
+            bridge_atoms: Some(0),
+        };
+
+        let mut rng = rand::thread_rng();
+        for _ in 0..5 {
+            let theorem = ObfuscateGenerator::generate_with_spec(&spec, &mut rng);
+            assert!(
+                is_tautology_dynamic(&theorem.conclusion),
+                "Zero bridge atoms should work identically to no bridges"
+            );
+        }
+    }
+
+    #[test]
+    fn test_tier_bridge_atom_defaults() {
+        use crate::models::theorem::{DifficultySpec, DifficultyTier};
+
+        assert_eq!(DifficultySpec::from_tier(DifficultyTier::Easy).bridge_atoms, Some(0));
+        assert_eq!(DifficultySpec::from_tier(DifficultyTier::Expert).bridge_atoms, Some(0));
+        assert_eq!(DifficultySpec::from_tier(DifficultyTier::Nightmare).bridge_atoms, Some(1));
+        assert_eq!(DifficultySpec::from_tier(DifficultyTier::Marathon).bridge_atoms, Some(1));
+        assert_eq!(DifficultySpec::from_tier(DifficultyTier::Cosmic).bridge_atoms, Some(2));
+        assert_eq!(DifficultySpec::from_tier(DifficultyTier::Mind).bridge_atoms, Some(2));
     }
 }

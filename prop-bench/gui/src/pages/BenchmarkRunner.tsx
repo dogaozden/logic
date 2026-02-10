@@ -21,9 +21,25 @@ function BenchmarkRunner() {
     count: "",
     force: false,
     noRetryParse: true,
+    runs: 1,
+    continueRunId: null,
   });
 
   const handleStart = useCallback(async () => {
+    // Continue-run mode: only pass continueRunId and workers
+    if (config.continueRunId != null) {
+      await runner.start({
+        continueRunId: config.continueRunId,
+        workers: config.workers != null && config.workers > 1 ? config.workers : undefined,
+        // These are required by the type but ignored by the server in continue mode
+        models: [],
+        theoremSet: "",
+        temperature: 0,
+        maxTokens: 0,
+      });
+      return;
+    }
+
     const countNum = config.count.trim()
       ? parseInt(config.count.trim(), 10)
       : undefined;
@@ -38,6 +54,7 @@ function BenchmarkRunner() {
       count: Number.isFinite(countNum) ? countNum : undefined,
       force: config.force || undefined,
       noRetryParse: config.noRetryParse || undefined,
+      runs: config.runs > 1 ? config.runs : undefined,
     });
   }, [config, runner]);
 

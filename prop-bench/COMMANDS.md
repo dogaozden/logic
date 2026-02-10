@@ -40,23 +40,23 @@ The generate command supports three modes: **distribution** (legacy), **tier pre
 # Custom spec mode — full control over generation parameters
 ./target/release/propbench generate \
   --variables 10 --passes 3 --transforms 15 \
-  --base complex --substitution 3 \
+  --base complex --substitution 3 --bridge-atoms 1 \
   --count 20 --output custom.json
 ```
 
 ### Difficulty tiers
 
-| Tier       | Vars | Passes | Transforms/pass | Base    | Substitution |
-|------------|------|--------|-----------------|---------|-------------|
-| Easy       | 2    | 1      | 2               | simple  | 0           |
-| Medium     | 3    | 1      | 5               | simple  | 0           |
-| Hard       | 4    | 1      | 10              | complex | 0           |
-| Expert     | 5    | 1      | 15              | complex | 2           |
-| Nightmare  | 5    | 2      | 12              | complex | 3           |
-| Marathon   | 5    | 3      | 15              | complex | 4           |
-| Absurd     | 8    | 5      | 20              | complex | 4           |
-| Cosmic     | 15   | 10     | 20              | complex | 4           |
-| Mind       | 20   | 20     | 24              | complex | 4           |
+| Tier       | Vars | Passes | Transforms/pass | Base    | Substitution | Bridge Atoms |
+|------------|------|--------|-----------------|---------|-------------|--------------|
+| Easy       | 3    | 1      | 5               | simple  | 0           | 0            |
+| Medium     | 4    | 1      | 10              | complex | 0           | 0            |
+| Hard       | 5    | 1      | 15              | complex | 2           | 0            |
+| Expert     | 5    | 2      | 15              | complex | 3           | 0            |
+| Nightmare  | 5    | 3      | 15              | complex | 4           | 1            |
+| Marathon   | 6    | 5      | 20              | complex | 4           | 1            |
+| Absurd     | 7    | 10     | 20              | complex | 4           | 1            |
+| Cosmic     | 7    | 20     | 24              | complex | 4           | 2            |
+| Mind       | 7    | 50     | 50              | complex | 10          | 2            |
 
 ### DifficultySpec fields
 
@@ -67,6 +67,7 @@ The generate command supports three modes: **distribution** (legacy), **tier pre
 | `transforms_per_pass` | 1-24 | Random equivalence transforms applied per pass |
 | `base_complexity`   | simple/complex | `simple` = standard base forms, `complex` = includes ConstructiveDilemmaFull, NestedCP, Chain4 |
 | `substitution_depth` | 0-4  | Depth of atom-to-formula substitutions (0 = none) |
+| `bridge_atoms`      | 0-5   | Number of bridge atoms for cross-zone interdependencies (0 = none) |
 
 ### Validate a proof
 
@@ -123,40 +124,47 @@ The generate command supports three modes: **distribution** (legacy), **tier pre
 # Run against a single model
 npx ts-node harness.ts \
   --theorems benchmarks/v1/theorems.json \
-  --models gemini \
+  --models gemini-2.5-flash-lite-preview-09-2025 \
   --propbench-bin ./target/release/propbench
 
 # Run against multiple models
 npx ts-node harness.ts \
   --theorems benchmarks/v1/theorems.json \
-  --models gemini,claude,gpt \
+  --models gemini-2.5-flash-lite-preview-09-2025,claude-sonnet-4-5-20250929,gpt-4o \
   --propbench-bin ./target/release/propbench
 
 # Run a subset of theorems (e.g., first 10)
 npx ts-node harness.ts \
   --theorems benchmarks/v1/theorems.json \
-  --models gemini \
+  --models gemini-2.5-flash-lite-preview-09-2025 \
   --start 0 --count 10 \
   --propbench-bin ./target/release/propbench
 
 # Custom output directory
 npx ts-node harness.ts \
   --theorems benchmarks/v1/theorems.json \
-  --models gemini \
+  --models gemini-2.5-flash-lite-preview-09-2025 \
   --output my_results/ \
   --propbench-bin ./target/release/propbench
 
 # Run with parallel workers
 npx ts-node harness.ts \
   --theorems benchmarks/v1/theorems.json \
-  --models gemini \
+  --models gemini-2.5-flash-lite-preview-09-2025 \
   --workers 5 \
+  --propbench-bin ./target/release/propbench
+
+# Run multiple sequential runs (best of N)
+npx ts-node harness.ts \
+  --theorems benchmarks/v1/theorems.json \
+  --models gemini-2.5-flash-lite-preview-09-2025 \
+  --runs 3 \
   --propbench-bin ./target/release/propbench
 
 # Adjust model parameters
 npx ts-node harness.ts \
   --theorems benchmarks/v1/theorems.json \
-  --models claude \
+  --models claude-sonnet-4-5-20250929 \
   --temperature 0.0 \
   --max-tokens 8192 \
   --propbench-bin ./target/release/propbench
@@ -167,18 +175,38 @@ npx ts-node harness.ts \
 | Argument | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `--theorems <path>` | Yes | — | Path to theorem set JSON |
-| `--models <list>` | Yes | — | Comma-separated: `gemini`, `claude`, `gpt` |
+| `--models <list>` | Yes | — | Comma-separated full model identifiers (see Model Identifiers table below) |
 | `--output <dir>` | No | `results/` | Output directory for results |
 | `--start <n>` | No | `0` | Start at theorem index n |
 | `--count <n>` | No | all | Process only n theorems |
 | `--propbench-bin <path>` | No | `propbench` | Path to the Rust CLI binary |
 | `--workers <n>` | No | `1` | Number of parallel API workers |
+| `--runs <n>` | No | `1` | Run the full benchmark N times back-to-back (each subsequent run uses force mode) |
 | `--temperature <n>` | No | `0.2` | Model temperature |
-| `--max-tokens <n>` | No | `4096` | Max tokens for model response |
+| `--max-tokens <n>` | No | `16384` | Max tokens for model response |
+| `--force` | No | off | Force new run — don't skip completed theorems |
+| `--no-retry-parse` | No | off | Don't retry parse errors — treat unparseable model output as a final result |
+| `--continue-run <id>` | No | — | Continue an incomplete run by its DB run ID |
 
 ### Resume interrupted runs
 
 The harness automatically detects completed theorem+model pairs in the output directory and skips them. Just re-run the same command to resume.
+
+### Continue incomplete runs
+
+If a run was interrupted (rate limits, tab switching, etc.), you can resume it by its database run ID using `--continue-run`. This loads the run's original settings and only processes theorems that don't already have results.
+
+```bash
+# Continue run #42 with 3 parallel workers
+npx ts-node harness.ts \
+  --theorems benchmarks/v1/theorems.json \
+  --models gemini-3-pro-preview \
+  --continue-run 42 \
+  --workers 3 \
+  --propbench-bin ./target/release/propbench
+```
+
+The `--theorems` and `--models` flags are still required (passed by the GUI server from the run's DB record). The `--workers` flag can be changed. All other settings (temperature, max tokens) are loaded from the original run record.
 
 ## Environment Variables
 
@@ -210,19 +238,24 @@ export OPENAI_API_KEY="your-key-here"
 | `ANTHROPIC_API_KEY` | `--models claude` | Anthropic API key |
 | `OPENAI_API_KEY` | `--models gpt` | OpenAI API key |
 
-## Model Aliases
+## Model Identifiers
 
 **IMPORTANT:** When changing model names, defaults, or CLI arguments, always update the GUI to match. See `CLAUDE.md` for the "PropBench: Keep GUI in sync with CLI" rule.
 
-| Alias | Provider | Default Model | SDK |
-|-------|----------|---------------|-----|
-| `gemini`, `gemini-flash` | Google | `gemini-2.5-flash-lite-preview-09-2025` | `@google/genai` v1.0.0 |
-| `gemini-3-flash` | Google | `gemini-3-flash-preview` | `@google/genai` v1.0.0 |
-| `gemini-3-pro` | Google | `gemini-3-pro-preview` | `@google/genai` v1.0.0 |
-| `claude`, `anthropic` | Anthropic | `claude-sonnet-4-5-20250929` | `@anthropic-ai/sdk` v0.39.0 |
-| `gpt`, `openai` | OpenAI | `gpt-4o` | `openai` v4.77.0 |
+**Note:** Short aliases (gemini, claude, gpt, etc.) have been removed. Only full model identifiers are now accepted.
 
-**v2.5 Changes:**
+| Full Model Identifier | Provider | SDK |
+|-----------------------|----------|-----|
+| `gemini-2.5-pro` | Google | `@google/genai` v1.0.0 |
+| `gemini-2.5-flash` | Google | `@google/genai` v1.0.0 |
+| `gemini-2.5-flash-lite-preview-09-2025` | Google | `@google/genai` v1.0.0 |
+| `gemini-3-flash-preview` | Google | `@google/genai` v1.0.0 |
+| `gemini-3-pro-preview` | Google | `@google/genai` v1.0.0 |
+| `claude-sonnet-4-5-20250929` | Anthropic | `@anthropic-ai/sdk` v0.39.0 |
+| `gpt-4o` | OpenAI | `openai` v4.77.0 |
+
+**Recent Changes:**
+- Removed short aliases — only full model identifiers accepted now
 - Gemini: migrated from `@google/generative-ai` to `@google/genai` SDK
 - Gemini: default model changed from `gemini-2.0-flash` to `gemini-2.5-flash-lite-preview-09-2025`
 - Gemini: constructor changed from `new GoogleGenerativeAI(apiKey)` to `new GoogleGenAI({ apiKey })`
@@ -375,6 +408,30 @@ cargo test
 # Build Rust in debug mode
 cargo build
 ```
+
+## Recent Improvements (v3+)
+
+### v3.3+ Changes
+
+**Elo system fix:** "Both failed" matchups are now skipped (no-game) instead of counted as ties. This prevents rating dilution when most models fail most theorems. Changed in `scorer.ts` (`matchScore` returns `null` for both-invalid) and `db.ts` (`getHeadToHeadMatrix` skips both-invalid).
+
+**Elo bar chart fix:** EloChart.tsx now uses pixel-based bar heights within a fixed 170px bar area, preventing flex shrinking from making bars appear the same height.
+
+**Full model names:** Removed short aliases (gemini, claude, gpt, etc.) from `models/index.ts`. Only full model identifiers accepted now: `gemini-2.5-flash-lite-preview-09-2025`, `gemini-3-flash-preview`, `gemini-3-pro-preview`, `claude-sonnet-4-5-20250929`, `gpt-4o`. Adapter `name` fields updated to match.
+
+**Run completion tracking:** Runs are now dynamically classified as "Running", "Finished", or "Incomplete" based on whether result count matches theorem count. Incomplete runs are excluded from the combined/aggregate view (scorecards, Elo, head-to-head). Only models with at least one complete run appear in the combined view.
+
+**Run resumption:** When `--force` is NOT set, the harness reuses the most recent existing run_id for the same set+model combo via `findOrCreateRun()`. Results accumulate under the same run.
+
+**Multiple Sequential Runs:** New `--runs N` flag runs the full benchmark N times back-to-back. Each subsequent run uses force mode. GUI has a "Sequential Runs" input.
+
+**SSE reconnection:** Browser tab switching no longer loses benchmark progress. Client auto-reconnects SSE after 2 seconds, server resumes streaming from current state.
+
+**Combined view deduplication:** Set-level and global model summaries now use a CTE with `ROW_NUMBER()` to keep only the latest result per theorem+model, preventing double-counting from multiple runs.
+
+**Run count in scorecards:** Model scorecards now show how many runs exist for each model.
+
+**Hardest theorems limit:** Increased from 15 to 30.
 
 ## Recent Improvements (v2.5)
 

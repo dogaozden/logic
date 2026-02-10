@@ -62,6 +62,8 @@ interface CliArgs {
   workers: number;
   force: boolean;
   noRetryParse: boolean;
+  runs: number;
+  continueRunId: number | null;
 }
 
 function parseArgs(): CliArgs {
@@ -77,6 +79,8 @@ function parseArgs(): CliArgs {
     workers: 1,
     force: false,
     noRetryParse: false,
+    runs: 1,
+    continueRunId: null,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -111,6 +115,12 @@ function parseArgs(): CliArgs {
       case "--no-retry-parse":
         parsed.noRetryParse = true;
         break;
+      case "--runs":
+        parsed.runs = parseInt(args[++i], 10);
+        break;
+      case "--continue-run":
+        parsed.continueRunId = parseInt(args[++i], 10);
+        break;
       default:
         console.error(`Unknown argument: ${args[i]}`);
         printUsage();
@@ -143,6 +153,8 @@ Options:
   --workers <n>             Number of parallel API calls (default: 1)
   --force                   Force new run (don't skip completed theorems)
   --no-retry-parse          Don't retry parse errors (treat as final result)
+  --runs <n>                Run the full benchmark N times sequentially (default: 1)
+  --continue-run <id>       Continue an incomplete run by its DB run ID
 `);
 }
 
@@ -363,182 +375,377 @@ async function run(): Promise<void> {
     }
   });
 
-  // Create run records for each model
-  const runIds = new Map<string, number>();
-  for (const adapter of adapters) {
-    const runId = db.createRun(setName, adapter.name, args.temperature, args.maxTokens);
-    runIds.set(adapter.name, runId);
-  }
+  // --continue-run mode: skip sequential runs loop, use existing run ID
+  if (args.continueRunId !== null) {
+    console.log(`Continuing incomplete run #${args.continueRunId}`);
+    console.log();
 
-  // Stats
-  let totalRun = 0;
-  let totalSkipped = 0;
-  let totalValid = 0;
-  let totalInvalid = 0;
-  let totalErrors = 0;
+    const continueRunId = args.continueRunId;
 
-  // Build flat list of all work items
-  const workItems: WorkItem[] = [];
-  let itemNumber = 0;
-  for (let ti = 0; ti < benchTheorems.length; ti++) {
-    for (let ai = 0; ai < adapters.length; ai++) {
-      itemNumber++;
-      const key = resultKey(benchTheorems[ti].id, adapters[ai].name);
-      if (!args.force && state.completed.has(key)) {
-        totalSkipped++;
-        console.log(
-          `[${itemNumber}/${benchTheorems.length * adapters.length}] ${benchTheorems[ti].id} x ${adapters[ai].name} — SKIPPED (already done)`
-        );
-        continue;
-      }
-      workItems.push({ theoremIndex: ti, adapterIndex: ai, itemNumber });
+    // Reset finished_at so it shows as "Running"
+    db.resetRunFinished(continueRunId);
+
+    // Load completed theorems for this specific run
+    const completedTheorems = db.getRunCompletedTheorems(continueRunId);
+    console.log(`Found ${completedTheorems.size} already-completed theorems in run #${continueRunId}`);
+
+    // Create run IDs map (only one model in continue mode)
+    const runIds = new Map<string, number>();
+    for (const adapter of adapters) {
+      runIds.set(adapter.name, continueRunId);
     }
-  }
 
-  const totalItems = benchTheorems.length * adapters.length;
+    // Stats
+    let totalRun = 0;
+    let totalSkipped = 0;
+    let totalValid = 0;
+    let totalInvalid = 0;
+    let totalErrors = 0;
 
-  const MAX_ATTEMPTS = 10; // retry API errors up to 10 times before giving up
-  const MAX_PARSE_ATTEMPTS = 3; // retry parse errors up to 3 times before giving up
-
-  // Process work items with concurrency limiter
-  async function processWorkItem(item: WorkItem): Promise<void> {
-    const benchThm = benchTheorems[item.theoremIndex];
-    const adapter = adapters[item.adapterIndex];
-    const theorem = toTheorem(benchThm);
-    const progress = `[${item.itemNumber}/${totalItems}]`;
-
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      if (attempt > 1) {
-        // Exponential backoff capped at 30s
-        const delay = Math.min(1000 * Math.pow(2, attempt - 2), 30_000);
-        console.log(`${progress} ${benchThm.id} x ${adapter.displayName} — retrying (attempt ${attempt}) after ${delay}ms...`);
-        await new Promise((r) => setTimeout(r, delay));
-      } else {
-        console.log(
-          `${progress} ${benchThm.id} x ${adapter.displayName} — running...`
-        );
-      }
-
-      const result: BenchmarkResult = {
-        theorem_id: benchThm.id,
-        model: adapter.name,
-        model_name: adapter.displayName,
-        raw_response: "",
-        parsed_proof: null,
-        parse_error: null,
-        validation_result: "error",
-        validation_errors: [],
-        line_count: null,
-        latency_ms: 0,
-        tokens_used: undefined,
-        timestamp: new Date().toISOString(),
-      };
-
-      const modelConfig: ModelConfig = {
-        model: "",
-        temperature: args.temperature,
-        maxTokens: args.maxTokens,
-      };
-
-      // Step 1: Build prompt
-      let prompt: string;
-      try {
-        prompt = promptForTheorem(theorem);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        result.validation_errors = [`Prompt build error: ${msg}`];
-        // Prompt errors are deterministic — no point retrying
-        try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
-        totalErrors++;
-        console.log(`  -> PROMPT ERROR: ${msg}`);
-        return;
-      }
-
-      // Step 2: Call model API
-      let response: ModelResponse;
-      try {
-        response = await adapter.callModel(prompt, modelConfig);
-        result.raw_response = response.raw_response;
-        result.latency_ms = response.latency_ms;
-        result.model_name = response.model;
-        result.tokens_used = response.tokens_used;
-        result.finish_reason = response.finish_reason;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        result.validation_errors = [`API error: ${msg}`];
-        if (attempt < MAX_ATTEMPTS) {
-          console.log(`  -> API ERROR (will retry): ${msg}`);
+    // Build flat list of work items, skipping completed theorems
+    const workItems: WorkItem[] = [];
+    let itemNumber = 0;
+    for (let ti = 0; ti < benchTheorems.length; ti++) {
+      for (let ai = 0; ai < adapters.length; ai++) {
+        itemNumber++;
+        if (completedTheorems.has(benchTheorems[ti].id)) {
+          totalSkipped++;
+          console.log(
+            `[${itemNumber}/${benchTheorems.length * adapters.length}] ${benchTheorems[ti].id} x ${adapters[ai].name} — SKIPPED (already done)`
+          );
           continue;
         }
-        try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
-        totalErrors++;
-        console.log(`  -> API ERROR (gave up after ${MAX_ATTEMPTS} attempts): ${msg}`);
+        workItems.push({ theoremIndex: ti, adapterIndex: ai, itemNumber });
+      }
+    }
+
+    const totalItems = benchTheorems.length * adapters.length;
+
+    const MAX_ATTEMPTS = 10;
+    const MAX_PARSE_ATTEMPTS = 3;
+
+    async function processWorkItem(item: WorkItem): Promise<void> {
+      const benchThm = benchTheorems[item.theoremIndex];
+      const adapter = adapters[item.adapterIndex];
+      const theorem = toTheorem(benchThm);
+      const progress = `[${item.itemNumber}/${totalItems}]`;
+
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        if (attempt > 1) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 2), 30_000);
+          console.log(`${progress} ${benchThm.id} x ${adapter.displayName} — retrying (attempt ${attempt}) after ${delay}ms...`);
+          await new Promise((r) => setTimeout(r, delay));
+        } else {
+          console.log(`${progress} ${benchThm.id} x ${adapter.displayName} — running...`);
+        }
+
+        const result: BenchmarkResult = {
+          theorem_id: benchThm.id,
+          model: adapter.name,
+          model_name: adapter.displayName,
+          raw_response: "",
+          parsed_proof: null,
+          parse_error: null,
+          validation_result: "error",
+          validation_errors: [],
+          line_count: null,
+          latency_ms: 0,
+          tokens_used: undefined,
+          timestamp: new Date().toISOString(),
+        };
+
+        const modelConfig: ModelConfig = {
+          model: "",
+          temperature: args.temperature,
+          maxTokens: args.maxTokens,
+        };
+
+        let prompt: string;
+        try {
+          prompt = promptForTheorem(theorem);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          result.validation_errors = [`Prompt build error: ${msg}`];
+          try { db.insertResult(setName, result, continueRunId); } catch {}
+          totalErrors++;
+          console.log(`  -> PROMPT ERROR: ${msg}`);
+          return;
+        }
+
+        let response: ModelResponse;
+        try {
+          response = await adapter.callModel(prompt, modelConfig);
+          result.raw_response = response.raw_response;
+          result.latency_ms = response.latency_ms;
+          result.model_name = response.model;
+          result.tokens_used = response.tokens_used;
+          result.finish_reason = response.finish_reason;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          result.validation_errors = [`API error: ${msg}`];
+          if (attempt < MAX_ATTEMPTS) {
+            console.log(`  -> API ERROR (will retry): ${msg}`);
+            continue;
+          }
+          try { db.insertResult(setName, result, continueRunId); } catch {}
+          totalErrors++;
+          console.log(`  -> API ERROR (gave up after ${MAX_ATTEMPTS} attempts): ${msg}`);
+          return;
+        }
+
+        const { proof, error: parseError } = parseModelResponse(response.raw_response, theorem);
+        if (parseError || !proof) {
+          result.parse_error = parseError;
+          result.validation_result = "error";
+          result.validation_errors = [parseError ?? "Unknown parse error"];
+          if (!args.noRetryParse && attempt < MAX_PARSE_ATTEMPTS) {
+            console.log(`  -> PARSE ERROR (will retry): ${parseError}`);
+            continue;
+          }
+          try { db.insertResult(setName, result, continueRunId); } catch {}
+          totalErrors++;
+          console.log(`  -> PARSE ERROR (gave up after ${attempt} attempts): ${parseError}`);
+          return;
+        }
+        result.parsed_proof = proof;
+
+        const { valid, line_count, errors } = await validateProof(benchThm, proof, args.propbenchBin);
+        result.validation_result = valid ? "valid" : "invalid";
+        result.validation_errors = errors;
+        result.line_count = valid ? line_count : null;
+
+        try { db.insertResult(setName, result, continueRunId); } catch {}
+        totalRun++;
+
+        if (valid) {
+          totalValid++;
+          console.log(`  -> VALID (${proof.length} lines, ${result.latency_ms}ms)`);
+        } else {
+          totalInvalid++;
+          console.log(`  -> INVALID: ${errors.slice(0, 2).join("; ")}${errors.length > 2 ? ` (+${errors.length - 2} more)` : ""}`);
+        }
         return;
       }
+    }
 
-      // Step 3: Parse response
-      const { proof, error: parseError } = parseModelResponse(
-        response.raw_response,
-        theorem
-      );
-      if (parseError || !proof) {
-        result.parse_error = parseError;
-        result.validation_result = "error";
-        result.validation_errors = [parseError ?? "Unknown parse error"];
-        if (!args.noRetryParse && attempt < MAX_PARSE_ATTEMPTS) {
-          console.log(`  -> PARSE ERROR (will retry): ${parseError}`);
+    await runWithConcurrency(workItems, args.workers, processWorkItem);
+
+    // Mark run as finished
+    try { db.finishRun(continueRunId); } catch {}
+
+    console.log();
+    console.log("=== Summary ===");
+    console.log(`Run:     ${totalRun}`);
+    console.log(`Skipped: ${totalSkipped}`);
+    console.log(`Valid:   ${totalValid}`);
+    console.log(`Invalid: ${totalInvalid}`);
+    console.log(`Errors:  ${totalErrors}`);
+    console.log();
+
+    return; // Done — skip the normal sequential runs loop
+  }
+
+  const totalRuns = args.runs;
+  if (totalRuns > 1) {
+    console.log(`Sequential runs: ${totalRuns}`);
+    console.log();
+  }
+
+  for (let runIteration = 1; runIteration <= totalRuns; runIteration++) {
+    if (totalRuns > 1) {
+      console.log(`\n=== Sequential Run ${runIteration}/${totalRuns} ===\n`);
+    }
+
+    // For the first run, use normal behavior (resume if not forced).
+    // For runs 2+, always force (create new run records).
+    const forceThisRun = runIteration === 1 ? args.force : true;
+
+    // Create or resume run records for each model
+    const runIds = new Map<string, number>();
+    for (const adapter of adapters) {
+      const runId = forceThisRun
+        ? db.createRun(setName, adapter.name, args.temperature, args.maxTokens)
+        : db.findOrCreateRun(setName, adapter.name, args.temperature, args.maxTokens);
+      runIds.set(adapter.name, runId);
+    }
+
+    // Stats (reset for each sequential run)
+    let totalRun = 0;
+    let totalSkipped = 0;
+    let totalValid = 0;
+    let totalInvalid = 0;
+    let totalErrors = 0;
+
+    // Load run state for resume support (only for first run when not forcing)
+    const currentState = (runIteration === 1 && !args.force) ? state : { completed: new Set<string>() };
+
+    // Build flat list of all work items
+    const workItems: WorkItem[] = [];
+    let itemNumber = 0;
+    for (let ti = 0; ti < benchTheorems.length; ti++) {
+      for (let ai = 0; ai < adapters.length; ai++) {
+        itemNumber++;
+        const key = resultKey(benchTheorems[ti].id, adapters[ai].name);
+        if (!forceThisRun && currentState.completed.has(key)) {
+          totalSkipped++;
+          console.log(
+            `[${itemNumber}/${benchTheorems.length * adapters.length}] ${benchTheorems[ti].id} x ${adapters[ai].name} — SKIPPED (already done)`
+          );
           continue;
         }
-        try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
-        totalErrors++;
-        console.log(`  -> PARSE ERROR (gave up after ${attempt} attempts): ${parseError}`);
-        return;
+        workItems.push({ theoremIndex: ti, adapterIndex: ai, itemNumber });
       }
-      result.parsed_proof = proof;
-
-      // Step 4: Validate via CLI
-      const { valid, line_count, errors } = await validateProof(
-        benchThm,
-        proof,
-        args.propbenchBin
-      );
-      result.validation_result = valid ? "valid" : "invalid";
-      result.validation_errors = errors;
-      result.line_count = valid ? line_count : null;
-
-      try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
-      totalRun++;
-
-      if (valid) {
-        totalValid++;
-        console.log(`  -> VALID (${proof.length} lines, ${result.latency_ms}ms)`);
-      } else {
-        // Invalid proofs are final results, NOT errors — don't retry
-        totalInvalid++;
-        console.log(
-          `  -> INVALID: ${errors.slice(0, 2).join("; ")}${errors.length > 2 ? ` (+${errors.length - 2} more)` : ""}`
-        );
-      }
-      return; // Got a result (valid or invalid) — done
     }
-  }
 
-  await runWithConcurrency(workItems, args.workers, processWorkItem);
+    const totalItems = benchTheorems.length * adapters.length;
 
-  // Mark all runs as finished
-  for (const runId of runIds.values()) {
-    try { db.finishRun(runId); } catch {}
-  }
+    const MAX_ATTEMPTS = 10; // retry API errors up to 10 times before giving up
+    const MAX_PARSE_ATTEMPTS = 3; // retry parse errors up to 3 times before giving up
 
-  // Summary
-  console.log();
-  console.log("=== Summary ===");
-  console.log(`Run:     ${totalRun}`);
-  console.log(`Skipped: ${totalSkipped}`);
-  console.log(`Valid:   ${totalValid}`);
-  console.log(`Invalid: ${totalInvalid}`);
-  console.log(`Errors:  ${totalErrors}`);
-  console.log();
+    // Process work items with concurrency limiter
+    async function processWorkItem(item: WorkItem): Promise<void> {
+      const benchThm = benchTheorems[item.theoremIndex];
+      const adapter = adapters[item.adapterIndex];
+      const theorem = toTheorem(benchThm);
+      const progress = `[${item.itemNumber}/${totalItems}]`;
+
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        if (attempt > 1) {
+          // Exponential backoff capped at 30s
+          const delay = Math.min(1000 * Math.pow(2, attempt - 2), 30_000);
+          console.log(`${progress} ${benchThm.id} x ${adapter.displayName} — retrying (attempt ${attempt}) after ${delay}ms...`);
+          await new Promise((r) => setTimeout(r, delay));
+        } else {
+          console.log(
+            `${progress} ${benchThm.id} x ${adapter.displayName} — running...`
+          );
+        }
+
+        const result: BenchmarkResult = {
+          theorem_id: benchThm.id,
+          model: adapter.name,
+          model_name: adapter.displayName,
+          raw_response: "",
+          parsed_proof: null,
+          parse_error: null,
+          validation_result: "error",
+          validation_errors: [],
+          line_count: null,
+          latency_ms: 0,
+          tokens_used: undefined,
+          timestamp: new Date().toISOString(),
+        };
+
+        const modelConfig: ModelConfig = {
+          model: "",
+          temperature: args.temperature,
+          maxTokens: args.maxTokens,
+        };
+
+        // Step 1: Build prompt
+        let prompt: string;
+        try {
+          prompt = promptForTheorem(theorem);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          result.validation_errors = [`Prompt build error: ${msg}`];
+          // Prompt errors are deterministic — no point retrying
+          try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
+          totalErrors++;
+          console.log(`  -> PROMPT ERROR: ${msg}`);
+          return;
+        }
+
+        // Step 2: Call model API
+        let response: ModelResponse;
+        try {
+          response = await adapter.callModel(prompt, modelConfig);
+          result.raw_response = response.raw_response;
+          result.latency_ms = response.latency_ms;
+          result.model_name = response.model;
+          result.tokens_used = response.tokens_used;
+          result.finish_reason = response.finish_reason;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          result.validation_errors = [`API error: ${msg}`];
+          if (attempt < MAX_ATTEMPTS) {
+            console.log(`  -> API ERROR (will retry): ${msg}`);
+            continue;
+          }
+          try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
+          totalErrors++;
+          console.log(`  -> API ERROR (gave up after ${MAX_ATTEMPTS} attempts): ${msg}`);
+          return;
+        }
+
+        // Step 3: Parse response
+        const { proof, error: parseError } = parseModelResponse(
+          response.raw_response,
+          theorem
+        );
+        if (parseError || !proof) {
+          result.parse_error = parseError;
+          result.validation_result = "error";
+          result.validation_errors = [parseError ?? "Unknown parse error"];
+          if (!args.noRetryParse && attempt < MAX_PARSE_ATTEMPTS) {
+            console.log(`  -> PARSE ERROR (will retry): ${parseError}`);
+            continue;
+          }
+          try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
+          totalErrors++;
+          console.log(`  -> PARSE ERROR (gave up after ${attempt} attempts): ${parseError}`);
+          return;
+        }
+        result.parsed_proof = proof;
+
+        // Step 4: Validate via CLI
+        const { valid, line_count, errors } = await validateProof(
+          benchThm,
+          proof,
+          args.propbenchBin
+        );
+        result.validation_result = valid ? "valid" : "invalid";
+        result.validation_errors = errors;
+        result.line_count = valid ? line_count : null;
+
+        try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
+        totalRun++;
+
+        if (valid) {
+          totalValid++;
+          console.log(`  -> VALID (${proof.length} lines, ${result.latency_ms}ms)`);
+        } else {
+          // Invalid proofs are final results, NOT errors — don't retry
+          totalInvalid++;
+          console.log(
+            `  -> INVALID: ${errors.slice(0, 2).join("; ")}${errors.length > 2 ? ` (+${errors.length - 2} more)` : ""}`
+          );
+        }
+        return; // Got a result (valid or invalid) — done
+      }
+    }
+
+    await runWithConcurrency(workItems, args.workers, processWorkItem);
+
+    // Mark all runs as finished
+    for (const runId of runIds.values()) {
+      try { db.finishRun(runId); } catch {}
+    }
+
+    // Summary
+    console.log();
+    if (totalRuns > 1) {
+      console.log(`=== Summary (Run ${runIteration}/${totalRuns}) ===`);
+    } else {
+      console.log("=== Summary ===");
+    }
+    console.log(`Run:     ${totalRun}`);
+    console.log(`Skipped: ${totalSkipped}`);
+    console.log(`Valid:   ${totalValid}`);
+    console.log(`Invalid: ${totalInvalid}`);
+    console.log(`Errors:  ${totalErrors}`);
+    console.log();
+  } // end of sequential runs loop
 }
 
 // ---------------------------------------------------------------------------

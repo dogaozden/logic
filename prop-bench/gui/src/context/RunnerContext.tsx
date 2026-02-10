@@ -105,9 +105,15 @@ export function RunnerProvider({ children }: { children: ReactNode }) {
       };
 
       es.onerror = () => {
-        if (!runningRef.current) {
-          es.close();
-          eventSourceRef.current = null;
+        es.close();
+        eventSourceRef.current = null;
+        if (runningRef.current) {
+          // Reconnect after a short delay (tab switch, network blip, etc.)
+          setTimeout(() => {
+            if (runningRef.current) {
+              connectSSE(id);
+            }
+          }, 2000);
         }
       };
     },

@@ -10,7 +10,7 @@ export class GeminiAdapter implements ModelAdapter {
   displayName: string;
   private defaultModel: string;
 
-  constructor(name = "gemini", displayName = "Gemini 2.5 Flash Lite", defaultModel = DEFAULT_MODEL) {
+  constructor(name = "gemini-2.5-flash-lite-preview-09-2025", displayName = "Gemini 2.5 Flash Lite", defaultModel = DEFAULT_MODEL) {
     this.name = name;
     this.displayName = displayName;
     this.defaultModel = defaultModel;

@@ -2,6 +2,30 @@
 
 An LLM benchmark that scores models on proof efficiency (fewest lines) for propositional logic natural deduction. Models receive tautologies and must produce Fitch-style proofs; the model with the fewest total proof lines wins.
 
+## Recent Changes (v3.3+)
+
+**Elo System Fix:** Both-failed matchups are now skipped (no-game) instead of counted as ties, preventing rating dilution when most models fail most theorems.
+
+**Elo Chart Fix:** Bar heights now use fixed pixel sizing to prevent flex shrinking issues.
+
+**Full Model Names:** Removed short aliases (gemini, claude, gpt). Only full model identifiers are now accepted: `gemini-2.5-flash-lite-preview-09-2025`, `gemini-3-flash-preview`, `gemini-3-pro-preview`, `claude-sonnet-4-5-20250929`, `gpt-4o`.
+
+**Run Completion Tracking:** Runs are dynamically classified as "Running", "Finished", or "Incomplete". Incomplete runs are excluded from combined/aggregate views.
+
+**Run Resumption:** When `--force` is not set, the harness reuses the most recent run_id for the same set+model combo, allowing runs to accumulate results.
+
+**Multiple Sequential Runs:** New `--runs N` flag runs the full benchmark N times back-to-back (each subsequent run uses force mode). GUI has "Sequential Runs" input.
+
+**SSE Reconnection:** Browser tab switching no longer loses benchmark progress. Client auto-reconnects after 2 seconds.
+
+**Combined View Deduplication:** Set-level and global summaries use `ROW_NUMBER()` CTE to keep only the latest result per theorem+model, preventing double-counting.
+
+**Run Count Display:** Model scorecards now show how many runs exist for each model.
+
+**Hardest Theorems:** Display limit increased from 15 to 30.
+
+**Continue Incomplete Run:** New `--continue-run <id>` CLI flag and GUI feature to resume interrupted runs. Loads the original run's settings (model, theorem set, temperature, max tokens) from the DB and only processes theorems that don't already have results in that specific run. GUI provides a toggle with a dropdown of incomplete runs, auto-filling settings as read-only and allowing only the workers count to be changed.
+
 ---
 
 ## Table of Contents
@@ -156,9 +180,9 @@ type Difficulty = "Easy" | "Medium" | "Hard" | "Expert" | "Nightmare"
 | Expert | 71-85 | Legacy |
 | Nightmare | 86-95 | Legacy |
 | Marathon | 96-100 | Legacy |
-| Absurd | — | DifficultySpec (8 vars, 5 passes) |
-| Cosmic | — | DifficultySpec (15 vars, 10 passes) |
-| Mind | — | DifficultySpec (20 vars, 20 passes) |
+| Absurd | — | DifficultySpec (6 vars, 5 passes, 1 bridge) |
+| Cosmic | — | DifficultySpec (7 vars, 10 passes, 2 bridges) |
+| Mind | — | DifficultySpec (7 vars, 20 passes, 2 bridges) |
 
 **`DifficultySpec`** — Fine-grained control over theorem generation:
 ```typescript
@@ -168,6 +192,7 @@ interface DifficultySpec {
   transforms_per_pass: number; // 1-24
   base_complexity: "simple" | "complex";
   substitution_depth: number;  // 0-4
+  bridge_atoms?: number;       // 0-5, cross-zone atom sharing
 }
 ```
 
@@ -177,6 +202,7 @@ The DifficultySpec system replaces the single `difficulty_value` for advanced ti
 - **transforms_per_pass**: Random equivalence transformations per pass (each transform targets a single AST node via positional path replacement, so structurally-identical subtrees diverge independently)
 - **base_complexity**: `simple` uses 7 standard argument forms; `complex` adds ConstructiveDilemmaFull, NestedCP, Chain4
 - **substitution_depth**: Replaces simple atoms with complex sub-formulas (0 = none, 4 = deeply nested)
+- **bridge_atoms**: Number of atoms shared across multiple substitution partition groups (0 = none, 1 for Nightmare/Marathon/Absurd, 2 for Cosmic/Mind). During theorem obfuscation, bridge atoms are placed into 2 randomly-chosen distinct partition groups instead of a single group, creating shared variables across zones that force integrated reasoning and prevent LLMs from decomposing theorems into independent sub-problems. Safe because uniform substitution preserves tautologies.
 
 **`ProofLine`** — A single line in a structured proof:
 ```typescript
@@ -656,7 +682,9 @@ npx ts-node harness.ts --theorems <path> --models <list> [options]
 | `--temperature <n>` | `0.2` | Temperature parameter passed to all models |
 | `--max-tokens <n>` | `16384` | Maximum output tokens for model responses |
 | `--force` | off | Force new run — don't skip completed theorems |
+| `--runs <n>` | `1` | Run the full benchmark N times back-to-back (each subsequent run uses force mode) |
 | `--no-retry-parse` | off | Don't retry parse errors — treat unparseable model output as a final result |
+| `--continue-run <id>` | — | Continue an incomplete run by its DB run ID |
 
 ### Core Loop
 
@@ -685,16 +713,26 @@ The harness supports concurrent API calls via the `--workers N` flag (default: 1
 
 This is safe because JavaScript is single-threaded — counter increments and array index advances are atomic. File writes use unique filenames (including timestamps) so concurrent saves don't conflict.
 
-### Resume Support
+### Resume Support and Run Tracking
 
-The harness scans `<output>/<model>/raw/` on startup for existing result JSON files (and also checks legacy `<output>/raw/` for backward compatibility). Each file contains `theorem_id`, `model`, and `validation_result` fields. The harness builds a `Set<string>` of `"theorem_id::model"` keys for results where `validation_result` is `"valid"` or `"invalid"` — error results are excluded so they will be automatically retried on re-run.
-
-This means:
+**Run resumption:** When `--force` is NOT set, the harness reuses the most recent existing run_id for the same set+model combo via `findOrCreateRun()`. Results accumulate under the same run. This means:
 - Interrupted runs can be resumed with the same command
 - Error results (API 429s, parse failures) are automatically retried on re-run without manual intervention
 - To re-run a specific theorem/model pair, delete its result file from `output/<model>/raw/`
 - The `--start` and `--count` flags work independently of resume state
 - Use `--force` to bypass resume entirely and re-run all theorem/model pairs (useful for "best of N" analysis)
+
+**Run completion tracking:** Runs are now dynamically classified as "Running", "Finished", or "Incomplete" based on whether result count matches theorem count. Incomplete runs are excluded from the combined/aggregate view (scorecards, Elo, head-to-head). Only models with at least one complete run appear in the combined view.
+
+**Multiple sequential runs:** New `--runs N` flag runs the full benchmark N times back-to-back. Each subsequent run uses force mode.
+
+**Continue incomplete runs:** The `--continue-run <id>` flag resumes a specific incomplete run by its database run ID. When set:
+- Skips the sequential runs loop (only does 1 run)
+- Uses the provided run ID directly (no `createRun`/`findOrCreateRun`)
+- Resets `finished_at` to NULL so the run shows as "Running" during execution
+- Loads completed theorems via `getRunCompletedTheorems()` and skips them
+- At completion, marks the run as finished via `finishRun()`
+- The GUI provides a "Continue incomplete run" toggle with a dropdown of incomplete runs
 
 ### Environment Configuration
 
@@ -866,20 +904,19 @@ interface ModelResponse {
 function getModel(name: string): ModelAdapter
 ```
 
-Looks up a model adapter by name or alias (case-insensitive). Throws if the name is not recognized.
+Looks up a model adapter by name (case-insensitive). Throws if the name is not recognized.
 
-**Supported aliases:**
+**Supported model identifiers:**
 
-| Alias | Adapter |
-|-------|---------|
-| `gemini` | `GeminiAdapter` |
-| `gemini-flash` | `GeminiAdapter` |
-| `gemini-3-flash` | `GeminiAdapter` |
-| `gemini-3-pro` | `GeminiAdapter` |
-| `claude` | `AnthropicAdapter` |
-| `anthropic` | `AnthropicAdapter` |
-| `gpt` | `OpenAIAdapter` |
-| `openai` | `OpenAIAdapter` |
+| Full Model Identifier | Adapter |
+|----------------------|---------|
+| `gemini-2.5-flash-lite-preview-09-2025` | `GeminiAdapter` |
+| `gemini-3-flash-preview` | `GeminiAdapter` |
+| `gemini-3-pro-preview` | `GeminiAdapter` |
+| `claude-sonnet-4-5-20250929` | `AnthropicAdapter` |
+| `gpt-4o` | `OpenAIAdapter` |
+
+**Note:** Short aliases (gemini, claude, gpt, etc.) have been removed. Only full model identifiers are now accepted.
 
 Each call to `getModel()` creates a new adapter instance (factory pattern). Adapters are stateless and safe to reuse across multiple calls.
 
@@ -1070,9 +1107,9 @@ The scorer implements standard Elo with the following parameters:
 | Valid | Invalid/failed | 1.0 | 0.0 |
 | Invalid/failed | Valid | 0.0 | 1.0 |
 | Both valid, same lines | Both valid, same lines | 0.5 | 0.5 |
-| Both invalid/failed | Both invalid/failed | 0.5 | 0.5 |
+| Both invalid/failed | Both invalid/failed | **no-game** | **no-game** |
 
-Elo updates are applied sequentially for each theorem, iterating over all unique model pairs. If a model did not attempt a given theorem, that pair is skipped for that theorem. Ratings are rounded to integers after each update.
+Elo updates are applied sequentially for each theorem, iterating over all unique model pairs. If a model did not attempt a given theorem, that pair is skipped for that theorem. **Both-failed matchups are now skipped (no-game) instead of counted as ties.** This prevents rating dilution when most models fail most theorems. Ratings are rounded to integers after each update.
 
 ### Aggregate Statistics
 
@@ -1313,22 +1350,24 @@ These stats endpoints require SQLite availability and return `503` if `propbench
 - Multi-set support: dropdown selector for choosing benchmark theorem sets
 - Auto-selects the theorem set that has the most recent benchmark run
 - **Statistics sections:**
-  - Elo Rankings Table — Models ranked by Elo rating
+  - Elo Rankings Table — Models ranked by Elo rating, now includes run count per model
   - Difficulty Breakdown — Valid/invalid/error counts per model per difficulty tier
-  - Elo Chart — Visual comparison of model ratings
-  - Head-to-Head Wins Matrix — Pairwise win counts between models
-  - **Avg Proof Length by Difficulty** — New table showing average line count per model per difficulty tier (only valid proofs), with green highlighting for best (shortest) average per tier
+  - Elo Chart — Visual comparison of model ratings (fixed pixel-based bar heights to prevent flex shrinking)
+  - Head-to-Head Wins Matrix — Pairwise win counts between models (excludes both-invalid matchups)
+  - **Avg Proof Length by Difficulty** — Table showing average line count per model per difficulty tier (only valid proofs), with green highlighting for best (shortest) average per tier
   - Latency Comparison — API response time statistics
   - Failure Analysis — Parse errors, validation failures, API errors breakdown
+- **Hardest Theorems** — Increased display limit from 15 to 30
 - Fallback mode: supports manual JSON file upload when database unavailable
 
 **Benchmark Runner (`pages/BenchmarkRunner.tsx`):**
 - Fixed stale closure bug in SSE `onerror` handler using `useRef` for `isRunning` state
-- Real-time progress tracking via SSE
+- Real-time progress tracking via SSE with auto-reconnection after tab switching (2-second reconnect delay)
 - Displays validCount, invalidCount, parseErrorCount, apiErrorCount, skippedCount counters
 - Progress bar and status messages
 - Default max tokens changed from 4096 to 16384
 - Numeric fields (max tokens, parallel workers, start index) use nullable types and can be fully cleared/emptied, showing placeholder text when empty instead of forcing a value
+- "Sequential Runs" input field for running benchmarks N times back-to-back
 
 **Proof Viewer (`components/ProofViewer.tsx`):**
 - Displays Fitch-style proofs with indentation and line numbers
@@ -1340,13 +1379,15 @@ These stats endpoints require SQLite availability and return `503` if `propbench
 
 **Run Config (`components/RunConfig.tsx`):**
 - Model selection dropdown with `MODEL_OPTIONS` constant defining available models
-- Maps model aliases to labels + concrete model IDs (e.g., `"gemini"` → label `Gemini Flash Lite`, model `gemini-2.5-flash-lite-preview-09-2025`)
+- Maps full model identifiers to labels (e.g., `"gemini-2.5-flash-lite-preview-09-2025"` → label `Gemini 2.5 Flash Lite`)
 - **Important:** When CLI model names/defaults change, this component must be updated per CLAUDE.md rules
 - Includes a "Parallel Workers" field for configuring concurrent API calls
+- "Sequential Runs" field for running benchmarks N times back-to-back
 - "Force new run" checkbox: when enabled, passes `--force` to the harness to skip resume logic and run all theorems fresh
 - "Don't retry parse errors" checkbox: when enabled, passes `--no-retry-parse` to the harness so unparseable model output is treated as a final result rather than retried (see [Retry Policy](#retry-policy) for design rationale)
-- Numeric fields (max tokens, workers, start index) use nullable types (`number | null`) and can be fully cleared/emptied; placeholder text is shown when empty
+- Numeric fields (max tokens, workers, start index, sequential runs) use nullable types (`number | null`) and can be fully cleared/emptied; placeholder text is shown when empty
 - Auto-selects the theorem set that has the most recent benchmark run
+- **Continue incomplete run:** Toggle to resume a previously interrupted run. When enabled, shows a dropdown of incomplete runs (fetched via `api.getIndividualRuns()`, filtered to `status === "Incomplete"`). Selecting a run displays its settings as read-only info (model, set, temperature, max tokens, progress) and disables all other config fields except workers. Start button text changes to "Continue Run".
 
 **Avg Lines by Difficulty Table (`components/AvgLinesByDifficultyTable.tsx`):**
 - Displays average proof line count per model per difficulty tier
@@ -1365,7 +1406,18 @@ These stats endpoints require SQLite availability and return `503` if `propbench
 - Distribution string builder: Dynamically constructs the distribution string from all tiers with count > 0 (e.g., `"20:easy,20:medium,20:hard,15:expert,10:nightmare,7:marathon,5:absurd,2:cosmic,1:mind"`)
 - Modal interaction: Modal only closes via X button or Cancel button (clicking backdrop does not close)
 - **Tier preset mode:** Generate all theorems using a single difficulty tier's preset spec
-- **Custom spec mode:** Full control over DifficultySpec parameters (variables, passes, transforms_per_pass, base_complexity, substitution_depth)
+  - Loads tier configurations from `tier-presets.json` in the prop-bench root directory
+  - GUI allows inline editing of preset parameters (variables, passes, transforms_per_pass, base_complexity, substitution_depth, bridge_atoms)
+  - Changes can be saved back to the presets file via "Save Preset Changes" button
+  - All 9 tiers have preset configurations including bridge_atoms values
+- **Custom spec mode:** Full control over DifficultySpec parameters (variables, passes, transforms_per_pass, base_complexity, substitution_depth, bridge_atoms)
+
+**Tier Presets Configuration (`tier-presets.json`):**
+- JSON file in prop-bench root defining DifficultySpec for all 9 difficulty tiers
+- Used by both CLI (via `server/cli.ts`) and GUI (via `GenerateTheorems.tsx`) for consistent generation
+- Each tier includes all DifficultySpec fields: variables, passes, transforms_per_pass, base_complexity, substitution_depth, bridge_atoms
+- Bridge atoms scaling: 0 for Easy-Expert, 1 for Nightmare/Marathon/Absurd, 2 for Cosmic/Mind
+- Presets can be edited via the GUI's tier preset mode and changes persist to the file
 
 **Theorem Explorer (`pages/TheoremExplorer.tsx`):**
 - Browse and explore theorems in a selected theorem set
@@ -1421,11 +1473,22 @@ PropBench uses SQLite (`propbench.db`) as the primary persistent storage layer f
 
 **Report generation:** The GUI server always recomputes reports using the current scorer code rather than serving cached or pre-generated reports. This ensures that when the scorer changes (e.g., adding new difficulty tiers), reports immediately reflect the updated logic without requiring manual cache invalidation.
 
+**Run completion tracking:** Run status is computed dynamically (no schema changes) by comparing each run's result count against the theorem count for its set. A run is "Running" if `finished_at IS NULL`, "Finished" if `finished_at IS NOT NULL` and result count equals the theorem count, or "Incomplete" if `finished_at IS NOT NULL` but result count is less than the theorem count. Incomplete runs are excluded from combined/aggregate views (set overview, dashboard overview, combined run detail for Elo ratings) but remain visible in the individual run detail view. This prevents partial runs from skewing aggregate statistics and Elo ratings.
+
 **Migration:** Existing JSON results can be imported into the database via `npm run migrate`, which scans `benchmarks/` and `results/` directories. The migration is idempotent and safe to run multiple times.
 
 **Query Functions (`db.ts`):**
+- `getIndividualRuns(setName?)` — Returns individual run records with dynamically computed `status` field ("Running", "Finished", or "Incomplete"). Compares each run's result count against the theorem set's theorem count to determine completeness.
+- `getSetOverview(setName)` — Per-set model summary statistics. Uses a `complete_runs` CTE to exclude results from incomplete runs in the combined view. Uses `ROW_NUMBER()` CTE to deduplicate results per theorem+model (keeps only latest result).
+- `getDashboardOverview()` — Global dashboard statistics across all sets. Excludes results from incomplete runs in the model summaries. Uses `ROW_NUMBER()` CTE to deduplicate results per theorem+model.
+- `getRunDetail(runId)` — When fetching combined results (no model slug), excludes results from incomplete runs. Individual model-level queries still show all results. Uses `ROW_NUMBER()` CTE to deduplicate results per theorem+model in the combined view.
 - `getAvgLinesByDifficulty(setName?)` — Computes average proof line count per model per difficulty tier. Joins `results` with `theorems` to aggregate only valid proofs. Returns array of `{ model_slug, model_display, difficulty, avg_lines, count }`. Useful for analyzing which models produce shorter proofs at different difficulty levels.
 - `deleteTheoremSet(setName)` — Deletes a theorem set and all associated data. Performs a cascading delete: removes all results, theorems, runs, and reports associated with the set from the database, then deletes the set's directory from disk. Returns success/failure status.
+- `getHeadToHeadMatrix(setName?)` — Computes pairwise win matrix for head-to-head comparisons. **Skips both-invalid matchups** to prevent rating dilution.
+- `findOrCreateRun(setName, modelSlug)` — Finds or creates a run for a given set+model combination. Returns existing run_id if found (for resuming), or creates a new run if none exists.
+- `getRunSettings(runId)` — Returns `{ setName, modelSlug, temperature, maxTokens, setId }` for a given run ID. Used by the server to build harness opts when continuing an incomplete run.
+- `getRunCompletedTheorems(runId)` — Returns `Set<string>` of theorem IDs that already have results in a specific run. Used by the harness to skip completed theorems when continuing.
+- `resetRunFinished(runId)` — Resets `finished_at` to NULL for a run, so it shows as "Running" while being continued.
 
 ---
 
@@ -1443,7 +1506,7 @@ The Rust binary (`propbench`) provides the authoritative theorem generation and 
 **Generate modes:**
 - Distribution mode via `--difficulty-distribution` (or default distribution when omitted)
 - Tier preset mode via `--tier <easy|...|mind>`
-- Custom spec mode via `--variables --passes --transforms --base --substitution`
+- Custom spec mode via `--variables --passes --transforms --base --substitution --bridge-atoms`
 
 **Validation details:**
 - Parses theorem/proof JSON inputs from file paths

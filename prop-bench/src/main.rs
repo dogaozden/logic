@@ -57,6 +57,10 @@ enum Commands {
         #[arg(long)]
         substitution: Option<u8>,
 
+        /// Number of bridge atoms (0-5) for cross-zone interdependencies
+        #[arg(long)]
+        bridge_atoms: Option<u8>,
+
         /// Maximum formula nodes (default: 20000) for custom spec
         #[arg(long)]
         max_nodes: Option<u32>,
@@ -215,6 +219,7 @@ fn resolve_generate_mode(
     transforms: &Option<u8>,
     base: &Option<String>,
     substitution: &Option<u8>,
+    bridge_atoms: &Option<u8>,
     max_nodes: &Option<u32>,
     distribution: &Option<String>,
 ) -> Result<GenerateMode, String> {
@@ -225,6 +230,9 @@ fn resolve_generate_mode(
         let mut spec = DifficultySpec::from_tier(dt);
         if let Some(nodes) = max_nodes {
             spec.max_formula_nodes = Some(*nodes);
+        }
+        if let Some(ba) = bridge_atoms {
+            spec.bridge_atoms = Some(*ba);
         }
         return Ok(GenerateMode::Tier(spec, dt.label().to_string()));
     }
@@ -240,6 +248,7 @@ fn resolve_generate_mode(
                 _ => BaseComplexity::Simple,
             },
             substitution_depth: substitution.unwrap_or(0),
+            bridge_atoms: *bridge_atoms,
             max_formula_nodes: *max_nodes,
         };
         return Ok(GenerateMode::CustomSpec(spec));
@@ -260,10 +269,11 @@ fn cmd_generate(
     transforms: &Option<u8>,
     base: &Option<String>,
     substitution: &Option<u8>,
+    bridge_atoms: &Option<u8>,
     max_nodes: &Option<u32>,
     output: &PathBuf,
 ) -> Result<(), String> {
-    let mode = resolve_generate_mode(tier, variables, passes, transforms, base, substitution, max_nodes, distribution)?;
+    let mode = resolve_generate_mode(tier, variables, passes, transforms, base, substitution, bridge_atoms, max_nodes, distribution)?;
 
     let mut rng = rand::thread_rng();
     let mut theorems: Vec<BenchTheorem> = Vec::with_capacity(count);
@@ -656,6 +666,7 @@ fn main() {
             transforms,
             base,
             substitution,
+            bridge_atoms,
             max_nodes,
             output,
         } => {
@@ -668,6 +679,7 @@ fn main() {
                 &transforms,
                 &base,
                 &substitution,
+                &bridge_atoms,
                 &max_nodes,
                 &output,
             )

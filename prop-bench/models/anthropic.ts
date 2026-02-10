@@ -6,7 +6,7 @@ const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 1000;
 
 export class AnthropicAdapter implements ModelAdapter {
-  name = "anthropic";
+  name = "claude-sonnet-4-5-20250929";
   displayName = "Claude Sonnet 4.5";
 
   async callModel(prompt: string, config: ModelConfig): Promise<ModelResponse> {

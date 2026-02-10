@@ -4,6 +4,8 @@ interface Props {
   report: BenchmarkReport;
 }
 
+const BAR_AREA_HEIGHT = 170; // px reserved for bars (rest is labels)
+
 function EloChart({ report }: Props) {
   const rankings = report.rankings;
 
@@ -16,10 +18,10 @@ function EloChart({ report }: Props) {
   const minElo = Math.min(...elos);
   const range = maxElo - minElo || 1;
 
-  // Scale bars: minimum 10% height, max 100%
+  // Scale bars: minimum 10% of bar area, max 100%
   const getBarHeight = (elo: number) => {
     const normalized = (elo - minElo) / range;
-    return Math.max(10, normalized * 90 + 10);
+    return Math.round(Math.max(BAR_AREA_HEIGHT * 0.1, normalized * BAR_AREA_HEIGHT));
   };
 
   return (
@@ -27,10 +29,12 @@ function EloChart({ report }: Props) {
       {rankings.map((r) => (
         <div key={r.model} className="elo-bar-wrapper">
           <span className="elo-bar-value">{r.eloRating}</span>
-          <div
-            className="elo-bar"
-            style={{ height: `${getBarHeight(r.eloRating)}%` }}
-          />
+          <div className="elo-bar-area">
+            <div
+              className="elo-bar"
+              style={{ height: `${getBarHeight(r.eloRating)}px` }}
+            />
+          </div>
           <span className="elo-bar-label" title={r.model}>
             {r.model}
           </span>

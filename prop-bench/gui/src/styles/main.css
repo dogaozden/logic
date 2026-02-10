@@ -334,6 +334,14 @@ body {
   font-weight: 600;
 }
 
+.elo-bar-area {
+  width: 100%;
+  height: 170px;
+  display: flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
 .elo-bar {
   width: 100%;
   border-radius: 4px 4px 0 0;
@@ -832,6 +840,11 @@ body {
 .run-status.running {
   background: rgba(251, 191, 36, 0.15);
   color: var(--warning);
+}
+
+.run-status.incomplete {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
 }
 
 .sortable-header {

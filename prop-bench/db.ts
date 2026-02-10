@@ -241,11 +241,18 @@ export function insertResult(setName: string, result: BenchmarkResult, runId?: n
     throw new Error(`Theorem set '${setName}' not found in DB`);
   }
 
-  // Delete previous error results for this theorem/model so retries replace them
-  db.prepare(`
-    DELETE FROM results
-    WHERE set_id = ? AND theorem_id = ? AND model_slug = ? AND validation_result = 'error'
-  `).run(setRow.id, result.theorem_id, result.model);
+  // Delete previous error results for this theorem/model in the SAME run so retries replace them
+  if (runId != null) {
+    db.prepare(`
+      DELETE FROM results
+      WHERE set_id = ? AND theorem_id = ? AND model_slug = ? AND validation_result = 'error' AND run_id = ?
+    `).run(setRow.id, result.theorem_id, result.model, runId);
+  } else {
+    db.prepare(`
+      DELETE FROM results
+      WHERE set_id = ? AND theorem_id = ? AND model_slug = ? AND validation_result = 'error' AND run_id IS NULL
+    `).run(setRow.id, result.theorem_id, result.model);
+  }
 
   const stmt = db.prepare(`
     INSERT INTO results (
@@ -309,6 +316,67 @@ export function createRun(setName: string, modelSlug: string, temperature: numbe
   return info.lastInsertRowid as number;
 }
 
+/** Find the most recent run for a set+model, or create a new one. */
+export function findOrCreateRun(setName: string, modelSlug: string, temperature: number, maxTokens: number): number {
+  const db = getDb();
+
+  const setRow = db.prepare("SELECT id FROM theorem_sets WHERE name = ?").get(setName) as { id: number } | undefined;
+  if (!setRow) {
+    throw new Error(`Theorem set '${setName}' not found in DB`);
+  }
+
+  const existing = db.prepare(`
+    SELECT id FROM runs
+    WHERE set_id = ? AND model_slug = ?
+    ORDER BY id DESC
+    LIMIT 1
+  `).get(setRow.id, modelSlug) as { id: number } | undefined;
+
+  if (existing) {
+    // Reset finished_at so it shows as "Running" again
+    db.prepare("UPDATE runs SET finished_at = NULL WHERE id = ?").run(existing.id);
+    return existing.id;
+  }
+
+  return createRun(setName, modelSlug, temperature, maxTokens);
+}
+
+export function getRunSettings(runId: number): { setName: string; modelSlug: string; temperature: number; maxTokens: number; setId: number } | null {
+  const db = getDb();
+
+  const row = db.prepare(`
+    SELECT ts.name AS set_name, runs.model_slug, runs.temperature, runs.max_tokens, runs.set_id
+    FROM runs
+    JOIN theorem_sets ts ON ts.id = runs.set_id
+    WHERE runs.id = ?
+  `).get(runId) as { set_name: string; model_slug: string; temperature: number; max_tokens: number; set_id: number } | undefined;
+
+  if (!row) return null;
+
+  return {
+    setName: row.set_name,
+    modelSlug: row.model_slug,
+    temperature: row.temperature,
+    maxTokens: row.max_tokens,
+    setId: row.set_id,
+  };
+}
+
+export function getRunCompletedTheorems(runId: number): Set<string> {
+  const db = getDb();
+
+  const rows = db.prepare(`
+    SELECT DISTINCT theorem_id FROM results WHERE run_id = ?
+  `).all(runId) as Array<{ theorem_id: string }>;
+
+  return new Set(rows.map((r) => r.theorem_id));
+}
+
+export function resetRunFinished(runId: number): void {
+  const db = getDb();
+  db.prepare("UPDATE runs SET finished_at = NULL WHERE id = ?").run(runId);
+}
+
 export function finishRun(runId: number): void {
   const db = getDb();
 
@@ -328,6 +396,7 @@ export function getIndividualRuns(setName?: string): Array<{
   maxTokens: number;
   startedAt: string;
   finishedAt: string | null;
+  status: "Running" | "Finished" | "Incomplete";
   stats: { total: number; valid: number; invalid: number; errors: number; };
 }> {
   const db = getDb();
@@ -355,7 +424,8 @@ export function getIndividualRuns(setName?: string): Array<{
       COALESCE(COUNT(r.id), 0) AS total,
       COALESCE(SUM(CASE WHEN r.validation_result = 'valid' THEN 1 ELSE 0 END), 0) AS valid,
       COALESCE(SUM(CASE WHEN r.validation_result = 'invalid' THEN 1 ELSE 0 END), 0) AS invalid,
-      COALESCE(SUM(CASE WHEN r.validation_result = 'error' THEN 1 ELSE 0 END), 0) AS errors
+      COALESCE(SUM(CASE WHEN r.validation_result = 'error' THEN 1 ELSE 0 END), 0) AS errors,
+      (SELECT COUNT(*) FROM theorems WHERE theorems.set_id = runs.set_id) AS theorem_count
     FROM runs
     JOIN theorem_sets ts ON ts.id = runs.set_id
     LEFT JOIN results r ON r.run_id = runs.id
@@ -375,24 +445,37 @@ export function getIndividualRuns(setName?: string): Array<{
     valid: number;
     invalid: number;
     errors: number;
+    theorem_count: number;
   }>;
 
-  return rows.map((row) => ({
-    runId: row.run_id,
-    setName: row.set_name,
-    modelSlug: row.model_slug,
-    modelDisplay: row.model_display || row.model_slug,
-    temperature: row.temperature,
-    maxTokens: row.max_tokens,
-    startedAt: row.started_at,
-    finishedAt: row.finished_at,
-    stats: {
-      total: row.total,
-      valid: row.valid,
-      invalid: row.invalid,
-      errors: row.errors,
-    },
-  }));
+  return rows.map((row) => {
+    let status: "Running" | "Finished" | "Incomplete";
+    if (row.finished_at === null) {
+      status = "Running";
+    } else if (row.total >= row.theorem_count) {
+      status = "Finished";
+    } else {
+      status = "Incomplete";
+    }
+
+    return {
+      runId: row.run_id,
+      setName: row.set_name,
+      modelSlug: row.model_slug,
+      modelDisplay: row.model_display || row.model_slug,
+      temperature: row.temperature,
+      maxTokens: row.max_tokens,
+      startedAt: row.started_at,
+      finishedAt: row.finished_at,
+      status,
+      stats: {
+        total: row.total,
+        valid: row.valid,
+        invalid: row.invalid,
+        errors: row.errors,
+      },
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -556,11 +639,23 @@ export function getRunDetail(runId: string): { summary: unknown; results: unknow
     `).all(setRow.id, modelSlug) as typeof rawResults;
   } else {
     rawResults = db.prepare(`
+      WITH complete_runs AS (
+        SELECT r2.id AS run_id
+        FROM runs r2
+        WHERE r2.finished_at IS NOT NULL
+          AND (SELECT COUNT(*) FROM results WHERE results.run_id = r2.id)
+              >= (SELECT COUNT(*) FROM theorems WHERE theorems.set_id = r2.set_id)
+      ),
+      latest AS (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY theorem_id, model_slug ORDER BY id DESC) AS rn
+        FROM results
+        WHERE set_id = ?
+          AND (run_id IS NULL OR run_id IN (SELECT run_id FROM complete_runs))
+      )
       SELECT theorem_id, model_slug, model_display, raw_response, parsed_proof,
              parse_error, validation_result, validation_errors, line_count,
              latency_ms, tokens_used, finish_reason, timestamp
-      FROM results
-      WHERE set_id = ?
+      FROM latest WHERE rn = 1
       ORDER BY theorem_id, model_slug
     `).all(setRow.id) as typeof rawResults;
   }
@@ -733,6 +828,7 @@ export interface DashboardOverview {
     avg_latency_ms: number;
     avg_lines: number | null;
     total_tokens: number;
+    run_count: number;
   }>;
   sets: Array<{
     name: string;
@@ -754,9 +850,21 @@ export function getDashboardOverview(): DashboardOverview {
   `).get() as { totalSets: number; totalTheorems: number; totalResults: number; totalModels: number };
 
   const modelSummaries = db.prepare(`
+    WITH complete_runs AS (
+      SELECT r2.id AS run_id
+      FROM runs r2
+      WHERE r2.finished_at IS NOT NULL
+        AND (SELECT COUNT(*) FROM results WHERE results.run_id = r2.id)
+            >= (SELECT COUNT(*) FROM theorems WHERE theorems.set_id = r2.set_id)
+    ),
+    latest AS (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY set_id, theorem_id, model_slug ORDER BY id DESC) AS rn
+      FROM results
+      WHERE run_id IS NULL OR run_id IN (SELECT run_id FROM complete_runs)
+    )
     SELECT
       model_slug,
-      model_display,
+      MAX(model_display) AS model_display,
       COUNT(*) AS total_attempted,
       SUM(CASE WHEN validation_result = 'valid' THEN 1 ELSE 0 END) AS total_valid,
       SUM(CASE WHEN validation_result = 'invalid' THEN 1 ELSE 0 END) AS total_invalid,
@@ -764,8 +872,9 @@ export function getDashboardOverview(): DashboardOverview {
       ROUND(100.0 * SUM(CASE WHEN validation_result = 'valid' THEN 1 ELSE 0 END) / COUNT(*), 2) AS valid_rate,
       ROUND(AVG(latency_ms), 0) AS avg_latency_ms,
       ROUND(AVG(CASE WHEN validation_result = 'valid' THEN line_count ELSE NULL END), 1) AS avg_lines,
-      COALESCE(SUM(tokens_used), 0) AS total_tokens
-    FROM results
+      COALESCE(SUM(tokens_used), 0) AS total_tokens,
+      (SELECT COUNT(*) FROM runs WHERE runs.model_slug = latest.model_slug) as run_count
+    FROM latest WHERE rn = 1
     GROUP BY model_slug
     ORDER BY valid_rate DESC
   `).all() as DashboardOverview["modelSummaries"];
@@ -856,12 +965,18 @@ export function getHeadToHeadMatrix(setName: string): HeadToHeadCell[] {
         const a = modelResults.get(modelA);
         const b = modelResults.get(modelB);
         if (!a || !b) continue; // both must have attempted this theorem
-        total++;
 
-        if (a.valid && !b.valid) { winsA++; }
-        else if (!a.valid && b.valid) { winsB++; }
+        if (a.valid && !b.valid) {
+          total++;
+          winsA++;
+        }
+        else if (!a.valid && b.valid) {
+          total++;
+          winsB++;
+        }
         else if (a.valid && b.valid) {
           // Both valid: fewer lines wins
+          total++;
           if (a.lines !== null && b.lines !== null) {
             if (a.lines < b.lines) winsA++;
             else if (b.lines < a.lines) winsB++;
@@ -869,10 +984,8 @@ export function getHeadToHeadMatrix(setName: string): HeadToHeadCell[] {
           } else {
             ties++;
           }
-        } else {
-          // Both invalid
-          ties++;
         }
+        // Both invalid: skip (no-game, don't increment total, wins, or ties)
       }
 
       cells.push({ modelA, modelB, winsA, winsB, ties, total });
@@ -1031,6 +1144,7 @@ export interface SetOverview {
     avg_latency_ms: number;
     avg_lines: number | null;
     total_tokens: number;
+    run_count: number;
   }>;
 }
 
@@ -1050,8 +1164,21 @@ export function getSetOverview(setName: string): SetOverview {
   `).get(setRow.id, setRow.id, setRow.id) as { totalTheorems: number; totalResults: number; totalModels: number };
 
   const modelSummaries = db.prepare(`
+    WITH complete_runs AS (
+      SELECT r2.id AS run_id
+      FROM runs r2
+      WHERE r2.finished_at IS NOT NULL
+        AND (SELECT COUNT(*) FROM results WHERE results.run_id = r2.id)
+            >= (SELECT COUNT(*) FROM theorems WHERE theorems.set_id = r2.set_id)
+    ),
+    latest AS (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY theorem_id, model_slug ORDER BY id DESC) AS rn
+      FROM results
+      WHERE set_id = ?
+        AND (run_id IS NULL OR run_id IN (SELECT run_id FROM complete_runs))
+    )
     SELECT
-      model_slug, model_display,
+      model_slug, MAX(model_display) as model_display,
       COUNT(*) as total_attempted,
       SUM(CASE WHEN validation_result = 'valid' THEN 1 ELSE 0 END) as total_valid,
       SUM(CASE WHEN validation_result = 'invalid' THEN 1 ELSE 0 END) as total_invalid,
@@ -1060,10 +1187,11 @@ export function getSetOverview(setName: string): SetOverview {
       ROUND(100.0 * SUM(CASE WHEN validation_result = 'valid' THEN 1 ELSE 0 END) / COUNT(*), 1) as valid_rate,
       ROUND(AVG(latency_ms), 0) as avg_latency_ms,
       ROUND(AVG(CASE WHEN validation_result = 'valid' THEN line_count END), 1) as avg_lines,
-      SUM(COALESCE(tokens_used, 0)) as total_tokens
-    FROM results WHERE set_id = ?
-    GROUP BY model_slug, model_display
-  `).all(setRow.id) as SetOverview["modelSummaries"];
+      SUM(COALESCE(tokens_used, 0)) as total_tokens,
+      (SELECT COUNT(*) FROM runs WHERE runs.set_id = ? AND runs.model_slug = latest.model_slug) as run_count
+    FROM latest WHERE rn = 1
+    GROUP BY model_slug
+  `).all(setRow.id, setRow.id) as SetOverview["modelSummaries"];
 
   return { ...totals, modelSummaries };
 }
@@ -1077,7 +1205,7 @@ export interface HardestTheorem {
   success_rate: number;
 }
 
-export function getHardestTheorems(setName: string, limit: number = 15): HardestTheorem[] {
+export function getHardestTheorems(setName: string, limit: number = 30): HardestTheorem[] {
   const db = getDb();
 
   const setRow = db.prepare("SELECT id FROM theorem_sets WHERE name = ?").get(setName) as { id: number } | undefined;

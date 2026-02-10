@@ -1,7 +1,12 @@
 import { Router, Request, Response } from "express";
 import { ChildProcess } from "node:child_process";
-import { spawnHarness } from "../cli";
+import { createRequire } from "node:module";
+import { spawnHarness, BENCHMARKS_DIR } from "../cli";
 import { randomUUID } from "node:crypto";
+import * as path from "node:path";
+
+const require_ = createRequire(import.meta.url);
+const dbModule: any = require_("../../../db");
 
 const router = Router();
 
@@ -99,7 +104,81 @@ function parseHarnessLine(line: string, progress: RunProgress): void {
 /** POST /api/benchmark/start — spawn a harness run */
 router.post("/start", (req: Request, res: Response) => {
   try {
-    const { theoremSet, models, temperature, maxTokens, workers, start, count, force, noRetryParse } = req.body;
+    const { theoremSet, models, temperature, maxTokens, workers, start, count, force, noRetryParse, runs, continueRunId } = req.body;
+
+    // Continue-run mode: look up settings from the DB run record
+    if (continueRunId != null) {
+      const runSettings = dbModule.getRunSettings(continueRunId);
+      if (!runSettings) {
+        res.status(404).json({ error: `Run #${continueRunId} not found` });
+        return;
+      }
+
+      const runId = randomUUID().slice(0, 8);
+      console.log(`[benchmark] Continuing run #${continueRunId} (session ${runId}), set='${runSettings.setName}', model='${runSettings.modelSlug}'`);
+
+      const child = spawnHarness({
+        theoremSet: runSettings.setName,
+        models: [runSettings.modelSlug],
+        temperature: runSettings.temperature,
+        maxTokens: runSettings.maxTokens,
+        workers,
+        continueRunId,
+      });
+
+      const run = {
+        process: child,
+        output: [] as string[],
+        progress: {
+          completed: 0,
+          total: 0,
+          currentTheoremId: "",
+          currentModel: "",
+          validCount: 0,
+          invalidCount: 0,
+          parseErrorCount: 0,
+          apiErrorCount: 0,
+          skippedCount: 0,
+        },
+        done: false,
+        error: null as string | null,
+      };
+
+      activeRuns.set(runId, run);
+
+      child.stdout?.on("data", (data: Buffer) => {
+        const raw = data.toString();
+        const lines = raw.split("\n").filter(Boolean);
+        for (const line of lines) {
+          run.output.push(line);
+          parseHarnessLine(line, run.progress);
+        }
+      });
+
+      child.stderr?.on("data", (data: Buffer) => {
+        const lines = data.toString().split("\n").filter(Boolean);
+        for (const line of lines) {
+          run.output.push(line);
+        }
+      });
+
+      child.on("close", (code) => {
+        run.done = true;
+        if (code !== 0 && code !== null) {
+          const tail = run.output.slice(-5).join("\n");
+          run.error = `Process exited with code ${code}.\n${tail}`;
+        }
+        console.log(`[benchmark] Continue-run ${runId} finished with code ${code}`);
+      });
+
+      child.on("error", (err) => {
+        run.done = true;
+        run.error = err.message;
+      });
+
+      res.json({ runId });
+      return;
+    }
 
     if (!theoremSet || !models || !Array.isArray(models) || models.length === 0) {
       res.status(400).json({ error: "Missing required fields: theoremSet, models (array)" });
@@ -120,6 +199,7 @@ router.post("/start", (req: Request, res: Response) => {
       count,
       force,
       noRetryParse,
+      runs,
     });
 
     const run = {
@@ -208,9 +288,14 @@ router.get("/status/:runId", (req: Request, res: Response) => {
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
-  let logCursor = 0;
+  // Skip already-sent log lines — client can reconnect mid-run
+  let logCursor = run.output.length;
+
+  let closed = false;
 
   const interval = setInterval(() => {
+    if (closed) return;
+
     // Send any new log lines
     while (logCursor < run.output.length) {
       const line = run.output[logCursor];
@@ -257,8 +342,9 @@ router.get("/status/:runId", (req: Request, res: Response) => {
     }
   }, 500);
 
-  // Handle client disconnect
+  // Handle client disconnect — only stop the SSE interval, NOT the child process
   req.on("close", () => {
+    closed = true;
     clearInterval(interval);
   });
 });

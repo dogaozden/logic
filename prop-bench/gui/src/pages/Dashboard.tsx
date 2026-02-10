@@ -270,7 +270,9 @@ function Dashboard() {
                   const successRate = run.stats.total > 0
                     ? ((run.stats.valid / run.stats.total) * 100).toFixed(1)
                     : "0.0";
-                  const isFinished = run.finishedAt !== null;
+                  // Use backend-computed status if available, otherwise fallback to finishedAt check
+                  const status = run.status ?? (run.finishedAt !== null ? "Finished" : "Running");
+                  const statusClass = status.toLowerCase();
                   return (
                     <tr key={run.runId}>
                       <td className="number-cell">{run.runId}</td>
@@ -279,8 +281,8 @@ function Dashboard() {
                       <td className="number-cell">{run.maxTokens}</td>
                       <td>{new Date(run.startedAt).toLocaleString()}</td>
                       <td>
-                        <span className={`run-status ${isFinished ? "finished" : "running"}`}>
-                          {isFinished ? "Finished" : "Running"}
+                        <span className={`run-status ${statusClass}`}>
+                          {status}
                         </span>
                       </td>
                       <td className="number-cell" style={{ color: "var(--success)" }}>
@@ -388,6 +390,9 @@ function Dashboard() {
                         </div>
                       </div>
                       <div className="model-scorecard-meta">
+                        <span>
+                          Runs: <strong>{m.run_count}</strong>
+                        </span>
                         <span>
                           Avg Lines: <strong>{m.avg_lines != null ? m.avg_lines.toFixed(1) : "--"}</strong>
                         </span>

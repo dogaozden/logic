@@ -33,18 +33,19 @@ export interface DifficultySpec {
   transforms_per_pass: number;
   base_complexity: BaseComplexity;
   substitution_depth: number;
+  bridge_atoms?: number;
 }
 
 export const TIER_PRESETS: Record<string, DifficultySpec> = {
-  easy:      { variables: 2,  passes: 1,  transforms_per_pass: 2,  base_complexity: "simple",  substitution_depth: 0 },
-  medium:    { variables: 3,  passes: 1,  transforms_per_pass: 5,  base_complexity: "simple",  substitution_depth: 0 },
-  hard:      { variables: 4,  passes: 1,  transforms_per_pass: 10, base_complexity: "complex", substitution_depth: 0 },
-  expert:    { variables: 5,  passes: 1,  transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 2 },
-  nightmare: { variables: 5,  passes: 2,  transforms_per_pass: 12, base_complexity: "complex", substitution_depth: 3 },
-  marathon:  { variables: 5,  passes: 3,  transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 4 },
-  absurd:    { variables: 8,  passes: 5,  transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
-  cosmic:    { variables: 15, passes: 10, transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4 },
-  mind:      { variables: 20, passes: 20, transforms_per_pass: 24, base_complexity: "complex", substitution_depth: 4 },
+  easy:      { variables: 2,  passes: 1,  transforms_per_pass: 2,  base_complexity: "simple",  substitution_depth: 0, bridge_atoms: 0 },
+  medium:    { variables: 3,  passes: 1,  transforms_per_pass: 5,  base_complexity: "simple",  substitution_depth: 0, bridge_atoms: 0 },
+  hard:      { variables: 4,  passes: 1,  transforms_per_pass: 10, base_complexity: "complex", substitution_depth: 0, bridge_atoms: 0 },
+  expert:    { variables: 5,  passes: 1,  transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 2, bridge_atoms: 0 },
+  nightmare: { variables: 5,  passes: 2,  transforms_per_pass: 12, base_complexity: "complex", substitution_depth: 3, bridge_atoms: 1 },
+  marathon:  { variables: 5,  passes: 3,  transforms_per_pass: 15, base_complexity: "complex", substitution_depth: 4, bridge_atoms: 1 },
+  absurd:    { variables: 8,  passes: 5,  transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4, bridge_atoms: 1 },
+  cosmic:    { variables: 15, passes: 10, transforms_per_pass: 20, base_complexity: "complex", substitution_depth: 4, bridge_atoms: 2 },
+  mind:      { variables: 20, passes: 20, transforms_per_pass: 24, base_complexity: "complex", substitution_depth: 4, bridge_atoms: 2 },
 };
 
 // ─── Proof types ────────────────────────────────────────────────────────────
