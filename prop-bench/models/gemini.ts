@@ -4,6 +4,7 @@ import type { ModelAdapter, ModelConfig, ModelResponse } from "./index";
 const DEFAULT_MODEL = "gemini-2.5-flash-lite-preview-09-2025";
 const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 1000;
+const REQUEST_TIMEOUT_MS = 300_000; // 5 minutes (thinking models need longer on hard theorems)
 
 export class GeminiAdapter implements ModelAdapter {
   name: string;
@@ -32,14 +33,22 @@ export class GeminiAdapter implements ModelAdapter {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const start = performance.now();
-        const response = await client.models.generateContent({
-          model: modelName,
-          contents: prompt,
-          config: {
-            temperature: config.temperature ?? 0.2,
-            maxOutputTokens: config.maxTokens ?? 4096,
-          },
-        });
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        let response;
+        try {
+          response = await client.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+              temperature: config.temperature ?? 0.2,
+              maxOutputTokens: config.maxTokens ?? 4096,
+              abortSignal: controller.signal,
+            },
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
         const latency_ms = Math.round(performance.now() - start);
 
         const finishReason = response.candidates?.[0]?.finishReason;
@@ -85,6 +94,7 @@ export class GeminiAdapter implements ModelAdapter {
           message.includes("enotfound") ||
           message.includes("socket hang up") ||
           message.includes("network") ||
+          message.includes("aborted") ||
           message.includes("503") ||
           message.includes("502");
 

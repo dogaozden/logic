@@ -327,10 +327,10 @@ export function findOrCreateRun(setName: string, modelSlug: string, temperature:
 
   const existing = db.prepare(`
     SELECT id FROM runs
-    WHERE set_id = ? AND model_slug = ?
+    WHERE set_id = ? AND model_slug = ? AND temperature = ? AND max_tokens = ?
     ORDER BY id DESC
     LIMIT 1
-  `).get(setRow.id, modelSlug) as { id: number } | undefined;
+  `).get(setRow.id, modelSlug, temperature, maxTokens) as { id: number } | undefined;
 
   if (existing) {
     // Reset finished_at so it shows as "Running" again
