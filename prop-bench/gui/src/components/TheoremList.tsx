@@ -12,12 +12,16 @@ interface TheoremListProps {
 
 const DIFFICULTIES: (Difficulty | "All")[] = [
   "All",
+  "Baby",
   "Easy",
   "Medium",
   "Hard",
   "Expert",
   "Nightmare",
   "Marathon",
+  "Absurd",
+  "Cosmic",
+  "Mind",
 ];
 
 /** Render a formula string with Unicode logic symbols for list display. */

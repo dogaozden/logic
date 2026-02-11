@@ -141,6 +141,7 @@ fn difficulty_label(value: u8) -> String {
 /// since spec-based generation handles actual parameters.
 fn tier_range_extended(name: &str) -> Result<(u8, u8), String> {
     match name {
+        "baby" => Ok((1, 12)),
         "easy" => Ok((1, 25)),
         "medium" => Ok((26, 45)),
         "hard" => Ok((46, 70)),
@@ -149,7 +150,7 @@ fn tier_range_extended(name: &str) -> Result<(u8, u8), String> {
         "marathon" => Ok((96, 100)),
         "absurd" | "cosmic" | "mind" => Ok((100, 100)),
         other => Err(format!(
-            "Unknown difficulty tier: '{}'. Use easy/medium/hard/expert/nightmare/marathon/absurd/cosmic/mind.",
+            "Unknown difficulty tier: '{}'. Use baby/easy/medium/hard/expert/nightmare/marathon/absurd/cosmic/mind.",
             other
         )),
     }
@@ -177,7 +178,7 @@ fn parse_difficulty_distribution(spec: &str) -> Result<Vec<DistributionEntry>, S
         // Check if it's one of the extended tiers that need spec-based generation
         if let Some(dt) = DifficultyTier::from_str(&tier_name) {
             match dt {
-                DifficultyTier::Absurd | DifficultyTier::Cosmic | DifficultyTier::Mind => {
+                DifficultyTier::Baby | DifficultyTier::Absurd | DifficultyTier::Cosmic | DifficultyTier::Mind => {
                     result.push(DistributionEntry::Spec {
                         count,
                         spec: DifficultySpec::from_tier(dt),
@@ -226,7 +227,7 @@ fn resolve_generate_mode(
     // Mode 1: --tier
     if let Some(tier_name) = tier {
         let dt = DifficultyTier::from_str(tier_name)
-            .ok_or_else(|| format!("Unknown tier: '{}'. Use easy/medium/hard/expert/nightmare/marathon/absurd/cosmic/mind.", tier_name))?;
+            .ok_or_else(|| format!("Unknown tier: '{}'. Use baby/easy/medium/hard/expert/nightmare/marathon/absurd/cosmic/mind.", tier_name))?;
         let mut spec = DifficultySpec::from_tier(dt);
         if let Some(nodes) = max_nodes {
             spec.max_formula_nodes = Some(*nodes);

@@ -62,6 +62,7 @@ interface CliArgs {
   workers: number;
   force: boolean;
   noRetryParse: boolean;
+  retryApiErrors: boolean;
   runs: number;
   continueRunId: number | null;
 }
@@ -79,6 +80,7 @@ function parseArgs(): CliArgs {
     workers: 1,
     force: false,
     noRetryParse: false,
+    retryApiErrors: false,
     runs: 1,
     continueRunId: null,
   };
@@ -114,6 +116,9 @@ function parseArgs(): CliArgs {
         break;
       case "--no-retry-parse":
         parsed.noRetryParse = true;
+        break;
+      case "--retry-api-errors":
+        parsed.retryApiErrors = true;
         break;
       case "--runs":
         parsed.runs = parseInt(args[++i], 10);
@@ -153,6 +158,7 @@ Options:
   --workers <n>             Number of parallel API calls (default: 1)
   --force                   Force new run (don't skip completed theorems)
   --no-retry-parse          Don't retry parse errors (treat as final result)
+  --retry-api-errors        With --continue-run: delete API error results and retry those theorems
   --runs <n>                Run the full benchmark N times sequentially (default: 1)
   --continue-run <id>       Continue an incomplete run by its DB run ID
 `);
@@ -382,6 +388,12 @@ async function run(): Promise<void> {
 
     const continueRunId = args.continueRunId;
 
+    // If retrying API errors, delete those results first so they'll be re-attempted
+    if (args.retryApiErrors) {
+      const deleted = db.deleteApiErrorResults(continueRunId);
+      console.log(`Deleted ${deleted} API error result(s) from run #${continueRunId} — will retry those theorems`);
+    }
+
     // Reset finished_at so it shows as "Running"
     db.resetRunFinished(continueRunId);
 
@@ -504,7 +516,7 @@ async function run(): Promise<void> {
           }
           try { db.insertResult(setName, result, continueRunId); } catch {}
           totalErrors++;
-          console.log(`  -> PARSE ERROR (gave up after ${attempt} attempts): ${parseError}`);
+          console.log(`  -> PARSE ERROR: ${parseError}`);
           return;
         }
         result.parsed_proof = proof;
@@ -607,7 +619,8 @@ async function run(): Promise<void> {
       const benchThm = benchTheorems[item.theoremIndex];
       const adapter = adapters[item.adapterIndex];
       const theorem = toTheorem(benchThm);
-      const progress = `[${item.itemNumber}/${totalItems}]`;
+      const runTag = totalRuns > 1 ? `(run ${runIteration}/${totalRuns}) ` : "";
+      const progress = `${runTag}[${item.itemNumber}/${totalItems}]`;
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         if (attempt > 1) {
@@ -693,7 +706,7 @@ async function run(): Promise<void> {
           }
           try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
           totalErrors++;
-          console.log(`  -> PARSE ERROR (gave up after ${attempt} attempts): ${parseError}`);
+          console.log(`  -> PARSE ERROR: ${parseError}`);
           return;
         }
         result.parsed_proof = proof;

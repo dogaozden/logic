@@ -11,6 +11,7 @@ type GenerateMode = "distribution" | "tier" | "custom";
 
 const DEFAULT_TOTAL = 100;
 const DEFAULT_DIST: Record<string, number | null> = {
+  baby: null,
   easy: null,
   medium: null,
   hard: null,
@@ -23,7 +24,7 @@ const DEFAULT_DIST: Record<string, number | null> = {
 };
 
 const TIER_OPTIONS = [
-  "easy", "medium", "hard", "expert", "nightmare",
+  "baby", "easy", "medium", "hard", "expert", "nightmare",
   "marathon", "absurd", "cosmic", "mind",
 ] as const;
 
@@ -191,7 +192,7 @@ export default function GenerateTheorems({
               <span className="generate-label">Difficulty Distribution</span>
               <div className="generate-dist-grid">
                 {(
-                  ["easy", "medium", "hard", "expert", "nightmare", "marathon", "absurd", "cosmic", "mind"] as const
+                  ["baby", "easy", "medium", "hard", "expert", "nightmare", "marathon", "absurd", "cosmic", "mind"] as const
                 ).map((t) => (
                   <label key={t} className="generate-dist-item">
                     <span className={`difficulty-badge difficulty-badge--${t}`}>

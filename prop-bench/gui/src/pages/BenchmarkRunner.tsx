@@ -30,6 +30,7 @@ function BenchmarkRunner() {
     if (config.continueRunId != null) {
       await runner.start({
         continueRunId: config.continueRunId,
+        retryApiErrors: true,
         workers: config.workers != null && config.workers > 1 ? config.workers : undefined,
         // These are required by the type but ignored by the server in continue mode
         models: [],

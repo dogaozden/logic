@@ -45,6 +45,7 @@ export function loadTierPresets(): Record<string, DifficultySpec> {
   } catch {
     // Hardcoded defaults matching the JSON file
     return {
+      baby: { variables: 2, passes: 1, transforms_per_pass: 2, base_complexity: "simple", substitution_depth: 0, bridge_atoms: 0 },
       easy: { variables: 2, passes: 1, transforms_per_pass: 2, base_complexity: "simple", substitution_depth: 0, bridge_atoms: 0 },
       medium: { variables: 3, passes: 1, transforms_per_pass: 5, base_complexity: "simple", substitution_depth: 0, bridge_atoms: 0 },
       hard: { variables: 4, passes: 1, transforms_per_pass: 10, base_complexity: "complex", substitution_depth: 0, bridge_atoms: 0 },
@@ -284,6 +285,7 @@ export interface HarnessOpts {
   count?: number;
   force?: boolean;
   noRetryParse?: boolean;
+  retryApiErrors?: boolean;
   runs?: number;
   continueRunId?: number;
 }
@@ -328,6 +330,9 @@ export function spawnHarness(opts: HarnessOpts): ChildProcess {
   }
   if (opts.runs !== undefined && opts.runs > 1) {
     args.push("--runs", String(opts.runs));
+  }
+  if (opts.retryApiErrors) {
+    args.push("--retry-api-errors");
   }
   if (opts.continueRunId !== undefined) {
     args.push("--continue-run", String(opts.continueRunId));

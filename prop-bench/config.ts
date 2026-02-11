@@ -12,6 +12,7 @@ export interface Theorem {
 }
 
 export type Difficulty =
+  | "Baby"
   | "Easy"
   | "Medium"
   | "Hard"
@@ -37,6 +38,7 @@ export interface DifficultySpec {
 }
 
 export const TIER_PRESETS: Record<string, DifficultySpec> = {
+  baby:      { variables: 2,  passes: 1,  transforms_per_pass: 2,  base_complexity: "simple",  substitution_depth: 0, bridge_atoms: 0 },
   easy:      { variables: 2,  passes: 1,  transforms_per_pass: 2,  base_complexity: "simple",  substitution_depth: 0, bridge_atoms: 0 },
   medium:    { variables: 3,  passes: 1,  transforms_per_pass: 5,  base_complexity: "simple",  substitution_depth: 0, bridge_atoms: 0 },
   hard:      { variables: 4,  passes: 1,  transforms_per_pass: 10, base_complexity: "complex", substitution_depth: 0, bridge_atoms: 0 },

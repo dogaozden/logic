@@ -104,7 +104,7 @@ function parseHarnessLine(line: string, progress: RunProgress): void {
 /** POST /api/benchmark/start — spawn a harness run */
 router.post("/start", (req: Request, res: Response) => {
   try {
-    const { theoremSet, models, temperature, maxTokens, workers, start, count, force, noRetryParse, runs, continueRunId } = req.body;
+    const { theoremSet, models, temperature, maxTokens, workers, start, count, force, noRetryParse, retryApiErrors, runs, continueRunId } = req.body;
 
     // Continue-run mode: look up settings from the DB run record
     if (continueRunId != null) {
@@ -123,6 +123,8 @@ router.post("/start", (req: Request, res: Response) => {
         temperature: runSettings.temperature,
         maxTokens: runSettings.maxTokens,
         workers,
+        noRetryParse: noRetryParse ?? true,
+        retryApiErrors,
         continueRunId,
       });
 
@@ -366,6 +368,15 @@ router.post("/stop/:runId", (req: Request, res: Response) => {
   }
 
   res.json({ success: true });
+});
+
+/** GET /api/benchmark/active — list currently active (not done) run IDs */
+router.get("/active", (_req: Request, res: Response) => {
+  const active: string[] = [];
+  for (const [id, run] of activeRuns) {
+    if (!run.done) active.push(id);
+  }
+  res.json({ runIds: active });
 });
 
 export default router;

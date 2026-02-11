@@ -2,6 +2,7 @@
 // Mirrors the types from ../../config.ts and ../../scorer.ts for GUI usage.
 
 export type Difficulty =
+  | "Baby"
   | "Easy"
   | "Medium"
   | "Hard"
@@ -14,6 +15,7 @@ export type Difficulty =
   | "Custom";
 
 export type DifficultyTier =
+  | "baby"
   | "easy"
   | "medium"
   | "hard"

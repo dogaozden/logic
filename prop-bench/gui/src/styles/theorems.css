@@ -12,6 +12,11 @@
   letter-spacing: 0.5px;
 }
 
+.difficulty-badge--baby {
+  background: rgba(147, 197, 253, 0.15);
+  color: #93c5fd;
+}
+
 .difficulty-badge--easy {
   background: rgba(74, 222, 128, 0.15);
   color: #4ade80;
@@ -38,8 +43,8 @@
 }
 
 .difficulty-badge--marathon {
-  background: rgba(220, 38, 38, 0.2);
-  color: #ff4444;
+  background: rgba(249, 115, 22, 0.15);
+  color: #f97316;
 }
 
 .difficulty-badge--absurd {

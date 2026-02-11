@@ -36,6 +36,7 @@ pub struct DifficultySpec {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DifficultyTier {
+    Baby,
     Easy,
     Medium,
     Hard,
@@ -50,6 +51,7 @@ pub enum DifficultyTier {
 impl DifficultySpec {
     pub fn from_tier(tier: DifficultyTier) -> Self {
         match tier {
+            DifficultyTier::Baby      => Self { variables: 2, passes: 1,  transforms_per_pass: 2,  base_complexity: BaseComplexity::Simple,  substitution_depth: 0, max_formula_nodes: None, bridge_atoms: Some(0) },
             DifficultyTier::Easy      => Self { variables: 2, passes: 1,  transforms_per_pass: 2,  base_complexity: BaseComplexity::Simple,  substitution_depth: 0, max_formula_nodes: None, bridge_atoms: Some(0) },
             DifficultyTier::Medium    => Self { variables: 3, passes: 1,  transforms_per_pass: 5,  base_complexity: BaseComplexity::Simple,  substitution_depth: 0, max_formula_nodes: None, bridge_atoms: Some(0) },
             DifficultyTier::Hard      => Self { variables: 4, passes: 1,  transforms_per_pass: 10, base_complexity: BaseComplexity::Complex, substitution_depth: 0, max_formula_nodes: None, bridge_atoms: Some(0) },
@@ -104,6 +106,7 @@ impl DifficultySpec {
 impl DifficultyTier {
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
+            "baby" => Some(Self::Baby),
             "easy" => Some(Self::Easy),
             "medium" => Some(Self::Medium),
             "hard" => Some(Self::Hard),
@@ -119,6 +122,7 @@ impl DifficultyTier {
 
     pub fn label(&self) -> &'static str {
         match self {
+            Self::Baby => "Baby",
             Self::Easy => "Easy",
             Self::Medium => "Medium",
             Self::Hard => "Hard",

@@ -372,6 +372,15 @@ export function getRunCompletedTheorems(runId: number): Set<string> {
   return new Set(rows.map((r) => r.theorem_id));
 }
 
+export function deleteApiErrorResults(runId: number): number {
+  const db = getDb();
+  const info = db.prepare(`
+    DELETE FROM results
+    WHERE run_id = ? AND validation_result = 'error' AND parse_error IS NULL
+  `).run(runId);
+  return info.changes;
+}
+
 export function resetRunFinished(runId: number): void {
   const db = getDb();
   db.prepare("UPDATE runs SET finished_at = NULL WHERE id = ?").run(runId);
@@ -396,8 +405,8 @@ export function getIndividualRuns(setName?: string): Array<{
   maxTokens: number;
   startedAt: string;
   finishedAt: string | null;
-  status: "Running" | "Finished" | "Incomplete";
-  stats: { total: number; valid: number; invalid: number; errors: number; };
+  status: "Running" | "Finished" | "Finished with API Errors" | "Incomplete";
+  stats: { total: number; valid: number; invalid: number; errors: number; parseErrors: number; apiErrors: number; };
 }> {
   const db = getDb();
 
@@ -425,6 +434,8 @@ export function getIndividualRuns(setName?: string): Array<{
       COALESCE(SUM(CASE WHEN r.validation_result = 'valid' THEN 1 ELSE 0 END), 0) AS valid,
       COALESCE(SUM(CASE WHEN r.validation_result = 'invalid' THEN 1 ELSE 0 END), 0) AS invalid,
       COALESCE(SUM(CASE WHEN r.validation_result = 'error' THEN 1 ELSE 0 END), 0) AS errors,
+      COALESCE(SUM(CASE WHEN r.validation_result = 'error' AND r.parse_error IS NOT NULL THEN 1 ELSE 0 END), 0) AS parse_errors,
+      COALESCE(SUM(CASE WHEN r.validation_result = 'error' AND r.parse_error IS NULL THEN 1 ELSE 0 END), 0) AS api_errors,
       (SELECT COUNT(*) FROM theorems WHERE theorems.set_id = runs.set_id) AS theorem_count
     FROM runs
     JOIN theorem_sets ts ON ts.id = runs.set_id
@@ -445,13 +456,17 @@ export function getIndividualRuns(setName?: string): Array<{
     valid: number;
     invalid: number;
     errors: number;
+    parse_errors: number;
+    api_errors: number;
     theorem_count: number;
   }>;
 
   return rows.map((row) => {
-    let status: "Running" | "Finished" | "Incomplete";
+    let status: "Running" | "Finished" | "Finished with API Errors" | "Incomplete";
     if (row.finished_at === null) {
       status = "Running";
+    } else if (row.total >= row.theorem_count && row.api_errors > 0) {
+      status = "Finished with API Errors";
     } else if (row.total >= row.theorem_count) {
       status = "Finished";
     } else {
@@ -473,6 +488,8 @@ export function getIndividualRuns(setName?: string): Array<{
         valid: row.valid,
         invalid: row.invalid,
         errors: row.errors,
+        parseErrors: row.parse_errors,
+        apiErrors: row.api_errors,
       },
     };
   });
@@ -645,6 +662,10 @@ export function getRunDetail(runId: string): { summary: unknown; results: unknow
         WHERE r2.finished_at IS NOT NULL
           AND (SELECT COUNT(*) FROM results WHERE results.run_id = r2.id)
               >= (SELECT COUNT(*) FROM theorems WHERE theorems.set_id = r2.set_id)
+          AND (SELECT COUNT(*) FROM results
+               WHERE results.run_id = r2.id
+                 AND results.validation_result = 'error'
+                 AND results.parse_error IS NULL) = 0
       ),
       latest AS (
         SELECT *, ROW_NUMBER() OVER (PARTITION BY theorem_id, model_slug ORDER BY id DESC) AS rn
@@ -856,6 +877,10 @@ export function getDashboardOverview(): DashboardOverview {
       WHERE r2.finished_at IS NOT NULL
         AND (SELECT COUNT(*) FROM results WHERE results.run_id = r2.id)
             >= (SELECT COUNT(*) FROM theorems WHERE theorems.set_id = r2.set_id)
+        AND (SELECT COUNT(*) FROM results
+             WHERE results.run_id = r2.id
+               AND results.validation_result = 'error'
+               AND results.parse_error IS NULL) = 0
     ),
     latest AS (
       SELECT *, ROW_NUMBER() OVER (PARTITION BY set_id, theorem_id, model_slug ORDER BY id DESC) AS rn
@@ -1170,6 +1195,10 @@ export function getSetOverview(setName: string): SetOverview {
       WHERE r2.finished_at IS NOT NULL
         AND (SELECT COUNT(*) FROM results WHERE results.run_id = r2.id)
             >= (SELECT COUNT(*) FROM theorems WHERE theorems.set_id = r2.set_id)
+        AND (SELECT COUNT(*) FROM results
+             WHERE results.run_id = r2.id
+               AND results.validation_result = 'error'
+               AND results.parse_error IS NULL) = 0
     ),
     latest AS (
       SELECT *, ROW_NUMBER() OVER (PARTITION BY theorem_id, model_slug ORDER BY id DESC) AS rn
@@ -1188,10 +1217,11 @@ export function getSetOverview(setName: string): SetOverview {
       ROUND(AVG(latency_ms), 0) as avg_latency_ms,
       ROUND(AVG(CASE WHEN validation_result = 'valid' THEN line_count END), 1) as avg_lines,
       SUM(COALESCE(tokens_used, 0)) as total_tokens,
-      (SELECT COUNT(*) FROM runs WHERE runs.set_id = ? AND runs.model_slug = latest.model_slug) as run_count
+      (SELECT COUNT(*) FROM runs WHERE runs.set_id = ? AND runs.model_slug = latest.model_slug) as run_count,
+      (SELECT COUNT(*) FROM runs WHERE runs.set_id = ? AND runs.model_slug = latest.model_slug AND runs.id IN (SELECT run_id FROM complete_runs)) as valid_run_count
     FROM latest WHERE rn = 1
     GROUP BY model_slug
-  `).all(setRow.id, setRow.id) as SetOverview["modelSummaries"];
+  `).all(setRow.id, setRow.id, setRow.id) as SetOverview["modelSummaries"];
 
   return { ...totals, modelSummaries };
 }

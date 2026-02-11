@@ -11,6 +11,7 @@ interface Props {
 }
 
 const TIER_ORDER = [
+  "baby",
   "easy",
   "medium",
   "hard",

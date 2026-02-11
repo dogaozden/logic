@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { BenchmarkReport } from "../types";
 import {
   api,
@@ -158,9 +158,13 @@ function Dashboard() {
         aVal = a.stats.invalid;
         bVal = b.stats.invalid;
         break;
-      case "errors":
-        aVal = a.stats.errors;
-        bVal = b.stats.errors;
+      case "parseErrors":
+        aVal = a.stats.parseErrors ?? 0;
+        bVal = b.stats.parseErrors ?? 0;
+        break;
+      case "apiErrors":
+        aVal = a.stats.apiErrors ?? 0;
+        bVal = b.stats.apiErrors ?? 0;
         break;
       case "total":
         aVal = a.stats.total;
@@ -174,6 +178,15 @@ function Dashboard() {
     if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
     return 0;
   });
+
+  const handleFinishRun = useCallback(async (runId: number) => {
+    await api.finishRun(runId);
+    // Refresh individual runs
+    if (selectedSet) {
+      const runs = await api.getIndividualRuns(selectedSet).catch(() => [] as IndividualRun[]);
+      setIndividualRuns(runs);
+    }
+  }, [selectedSet]);
 
   return (
     <div>
@@ -256,13 +269,17 @@ function Dashboard() {
                   <th className="sortable-header" onClick={() => handleSort("invalid")} style={{ cursor: "pointer" }}>
                     Invalid {sortCol === "invalid" && (sortDir === "asc" ? "▲" : "▼")}
                   </th>
-                  <th className="sortable-header" onClick={() => handleSort("errors")} style={{ cursor: "pointer" }}>
-                    Errors {sortCol === "errors" && (sortDir === "asc" ? "▲" : "▼")}
+                  <th className="sortable-header" onClick={() => handleSort("parseErrors")} style={{ cursor: "pointer" }}>
+                    Parse Errors {sortCol === "parseErrors" && (sortDir === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="sortable-header" onClick={() => handleSort("apiErrors")} style={{ cursor: "pointer" }}>
+                    API Errors {sortCol === "apiErrors" && (sortDir === "asc" ? "▲" : "▼")}
                   </th>
                   <th className="sortable-header" onClick={() => handleSort("total")} style={{ cursor: "pointer" }}>
                     Total {sortCol === "total" && (sortDir === "asc" ? "▲" : "▼")}
                   </th>
                   <th>Success Rate</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -272,7 +289,7 @@ function Dashboard() {
                     : "0.0";
                   // Use backend-computed status if available, otherwise fallback to finishedAt check
                   const status = run.status ?? (run.finishedAt !== null ? "Finished" : "Running");
-                  const statusClass = status.toLowerCase();
+                  const statusClass = status.toLowerCase().replace(/\s+/g, "-");
                   return (
                     <tr key={run.runId}>
                       <td className="number-cell">{run.runId}</td>
@@ -292,10 +309,24 @@ function Dashboard() {
                         {run.stats.invalid}
                       </td>
                       <td className="number-cell" style={{ color: "var(--warning)" }}>
-                        {run.stats.errors}
+                        {run.stats.parseErrors ?? 0}
+                      </td>
+                      <td className="number-cell" style={{ color: "var(--error)" }}>
+                        {run.stats.apiErrors ?? 0}
                       </td>
                       <td className="number-cell">{run.stats.total}</td>
                       <td className="valid-rate-cell">{successRate}%</td>
+                      <td>
+                        {status === "Running" && (
+                          <button
+                            className="btn-sm"
+                            style={{ fontSize: "11px", padding: "2px 8px" }}
+                            onClick={() => handleFinishRun(run.runId)}
+                          >
+                            Mark Finished
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -391,7 +422,10 @@ function Dashboard() {
                       </div>
                       <div className="model-scorecard-meta">
                         <span>
-                          Runs: <strong>{m.run_count}</strong>
+                          Total Runs: <strong>{m.run_count}</strong>
+                        </span>
+                        <span>
+                          Valid Runs: <strong>{m.valid_run_count}</strong>
                         </span>
                         <span>
                           Avg Lines: <strong>{m.avg_lines != null ? m.avg_lines.toFixed(1) : "--"}</strong>

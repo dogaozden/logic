@@ -847,6 +847,11 @@ body {
   color: #fbbf24;
 }
 
+.run-status.finished-with-api-errors {
+  background: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+}
+
 .sortable-header {
   user-select: none;
   transition: color 0.15s, background 0.15s;

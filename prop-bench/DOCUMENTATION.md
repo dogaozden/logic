@@ -166,14 +166,15 @@ interface Theorem {
 }
 ```
 
-**`Difficulty`** — Nine difficulty tiers (plus Custom for spec-generated):
+**`Difficulty`** — Ten difficulty tiers (plus Custom for spec-generated):
 ```typescript
-type Difficulty = "Easy" | "Medium" | "Hard" | "Expert" | "Nightmare"
+type Difficulty = "Baby" | "Easy" | "Medium" | "Hard" | "Expert" | "Nightmare"
   | "Marathon" | "Absurd" | "Cosmic" | "Mind" | "Custom";
 ```
 
 | Tier | Value Range | Generation Method |
 |------|-------------|-------------------|
+| Baby | — | DifficultySpec (2 vars, 1 pass, 0 bridges) |
 | Easy | 1-25 | Legacy (difficulty_value) |
 | Medium | 26-45 | Legacy |
 | Hard | 46-70 | Legacy |

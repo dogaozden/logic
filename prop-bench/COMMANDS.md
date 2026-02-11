@@ -186,6 +186,7 @@ npx ts-node harness.ts \
 | `--max-tokens <n>` | No | `16384` | Max tokens for model response |
 | `--force` | No | off | Force new run — don't skip completed theorems |
 | `--no-retry-parse` | No | off | Don't retry parse errors — treat unparseable model output as a final result |
+| `--retry-api-errors` | No | off | With `--continue-run`: delete API error results and retry those theorems |
 | `--continue-run <id>` | No | — | Continue an incomplete run by its DB run ID |
 
 ### Resume interrupted runs
@@ -207,6 +208,22 @@ npx ts-node harness.ts \
 ```
 
 The `--theorems` and `--models` flags are still required (passed by the GUI server from the run's DB record). The `--workers` flag can be changed. All other settings (temperature, max tokens) are loaded from the original run record.
+
+### Retry API errors
+
+If a run finished but had API errors (e.g., rate limits, timeouts), use `--retry-api-errors` with `--continue-run` to delete those error results and retry just the affected theorems:
+
+```bash
+npx ts-node harness.ts \
+  --theorems benchmarks/v1/theorems.json \
+  --models gemini-3-pro-preview \
+  --continue-run 25 \
+  --retry-api-errors \
+  --workers 3 \
+  --propbench-bin ./target/release/propbench
+```
+
+In the GUI, runs with API errors show as **"Finished with API Errors"** (purple). These appear in the Continue Run dropdown alongside incomplete runs — selecting one automatically enables `--retry-api-errors`.
 
 ## Environment Variables
 

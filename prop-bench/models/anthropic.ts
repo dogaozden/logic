@@ -55,18 +55,30 @@ export class AnthropicAdapter implements ModelAdapter {
           message.includes("rate") ||
           message.includes("overloaded");
 
-        if (!isRateLimit && attempt === 0) {
+        const isTransient =
+          message.includes("fetch failed") ||
+          message.includes("econnreset") ||
+          message.includes("etimedout") ||
+          message.includes("enotfound") ||
+          message.includes("socket hang up") ||
+          message.includes("network") ||
+          message.includes("503") ||
+          message.includes("502");
+
+        const isRetryable = isRateLimit || isTransient;
+
+        if (!isRetryable && attempt === 0) {
           throw lastError;
         }
 
-        if (isRateLimit && attempt < MAX_RETRIES - 1) {
+        if (isRetryable && attempt < MAX_RETRIES - 1) {
           const delay = BASE_DELAY_MS * Math.pow(2, attempt);
           const jitter = Math.random() * delay * 0.1;
           console.warn(
-            `[anthropic] Rate limited, retrying in ${Math.round(delay + jitter)}ms (attempt ${attempt + 1}/${MAX_RETRIES})`
+            `[anthropic] ${isRateLimit ? "Rate limited" : "Transient error"}, retrying in ${Math.round(delay + jitter)}ms (attempt ${attempt + 1}/${MAX_RETRIES})`
           );
           await sleep(delay + jitter);
-        } else if (!isRateLimit) {
+        } else if (!isRetryable) {
           throw lastError;
         }
       }

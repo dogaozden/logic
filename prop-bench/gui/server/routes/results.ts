@@ -235,6 +235,26 @@ router.get("/:runId(*)", (req: Request, res: Response) => {
   }
 });
 
+/** POST /api/runs/finish/:runId — force-finish a stale "Running" run */
+router.post("/finish/:runId", (req: Request, res: Response) => {
+  try {
+    if (!dbModule.dbExists()) {
+      res.status(503).json({ error: "Database not available" });
+      return;
+    }
+    const runId = parseInt(req.params.runId, 10);
+    if (isNaN(runId)) {
+      res.status(400).json({ error: "Invalid run ID" });
+      return;
+    }
+    dbModule.finishRun(runId);
+    res.json({ success: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
 /** DELETE /api/runs/:runId — delete a run's results */
 router.delete("/:runId(*)", (req: Request, res: Response) => {
   try {

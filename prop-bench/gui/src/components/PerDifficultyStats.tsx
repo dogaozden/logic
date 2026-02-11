@@ -5,6 +5,7 @@ interface Props {
 }
 
 const TIERS: DifficultyTier[] = [
+  "baby",
   "easy",
   "medium",
   "hard",

@@ -20,6 +20,7 @@ export interface TheoremResult {
 }
 
 export type DifficultyTier =
+  | "baby"
   | "easy"
   | "medium"
   | "hard"
@@ -168,6 +169,7 @@ export class Scorer {
     // Per-difficulty breakdown
     console.log("\nLines by Difficulty Tier:");
     const tiers: DifficultyTier[] = [
+      "baby",
       "easy",
       "medium",
       "hard",
@@ -312,6 +314,7 @@ export class Scorer {
         DifficultyTier,
         { total: number; count: number; attempted: number; valid: number; invalid: number }
       > = {
+        baby: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
         easy: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
         medium: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },
         hard: { total: 0, count: 0, attempted: 0, valid: 0, invalid: 0 },

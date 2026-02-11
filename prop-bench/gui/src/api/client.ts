@@ -55,6 +55,7 @@ export interface StartBenchmarkOpts {
   count?: number;
   force?: boolean;
   noRetryParse?: boolean;
+  retryApiErrors?: boolean;
   runs?: number;
   continueRunId?: number;
 }
@@ -157,6 +158,8 @@ export interface SetOverview {
     avg_latency_ms: number;
     avg_lines: number | null;
     total_tokens: number;
+    run_count: number;
+    valid_run_count: number;
   }>;
 }
 
@@ -178,12 +181,14 @@ export interface IndividualRun {
   maxTokens: number;
   startedAt: string;
   finishedAt: string | null;
-  status?: "Running" | "Finished" | "Incomplete";
+  status?: "Running" | "Finished" | "Finished with API Errors" | "Incomplete";
   stats: {
     total: number;
     valid: number;
     invalid: number;
     errors: number;
+    parseErrors: number;
+    apiErrors: number;
   };
 }
 
@@ -241,6 +246,11 @@ export const api = {
     return new EventSource(`${BASE}/benchmark/status/${encodeURIComponent(runId)}`);
   },
 
+  /** Check for active (in-progress) benchmark runs */
+  getActiveBenchmarks(): Promise<{ runIds: string[] }> {
+    return json<{ runIds: string[] }>("/benchmark/active");
+  },
+
   /** Stop a running benchmark */
   async stopBenchmark(runId: string): Promise<void> {
     await json<{ success: boolean }>(`/benchmark/stop/${encodeURIComponent(runId)}`, {
@@ -256,6 +266,13 @@ export const api = {
   /** Get full details for a specific run */
   getRun(runId: string): Promise<RunDetail> {
     return json<RunDetail>(`/runs/${encodeURIComponent(runId)}`);
+  },
+
+  /** Force-finish a stale "Running" run */
+  async finishRun(runId: number): Promise<void> {
+    await json<{ success: boolean }>(`/runs/finish/${runId}`, {
+      method: "POST",
+    });
   },
 
   /** Delete a benchmark run's results */

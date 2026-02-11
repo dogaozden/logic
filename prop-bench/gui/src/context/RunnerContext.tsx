@@ -3,6 +3,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   useRef,
   type ReactNode,
 } from "react";
@@ -119,6 +120,25 @@ export function RunnerProvider({ children }: { children: ReactNode }) {
     },
     [stopTimer],
   );
+
+  // On mount, check for active runs and reconnect
+  useEffect(() => {
+    let cancelled = false;
+    api.getActiveBenchmarks().then(({ runIds }) => {
+      if (!cancelled && runIds.length > 0 && !runningRef.current) {
+        const id = runIds[0];
+        runningRef.current = true;
+        setIsRunning(true);
+        setRunId(id);
+        startTimer();
+        connectSSE(id);
+      }
+    }).catch(() => {
+      // Server not reachable or endpoint not available yet — ignore
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const start = useCallback(
     async (opts: StartBenchmarkOpts) => {

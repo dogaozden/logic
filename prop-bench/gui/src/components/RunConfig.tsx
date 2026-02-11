@@ -98,7 +98,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
   useEffect(() => {
     if (continueMode) {
       api.getIndividualRuns().then((runs) => {
-        setIncompleteRuns(runs.filter((r) => r.status === "Incomplete"));
+        setIncompleteRuns(runs.filter((r) => r.status === "Incomplete" || r.status === "Finished with API Errors"));
       }).catch(() => setIncompleteRuns([]));
     }
   }, [continueMode]);
@@ -167,7 +167,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
                     <div><strong>Theorem set:</strong> {selectedContinueRun.setName}</div>
                     <div><strong>Temperature:</strong> {selectedContinueRun.temperature}</div>
                     <div><strong>Max tokens:</strong> {selectedContinueRun.maxTokens}</div>
-                    <div><strong>Progress:</strong> {selectedContinueRun.stats.total} theorems completed ({selectedContinueRun.stats.valid} valid, {selectedContinueRun.stats.invalid} invalid, {selectedContinueRun.stats.errors} errors)</div>
+                    <div><strong>Progress:</strong> {selectedContinueRun.stats.total} theorems completed ({selectedContinueRun.stats.valid} valid, {selectedContinueRun.stats.invalid} invalid, {selectedContinueRun.stats.parseErrors} parse errors, {selectedContinueRun.stats.apiErrors} API errors)</div>
                   </div>
                 )}
               </>

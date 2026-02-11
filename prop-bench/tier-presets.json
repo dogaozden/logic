@@ -1,4 +1,12 @@
 {
+  "baby": {
+    "variables": 2,
+    "passes": 1,
+    "transforms_per_pass": 2,
+    "base_complexity": "simple",
+    "substitution_depth": 0,
+    "bridge_atoms": 0
+  },
   "easy": {
     "variables": 3,
     "passes": 1,
