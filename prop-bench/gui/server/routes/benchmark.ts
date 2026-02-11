@@ -14,6 +14,8 @@ const router = Router();
 interface RunProgress {
   completed: number;
   total: number;
+  sequentialRuns: number;
+  perRunTotal: number;
   currentTheoremId: string;
   currentModel: string;
   validCount: number;
@@ -45,27 +47,40 @@ const activeRuns = new Map<string, {
  *   "  -> PROMPT ERROR: ..."
  */
 function parseHarnessLine(line: string, progress: RunProgress): void {
-  // Match "Processing theorems X to Y (N total)"
-  const totalMatch = line.match(/Processing theorems \d+ to \d+ \((\d+) total\)/);
-  if (totalMatch) {
-    progress.total = parseInt(totalMatch[1], 10);
-    return;
-  }
-
-  // Match "[n/total] theorem_id x model_name — running..."
-  const runningMatch = line.match(/\[(\d+)\/(\d+)\]\s+([\w-]+)\s+x\s+(\S+)\s+—\s+running/);
-  if (runningMatch) {
-    progress.currentTheoremId = runningMatch[3];
-    progress.currentModel = runningMatch[4];
-    // total from the bracket if not already set
-    if (progress.total === 0) {
-      progress.total = parseInt(runningMatch[2], 10);
+  // Match "Sequential runs: N"
+  const seqMatch = line.match(/^Sequential runs:\s+(\d+)/);
+  if (seqMatch) {
+    progress.sequentialRuns = parseInt(seqMatch[1], 10);
+    // If we already know per-run total, update grand total
+    if (progress.perRunTotal > 0) {
+      progress.total = progress.perRunTotal * progress.sequentialRuns;
     }
     return;
   }
 
-  // Match "[n/total] theorem_id x model_name — SKIPPED"
-  const skippedMatch = line.match(/\[(\d+)\/(\d+)\]\s+([\w-]+)\s+x\s+(\S+)\s+—\s+SKIPPED/);
+  // Match "Processing theorems X to Y (N total)"
+  const totalMatch = line.match(/Processing theorems \d+ to \d+ \((\d+) total\)/);
+  if (totalMatch) {
+    progress.perRunTotal = parseInt(totalMatch[1], 10);
+    progress.total = progress.perRunTotal * progress.sequentialRuns;
+    return;
+  }
+
+  // Match "[n/total] theorem_id x model_name — running..." (with optional "(run X/Y) " prefix)
+  const runningMatch = line.match(/(?:\(run \d+\/\d+\)\s+)?\[(\d+)\/(\d+)\]\s+([\w-]+)\s+x\s+(\S+)\s+—\s+running/);
+  if (runningMatch) {
+    progress.currentTheoremId = runningMatch[3];
+    progress.currentModel = runningMatch[4];
+    // Set per-run total from the bracket if not already set
+    if (progress.perRunTotal === 0) {
+      progress.perRunTotal = parseInt(runningMatch[2], 10);
+      progress.total = progress.perRunTotal * progress.sequentialRuns;
+    }
+    return;
+  }
+
+  // Match "[n/total] theorem_id x model_name — SKIPPED" (with optional "(run X/Y) " prefix)
+  const skippedMatch = line.match(/(?:\(run \d+\/\d+\)\s+)?\[(\d+)\/(\d+)\]\s+([\w-]+)\s+x\s+(\S+)\s+—\s+SKIPPED/);
   if (skippedMatch) {
     progress.skippedCount++;
     progress.completed++;
@@ -210,6 +225,8 @@ router.post("/start", (req: Request, res: Response) => {
       progress: {
         completed: 0,
         total: 0,
+        sequentialRuns: 1,
+        perRunTotal: 0,
         currentTheoremId: "",
         currentModel: "",
         validCount: 0,

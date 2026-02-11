@@ -88,21 +88,23 @@ export class GeminiAdapter implements ModelAdapter {
           message.includes("503") ||
           message.includes("502");
 
-        const isRetryable = isRateLimit || isTransient;
-
-        if (!isRetryable && attempt === 0) {
+        // Rate limit errors: throw immediately, let the harness handle retries
+        // (avoids double retry loops: adapter 5x * harness 10x = 50 wasted calls)
+        if (isRateLimit) {
           throw lastError;
         }
 
-        if (isRetryable && attempt < MAX_RETRIES - 1) {
+        if (!isTransient) {
+          throw lastError;
+        }
+
+        if (attempt < MAX_RETRIES - 1) {
           const delay = BASE_DELAY_MS * Math.pow(2, attempt);
           const jitter = Math.random() * delay * 0.1;
           console.warn(
-            `[gemini] ${isRateLimit ? "Rate limited" : "Transient error"}, retrying in ${Math.round(delay + jitter)}ms (attempt ${attempt + 1}/${MAX_RETRIES})`
+            `[gemini] Transient error: ${lastError.message} — retrying in ${Math.round(delay + jitter)}ms (attempt ${attempt + 1}/${MAX_RETRIES})`
           );
           await sleep(delay + jitter);
-        } else if (!isRetryable) {
-          throw lastError;
         }
       }
     }
