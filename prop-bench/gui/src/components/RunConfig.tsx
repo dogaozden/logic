@@ -14,6 +14,7 @@ export interface RunConfigValues {
   noRetryParse: boolean;
   runs: number;
   continueRunId: number | null;
+  maxCost: number | null;
 }
 
 const MODEL_OPTIONS = [
@@ -59,6 +60,9 @@ function buildCommand(cfg: RunConfigValues): string {
   }
   if (cfg.runs > 1) {
     parts.push(`--runs ${cfg.runs}`);
+  }
+  if (cfg.maxCost != null) {
+    parts.push(`--max-cost ${cfg.maxCost}`);
   }
   return parts.join(" \\\n  ");
 }
@@ -382,6 +386,30 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
           placeholder="1"
         />
         <span className="config-detail">Run the benchmark N times back-to-back</span>
+      </div>
+
+      {/* Max cost */}
+      <div className="config-section">
+        <label className="config-label" htmlFor="cfg-max-cost">
+          Max cost ($)
+        </label>
+        <input
+          id="cfg-max-cost"
+          className="config-input config-input--sm"
+          type="number"
+          min={0.01}
+          step={0.5}
+          value={config.maxCost ?? ""}
+          onChange={(e) =>
+            onChange({
+              ...config,
+              maxCost: e.target.value === "" ? null : parseFloat(e.target.value),
+            })
+          }
+          disabled={running}
+          placeholder="no limit"
+        />
+        <span className="config-detail">Abort run when estimated cost exceeds this amount</span>
       </div>
 
       {/* Start button */}

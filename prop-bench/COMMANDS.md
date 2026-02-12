@@ -188,6 +188,7 @@ npx ts-node harness.ts \
 | `--no-retry-parse` | No | off | Don't retry parse errors — treat unparseable model output as a final result |
 | `--retry-api-errors` | No | off | With `--continue-run`: delete API error results and retry those theorems |
 | `--continue-run <id>` | No | — | Continue an incomplete run by its DB run ID |
+| `--max-cost <n>` | No | no limit | Abort run when estimated cost exceeds $n (e.g. `--max-cost 5`) |
 
 ### Resume interrupted runs
 
@@ -426,6 +427,20 @@ cargo test
 # Build Rust in debug mode
 cargo build
 ```
+
+## Recent Improvements (v4+)
+
+### v4.50 — Cost Protection
+
+**Thinking token tracking:** Gemini thinking models (2.5 Pro, 2.5 Flash, 3 Pro, 3 Flash) generate invisible "thinking tokens" billed as output but previously untracked. The adapter now uses `totalTokenCount` (which includes thinking tokens) and records `thinking_tokens` separately in the DB.
+
+**Thinking budget cap:** Gemini adapter sets `thinkingConfig: { thinkingBudget: 10000 }` to cap thinking tokens per call. Prevents runaway 365K+ thinking token calls that cost ~$3.65 each on 2.5 Pro.
+
+**Cost tracking:** Each API call now logs its estimated cost. The summary prints total run cost.
+
+**`--max-cost` flag:** New CLI flag to abort a run when estimated spending exceeds a budget (e.g. `--max-cost 5` for $5 limit). Also available in the GUI.
+
+**DB migration:** Added `thinking_tokens` column to the `results` table.
 
 ## Recent Improvements (v3+)
 

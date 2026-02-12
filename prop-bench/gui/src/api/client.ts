@@ -58,6 +58,7 @@ export interface StartBenchmarkOpts {
   retryApiErrors?: boolean;
   runs?: number;
   continueRunId?: number;
+  maxCost?: number;
 }
 
 export interface RunInfo {

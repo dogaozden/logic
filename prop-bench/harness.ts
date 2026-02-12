@@ -39,6 +39,7 @@ export interface BenchmarkResult {
   line_count: number | null;
   latency_ms: number;
   tokens_used: number | undefined;
+  thinking_tokens?: number;
   finish_reason?: string;
   timestamp: string;
 }
@@ -65,6 +66,7 @@ interface CliArgs {
   retryApiErrors: boolean;
   runs: number;
   continueRunId: number | null;
+  maxCost: number | null;
 }
 
 function parseArgs(): CliArgs {
@@ -83,6 +85,7 @@ function parseArgs(): CliArgs {
     retryApiErrors: false,
     runs: 1,
     continueRunId: null,
+    maxCost: null,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -126,6 +129,9 @@ function parseArgs(): CliArgs {
       case "--continue-run":
         parsed.continueRunId = parseInt(args[++i], 10);
         break;
+      case "--max-cost":
+        parsed.maxCost = parseFloat(args[++i]);
+        break;
       default:
         console.error(`Unknown argument: ${args[i]}`);
         printUsage();
@@ -161,7 +167,30 @@ Options:
   --retry-api-errors        With --continue-run: delete API error results and retry those theorems
   --runs <n>                Run the full benchmark N times sequentially (default: 1)
   --continue-run <id>       Continue an incomplete run by its DB run ID
+  --max-cost <n>            Abort run when estimated cost exceeds $n (e.g. --max-cost 5)
 `);
+}
+
+// ---------------------------------------------------------------------------
+// Model pricing (USD per million tokens)
+// ---------------------------------------------------------------------------
+
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  "gemini-2.5-pro":                        { input: 1.25,  output: 10.00 },
+  "gemini-2.5-flash":                      { input: 0.30,  output: 2.50  },
+  "gemini-3-pro-preview":                  { input: 2.00,  output: 12.00 },
+  "gemini-3-flash-preview":                { input: 0.50,  output: 3.00  },
+  "gemini-2.0-flash":                      { input: 0.10,  output: 0.40  },
+  "gemini-2.5-flash-lite-preview-09-2025": { input: 0.10,  output: 0.40  },
+  "claude-sonnet-4-5-20250929":            { input: 3.00,  output: 15.00 },
+  "gpt-4o":                                { input: 2.50,  output: 10.00 },
+};
+
+function estimateCallCost(modelSlug: string, totalTokens: number): number {
+  const pricing = MODEL_PRICING[modelSlug];
+  if (!pricing || !totalTokens) return 0;
+  // Use output pricing for total tokens (conservative: thinking tokens are billed as output)
+  return (totalTokens / 1_000_000) * pricing.output;
 }
 
 // ---------------------------------------------------------------------------
@@ -324,6 +353,7 @@ async function run(): Promise<void> {
   console.log(`Models:   ${args.models.join(", ")}`);
   console.log(`Workers:  ${args.workers}`);
   if (args.force) console.log(`Force:    YES (new run, skipping nothing)`);
+  if (args.maxCost != null) console.log(`Max cost: $${args.maxCost.toFixed(2)}`);
   console.log();
 
   // Load theorems
@@ -491,7 +521,13 @@ async function run(): Promise<void> {
           result.latency_ms = response.latency_ms;
           result.model_name = response.model;
           result.tokens_used = response.tokens_used;
+          result.thinking_tokens = response.thinking_tokens;
           result.finish_reason = response.finish_reason;
+
+          if (response.tokens_used) {
+            const callCost = estimateCallCost(adapter.name, response.tokens_used);
+            console.log(`  cost: +$${callCost.toFixed(4)} (${response.tokens_used} tokens${response.thinking_tokens ? `, ${response.thinking_tokens} thinking` : ""})`);
+          }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           result.validation_errors = [`API error: ${msg}`];
@@ -588,6 +624,10 @@ async function run(): Promise<void> {
     let totalInvalid = 0;
     let totalErrors = 0;
 
+    // Cost tracking
+    let runCostUsd = 0;
+    let costAborted = false;
+
     // Load run state for resume support (only for first run when not forcing)
     const currentState = (runIteration === 1 && !args.force) ? state : { completed: new Set<string>() };
 
@@ -616,6 +656,8 @@ async function run(): Promise<void> {
 
     // Process work items with concurrency limiter
     async function processWorkItem(item: WorkItem): Promise<void> {
+      if (costAborted) return;
+
       const benchThm = benchTheorems[item.theoremIndex];
       const adapter = adapters[item.adapterIndex];
       const theorem = toTheorem(benchThm);
@@ -623,6 +665,7 @@ async function run(): Promise<void> {
       const progress = `${runTag}[${item.itemNumber}/${totalItems}]`;
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        if (costAborted) return;
         if (attempt > 1) {
           // Exponential backoff capped at 30s
           const delay = Math.min(1000 * Math.pow(2, attempt - 2), 30_000);
@@ -677,7 +720,20 @@ async function run(): Promise<void> {
           result.latency_ms = response.latency_ms;
           result.model_name = response.model;
           result.tokens_used = response.tokens_used;
+          result.thinking_tokens = response.thinking_tokens;
           result.finish_reason = response.finish_reason;
+
+          // Track running cost
+          if (response.tokens_used) {
+            const callCost = estimateCallCost(adapter.name, response.tokens_used);
+            runCostUsd += callCost;
+            console.log(`  cost: $${runCostUsd.toFixed(4)} (+$${callCost.toFixed(4)}, ${response.tokens_used} tokens${response.thinking_tokens ? `, ${response.thinking_tokens} thinking` : ""})`);
+
+            if (args.maxCost != null && runCostUsd >= args.maxCost) {
+              costAborted = true;
+              console.log(`  COST LIMIT REACHED: $${runCostUsd.toFixed(4)} >= $${args.maxCost.toFixed(2)} — aborting run`);
+            }
+          }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           result.validation_errors = [`API error: ${msg}`];
@@ -757,6 +813,10 @@ async function run(): Promise<void> {
     console.log(`Valid:   ${totalValid}`);
     console.log(`Invalid: ${totalInvalid}`);
     console.log(`Errors:  ${totalErrors}`);
+    console.log(`Cost:    $${runCostUsd.toFixed(4)}`);
+    if (costAborted) {
+      console.log(`*** RUN ABORTED — cost limit ($${args.maxCost!.toFixed(2)}) reached ***`);
+    }
     console.log();
   } // end of sequential runs loop
 }

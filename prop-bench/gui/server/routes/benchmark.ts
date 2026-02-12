@@ -23,6 +23,7 @@ interface RunProgress {
   parseErrorCount: number;
   apiErrorCount: number;
   skippedCount: number;
+  costUsd: number;
 }
 
 /** Active benchmark runs keyed by runId */
@@ -114,12 +115,19 @@ function parseHarnessLine(line: string, progress: RunProgress): void {
     progress.completed++;
     return;
   }
+
+  // Match "  cost: $X.XXXX" (running cost from harness)
+  const costMatch = line.match(/^\s+cost:\s+\$(\d+\.\d+)/);
+  if (costMatch) {
+    progress.costUsd = parseFloat(costMatch[1]);
+    return;
+  }
 }
 
 /** POST /api/benchmark/start — spawn a harness run */
 router.post("/start", (req: Request, res: Response) => {
   try {
-    const { theoremSet, models, temperature, maxTokens, workers, start, count, force, noRetryParse, retryApiErrors, runs, continueRunId } = req.body;
+    const { theoremSet, models, temperature, maxTokens, workers, start, count, force, noRetryParse, retryApiErrors, runs, continueRunId, maxCost } = req.body;
 
     // Continue-run mode: look up settings from the DB run record
     if (continueRunId != null) {
@@ -141,6 +149,7 @@ router.post("/start", (req: Request, res: Response) => {
         noRetryParse: noRetryParse ?? true,
         retryApiErrors,
         continueRunId,
+        maxCost,
       });
 
       const run = {
@@ -149,6 +158,8 @@ router.post("/start", (req: Request, res: Response) => {
         progress: {
           completed: 0,
           total: 0,
+          sequentialRuns: 1,
+          perRunTotal: 0,
           currentTheoremId: "",
           currentModel: "",
           validCount: 0,
@@ -156,6 +167,7 @@ router.post("/start", (req: Request, res: Response) => {
           parseErrorCount: 0,
           apiErrorCount: 0,
           skippedCount: 0,
+          costUsd: 0,
         },
         done: false,
         error: null as string | null,
@@ -217,6 +229,7 @@ router.post("/start", (req: Request, res: Response) => {
       force,
       noRetryParse,
       runs,
+      maxCost,
     });
 
     const run = {
@@ -234,6 +247,7 @@ router.post("/start", (req: Request, res: Response) => {
         parseErrorCount: 0,
         apiErrorCount: 0,
         skippedCount: 0,
+        costUsd: 0,
       },
       done: false,
       error: null as string | null,

@@ -979,10 +979,18 @@ PropBench consists of:
 - Result: Improved accuracy from 50% to 100% on first 10 theorems
 
 **Model Adapters**:
-- Gemini (`models/gemini.ts`): v2.5 migrated to `@google/genai` SDK, default model `gemini-2.5-flash-lite-preview-09-2025`
+- Gemini (`models/gemini.ts`): Uses `@google/genai` SDK, default model `gemini-2.5-flash-lite-preview-09-2025`. Sets `thinkingConfig: { thinkingBudget: 10000 }` to cap thinking tokens per call. Uses `totalTokenCount` for accurate billing (includes thinking tokens). Returns `thinking_tokens` separately for visibility.
 - Anthropic (`models/anthropic.ts`): Uses Claude Sonnet 4.5
 - OpenAI (`models/openai.ts`): Uses GPT-4o
 - All adapters include retry logic with exponential backoff for rate limits
+- Supported models: `gemini-2.0-flash`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite-preview-09-2025`, `gemini-3-flash-preview`, `gemini-3-pro-preview`, `claude-sonnet-4-5-20250929`, `gpt-4o`
+
+**Cost Protection** (v4.50):
+- **Thinking token tracking**: Gemini thinking models (2.5 Pro, 2.5 Flash, 3 Pro, 3 Flash) generate invisible "thinking tokens" billed as output but previously untracked. The adapter now uses `totalTokenCount` and records `thinking_tokens` separately in the DB.
+- **Thinking budget cap**: `thinkingConfig: { thinkingBudget: 10000 }` caps thinking tokens per call, preventing runaway 365K+ token calls.
+- **Cost tracking**: Each API call logs estimated cost using per-model pricing tables. Run summaries include total cost.
+- **`--max-cost` flag**: Aborts a run when estimated spending exceeds a budget (e.g. `--max-cost 5` for $5 limit). Available in both CLI and GUI.
+- **DB migration**: Added `thinking_tokens` column to the `results` table.
 
 **Environment Configuration**:
 - v2.5: Added `.env` file support via `dotenv` package

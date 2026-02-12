@@ -28,6 +28,7 @@ export interface BenchmarkResult {
   line_count: number | null;
   latency_ms: number;
   tokens_used: number | undefined;
+  thinking_tokens?: number;
   finish_reason?: string;
   timestamp: string;
 }
@@ -166,6 +167,11 @@ export function initSchema(): void {
     db.exec(`ALTER TABLE runs ADD COLUMN max_tokens INTEGER NOT NULL DEFAULT 4096`);
   } catch { /* column already exists */ }
 
+  // Migration: add thinking_tokens column if missing
+  try {
+    db.exec(`ALTER TABLE results ADD COLUMN thinking_tokens INTEGER`);
+  } catch { /* column already exists */ }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS reports_cache (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -259,8 +265,8 @@ export function insertResult(setName: string, result: BenchmarkResult, runId?: n
       set_id, theorem_id, model_slug, model_display, run_id,
       raw_response, parsed_proof, parse_error,
       validation_result, validation_errors,
-      line_count, latency_ms, tokens_used, finish_reason, timestamp
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      line_count, latency_ms, tokens_used, thinking_tokens, finish_reason, timestamp
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   stmt.run(
@@ -277,6 +283,7 @@ export function insertResult(setName: string, result: BenchmarkResult, runId?: n
     result.line_count,
     result.latency_ms,
     result.tokens_used ?? null,
+    result.thinking_tokens ?? null,
     result.finish_reason ?? null,
     result.timestamp
   );

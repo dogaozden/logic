@@ -23,6 +23,7 @@ function BenchmarkRunner() {
     noRetryParse: true,
     runs: 1,
     continueRunId: null,
+    maxCost: null,
   });
 
   const handleStart = useCallback(async () => {
@@ -32,6 +33,7 @@ function BenchmarkRunner() {
         continueRunId: config.continueRunId,
         retryApiErrors: true,
         workers: config.workers != null && config.workers > 1 ? config.workers : undefined,
+        maxCost: config.maxCost ?? undefined,
         // These are required by the type but ignored by the server in continue mode
         models: [],
         theoremSet: "",
@@ -56,6 +58,7 @@ function BenchmarkRunner() {
       force: config.force || undefined,
       noRetryParse: config.noRetryParse || undefined,
       runs: config.runs > 1 ? config.runs : undefined,
+      maxCost: config.maxCost ?? undefined,
     });
   }, [config, runner]);
 

@@ -14,6 +14,7 @@ export interface ModelResponse {
   latency_ms: number;
   model: string;
   tokens_used?: number;
+  thinking_tokens?: number;
   finish_reason?: string;
 }
 

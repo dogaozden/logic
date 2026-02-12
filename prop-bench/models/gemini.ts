@@ -43,6 +43,7 @@ export class GeminiAdapter implements ModelAdapter {
             config: {
               temperature: config.temperature ?? 0.2,
               maxOutputTokens: config.maxTokens ?? 4096,
+              thinkingConfig: { thinkingBudget: 10000 },
               abortSignal: controller.signal,
             },
           });
@@ -71,10 +72,8 @@ export class GeminiAdapter implements ModelAdapter {
           raw_response: text,
           latency_ms,
           model: modelName,
-          tokens_used: usage
-            ? (usage.promptTokenCount ?? 0) +
-              (usage.candidatesTokenCount ?? 0)
-            : undefined,
+          tokens_used: usage?.totalTokenCount ?? undefined,
+          thinking_tokens: usage?.thoughtsTokenCount ?? undefined,
           finish_reason: finishReason ?? undefined,
         };
       } catch (err: unknown) {

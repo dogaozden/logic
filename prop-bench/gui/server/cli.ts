@@ -288,6 +288,7 @@ export interface HarnessOpts {
   retryApiErrors?: boolean;
   runs?: number;
   continueRunId?: number;
+  maxCost?: number;
 }
 
 export function spawnHarness(opts: HarnessOpts): ChildProcess {
@@ -336,6 +337,9 @@ export function spawnHarness(opts: HarnessOpts): ChildProcess {
   }
   if (opts.continueRunId !== undefined) {
     args.push("--continue-run", String(opts.continueRunId));
+  }
+  if (opts.maxCost !== undefined) {
+    args.push("--max-cost", String(opts.maxCost));
   }
 
   // Build child env: inherit process.env and also load .env from project root
