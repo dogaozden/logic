@@ -263,6 +263,7 @@ export OPENAI_API_KEY="your-key-here"
 
 | Full Model Identifier | Provider | SDK |
 |-----------------------|----------|-----|
+| `gemini-2.0-flash` | Google | `@google/genai` v1.0.0 |
 | `gemini-2.5-pro` | Google | `@google/genai` v1.0.0 |
 | `gemini-2.5-flash` | Google | `@google/genai` v1.0.0 |
 | `gemini-2.5-flash-lite-preview-09-2025` | Google | `@google/genai` v1.0.0 |
