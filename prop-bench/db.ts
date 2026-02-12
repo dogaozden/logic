@@ -628,7 +628,7 @@ export function getRunDetail(runId: string): { summary: unknown; results: unknow
   // Determine if this is a set-level or model-level run
   const parts = runId.split("/");
   const setName = parts[0];
-  const modelSlug = parts.length > 1 ? parts[1] : null;
+  const modelSlug = parts.length > 1 ? parts.slice(1).join("/") : null;
 
   const setRow = db.prepare("SELECT id FROM theorem_sets WHERE name = ?").get(setName) as { id: number } | undefined;
   if (!setRow) {
@@ -637,6 +637,7 @@ export function getRunDetail(runId: string): { summary: unknown; results: unknow
 
   // Fetch results
   let rawResults: Array<{
+    id: number;
     theorem_id: string;
     model_slug: string;
     model_display: string;
@@ -654,7 +655,7 @@ export function getRunDetail(runId: string): { summary: unknown; results: unknow
 
   if (modelSlug) {
     rawResults = db.prepare(`
-      SELECT theorem_id, model_slug, model_display, raw_response, parsed_proof,
+      SELECT id, theorem_id, model_slug, model_display, raw_response, parsed_proof,
              parse_error, validation_result, validation_errors, line_count,
              latency_ms, tokens_used, finish_reason, timestamp
       FROM results
@@ -673,23 +674,20 @@ export function getRunDetail(runId: string): { summary: unknown; results: unknow
                WHERE results.run_id = r2.id
                  AND results.validation_result = 'error'
                  AND results.parse_error IS NULL) = 0
-      ),
-      latest AS (
-        SELECT *, ROW_NUMBER() OVER (PARTITION BY theorem_id, model_slug ORDER BY id DESC) AS rn
-        FROM results
-        WHERE set_id = ?
-          AND (run_id IS NULL OR run_id IN (SELECT run_id FROM complete_runs))
       )
-      SELECT theorem_id, model_slug, model_display, raw_response, parsed_proof,
+      SELECT id, theorem_id, model_slug, model_display, raw_response, parsed_proof,
              parse_error, validation_result, validation_errors, line_count,
              latency_ms, tokens_used, finish_reason, timestamp
-      FROM latest WHERE rn = 1
+      FROM results
+      WHERE set_id = ?
+        AND (run_id IS NULL OR run_id IN (SELECT run_id FROM complete_runs))
       ORDER BY theorem_id, model_slug
     `).all(setRow.id) as typeof rawResults;
   }
 
   // Convert to BenchmarkResult shape
   const results = rawResults.map((r) => ({
+    _id: r.id,
     theorem_id: r.theorem_id,
     model: r.model_slug,
     model_name: r.model_display,
@@ -725,9 +723,8 @@ function computeReport(setId: number, scope: string, results: unknown[]): unknow
     theoremMap.set(t.theorem_id, { difficulty: t.difficulty, difficultyValue: t.difficulty_value });
   }
 
-  const scorer = new Scorer();
-
-  for (const raw of results as Array<Record<string, unknown>>) {
+  // Helper: convert a raw result to TheoremResult
+  function toTheoremResult(raw: Record<string, unknown>): { modelDisplay: string; theoremResult: TheoremResult } {
     const theoremId = raw.theorem_id as string;
     const modelDisplay = raw.model_name as string;
     const validationResult = raw.validation_result as string;
@@ -748,22 +745,117 @@ function computeReport(setId: number, scope: string, results: unknown[]): unknow
       else failureStage = "validation";
     }
 
-    const theoremResult: TheoremResult = {
-      theoremId,
-      valid,
-      parseSuccess: parseError === null,
-      lineCount,
-      difficulty,
-      difficultyValue,
-      ...(failureStage !== undefined ? { failureStage } : {}),
+    return {
+      modelDisplay,
+      theoremResult: {
+        theoremId,
+        valid,
+        parseSuccess: parseError === null,
+        lineCount,
+        difficulty,
+        difficultyValue,
+        ...(failureStage !== undefined ? { failureStage } : {}),
+      },
     };
-
-    scorer.recordResult(theoremId, modelDisplay, theoremResult);
   }
 
-  const report = scorer.generateReport();
+  // Deduplicate: keep latest (highest _id) per theorem_id::model_name for Elo/head-to-head
+  const dedupMap = new Map<string, Record<string, unknown>>();
+  for (const raw of results as Array<Record<string, unknown>>) {
+    const key = `${raw.theorem_id}::${raw.model_name}`;
+    const existing = dedupMap.get(key);
+    if (!existing || (raw._id as number) > (existing._id as number)) {
+      dedupMap.set(key, raw);
+    }
+  }
 
-  // No caching — always recompute to ensure reports use current scorer code
+  // Feed only deduped results to scorer for Elo/head-to-head
+  const scorer = new Scorer();
+  for (const raw of dedupMap.values()) {
+    const { modelDisplay, theoremResult } = toTheoremResult(raw);
+    scorer.recordResult(theoremResult.theoremId, modelDisplay, theoremResult);
+  }
+
+  const report = scorer.generateReport() as BenchmarkReport;
+
+  // Recompute model stats from ALL results (combined across runs)
+  const allDiffTiers: DifficultyTier[] = [
+    "baby", "easy", "medium", "hard", "expert", "nightmare", "marathon", "absurd", "cosmic", "mind",
+  ];
+  const modelAllStats = new Map<string, {
+    totalAttempted: number;
+    validCount: number;
+    invalidCount: number;
+    totalLines: number;
+    byDiff: Record<string, { attempted: number; valid: number; invalid: number; total: number; count: number }>;
+  }>();
+
+  for (const raw of results as Array<Record<string, unknown>>) {
+    const { modelDisplay, theoremResult } = toTheoremResult(raw);
+    let stats = modelAllStats.get(modelDisplay);
+    if (!stats) {
+      stats = {
+        totalAttempted: 0, validCount: 0, invalidCount: 0, totalLines: 0,
+        byDiff: {},
+      };
+      for (const tier of allDiffTiers) {
+        stats.byDiff[tier] = { attempted: 0, valid: 0, invalid: 0, total: 0, count: 0 };
+      }
+      modelAllStats.set(modelDisplay, stats);
+    }
+
+    stats.totalAttempted++;
+    const tier = theoremResult.difficulty;
+    const d = stats.byDiff[tier];
+    d.attempted++;
+
+    if (theoremResult.valid) {
+      stats.validCount++;
+      d.valid++;
+      if (theoremResult.lineCount !== null) {
+        stats.totalLines += theoremResult.lineCount;
+        d.total += theoremResult.lineCount;
+        d.count++;
+      }
+    } else {
+      stats.invalidCount++;
+      d.invalid++;
+    }
+  }
+
+  // Overwrite model stats and rankings in the report with combined counts
+  for (const ms of report.models) {
+    const combined = modelAllStats.get(ms.model);
+    if (!combined) continue;
+
+    ms.totalAttempted = combined.totalAttempted;
+    ms.validCount = combined.validCount;
+    ms.invalidCount = combined.invalidCount;
+    ms.totalLines = combined.totalLines;
+    ms.avgLinesPerValidProof = combined.validCount > 0 ? combined.totalLines / combined.validCount : null;
+
+    for (const tier of allDiffTiers) {
+      const src = combined.byDiff[tier];
+      ms.linesByDifficulty[tier as DifficultyTier] = {
+        attempted: src.attempted,
+        valid: src.valid,
+        invalid: src.invalid,
+        total: src.total,
+        count: src.count,
+        avg: src.count > 0 ? src.total / src.count : null,
+      };
+    }
+  }
+
+  // Update rankings validRate with combined counts
+  for (const r of report.rankings) {
+    const combined = modelAllStats.get(r.model);
+    if (!combined) continue;
+    r.validRate = combined.totalAttempted > 0
+      ? `${((combined.validCount / combined.totalAttempted) * 100).toFixed(1)}%`
+      : "0.0%";
+  }
+
   return report;
 }
 
@@ -772,7 +864,7 @@ export function deleteRun(runId: string): void {
 
   const parts = runId.split("/");
   const setName = parts[0];
-  const modelSlug = parts.length > 1 ? parts[1] : null;
+  const modelSlug = parts.length > 1 ? parts.slice(1).join("/") : null;
 
   const setRow = db.prepare("SELECT id FROM theorem_sets WHERE name = ?").get(setName) as { id: number } | undefined;
   if (!setRow) return;

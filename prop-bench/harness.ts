@@ -153,7 +153,7 @@ Usage: npx ts-node harness.ts --theorems <path> --models <list> [options]
 
 Required:
   --theorems <path>         Path to theorems JSON file
-  --models <list>           Comma-separated model names (gemini,claude,gpt)
+  --models <list>           Comma-separated model names (e.g., gemini-2.5-flash,anthropic/claude-sonnet-4.5)
 
 Options:
   --start <n>               Start at theorem index n (default: 0)
@@ -175,15 +175,34 @@ Options:
 // Model pricing (USD per million tokens)
 // ---------------------------------------------------------------------------
 
+// Approximate prices used only for --max-cost budget protection.
+// OpenRouter may charge different rates; check openrouter.ai/models for current pricing.
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  // Direct Gemini API
   "gemini-2.5-pro":                        { input: 1.25,  output: 10.00 },
   "gemini-2.5-flash":                      { input: 0.30,  output: 2.50  },
   "gemini-3-pro-preview":                  { input: 2.00,  output: 12.00 },
   "gemini-3-flash-preview":                { input: 0.50,  output: 3.00  },
   "gemini-2.0-flash":                      { input: 0.10,  output: 0.40  },
   "gemini-2.5-flash-lite-preview-09-2025": { input: 0.10,  output: 0.40  },
-  "claude-sonnet-4-5-20250929":            { input: 3.00,  output: 15.00 },
-  "gpt-4o":                                { input: 2.50,  output: 10.00 },
+  // OpenRouter — Gemini (same pricing as direct)
+  "google/gemini-2.5-pro":                 { input: 1.25,  output: 10.00 },
+  "google/gemini-2.5-flash":               { input: 0.30,  output: 2.50  },
+  "google/gemini-3-pro-preview":           { input: 2.00,  output: 12.00 },
+  "google/gemini-3-flash-preview":         { input: 0.50,  output: 3.00  },
+  "google/gemini-2.0-flash-001":           { input: 0.10,  output: 0.40  },
+  // OpenRouter — Anthropic
+  "anthropic/claude-sonnet-4.5":           { input: 3.00,  output: 15.00 },
+  "anthropic/claude-haiku-3.5":            { input: 0.80,  output: 4.00  },
+  // OpenRouter — OpenAI
+  "openai/gpt-4o":                         { input: 2.50,  output: 10.00 },
+  "openai/gpt-4o-mini":                    { input: 0.15,  output: 0.60  },
+  "openai/o3-mini":                        { input: 1.10,  output: 4.40  },
+  // OpenRouter — Other
+  "deepseek/deepseek-r1":                  { input: 0.55,  output: 2.19  },
+  "deepseek/deepseek-chat":                { input: 0.27,  output: 1.10  },
+  "meta-llama/llama-4-maverick":           { input: 0.50,  output: 0.77  },
+  "mistralai/mistral-large-2":             { input: 2.00,  output: 6.00  },
 };
 
 function estimateCallCost(modelSlug: string, totalTokens: number): number {

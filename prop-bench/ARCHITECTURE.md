@@ -30,8 +30,7 @@ PropBench is an LLM benchmark that measures proof efficiency in propositional lo
 │        ├──► models/index.ts ───► ModelAdapter.callModel()        │
 │        │           │                       │                      │
 │        │           ├─► gemini.ts           │                      │
-│        │           ├─► anthropic.ts        │                      │
-│        │           └─► openai.ts           │                      │
+│        │           └─► openrouter.ts       │                      │
 │        │                                   │                      │
 │        │                                   ▼                      │
 │        │                          LLM API Response               │
@@ -149,8 +148,7 @@ PropBench is an LLM benchmark that measures proof efficiency in propositional lo
 | **parser.ts** | Parses raw LLM text output into structured proof lines: strips line numbers, detects subproof depth, normalizes symbols, canonicalizes rule names; v2.5: fixed formula parsing using known-rule-name matching |
 | **models/index.ts** | Model adapter registry and shared interfaces (ModelAdapter, ModelConfig, ModelResponse); v2.5: removed `.js` extensions from imports |
 | **models/gemini.ts** | Gemini API adapter with retry logic and token tracking; v2.5: migrated to `@google/genai` SDK, default model `gemini-2.5-flash-lite-preview-09-2025` |
-| **models/anthropic.ts** | Anthropic API adapter with retry logic and token tracking; v2.5: removed `.js` extensions from imports |
-| **models/openai.ts** | OpenAI API adapter with retry logic and token tracking; v2.5: removed `.js` extensions from imports |
+| **models/openrouter.ts** | OpenRouter API adapter — routes any non-Gemini model through OpenRouter (uses openai SDK with custom baseURL) |
 | **scorer.ts** | Computes Elo ratings, aggregates line counts, tracks per-difficulty statistics |
 | **logger.ts** | Structured JSONL logging of all API calls, responses, parse results, validation results, and errors |
 | **config.ts** | Shared TypeScript types and default benchmark parameters |
@@ -231,13 +229,12 @@ Default is 1 (sequential) for backward compatibility. The GUI exposes this as a 
 ```bash
 # prop-bench/.env
 GEMINI_API_KEY=your-key-here
-ANTHROPIC_API_KEY=your-key-here
-OPENAI_API_KEY=your-key-here
+OPENROUTER_API_KEY=your-key-here
 ```
 
 The `.env` file is loaded before any model adapters are instantiated, ensuring keys are available throughout the application lifecycle.
 
-**Import fixes (v2.5):** All TypeScript import statements in model files (`models/index.ts`, `models/gemini.ts`, `models/anthropic.ts`, `models/openai.ts`) had `.js` extensions removed. The `.js` extensions were breaking `ts-node` in CommonJS mode. Imports now use bare module names (e.g., `"./index"` not `"./index.js"`).
+**Import fixes (v2.5):** All TypeScript import statements in model files (`models/index.ts`, `models/gemini.ts`, `models/openrouter.ts`) had `.js` extensions removed. The `.js` extensions were breaking `ts-node` in CommonJS mode. Imports now use bare module names (e.g., `"./index"` not `"./index.js"`).
 
 ## Parser Improvements (v2.5)
 

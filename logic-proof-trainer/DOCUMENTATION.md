@@ -962,7 +962,7 @@ PropBench consists of:
 - **TypeScript harness** (`harness.ts`) — Orchestrates benchmark runs, calls LLM APIs, parses outputs
 - **Rust CLI** (`src/main.rs`) — Wraps the Logic Proof Trainer backend for validation
 - **Web GUI** (`gui/`) — React frontend + Express backend for running benchmarks visually
-- **Model adapters** (`models/`) — API clients for Gemini, Anthropic (Claude), and OpenAI (GPT)
+- **Model adapters** (`models/`) — Gemini direct adapter + OpenRouter adapter for all other models
 - **Tier presets** (`tier-presets.json`) — Editable difficulty tier configurations loaded by GUI and CLI
 
 ### Key Components
@@ -979,11 +979,11 @@ PropBench consists of:
 - Result: Improved accuracy from 50% to 100% on first 10 theorems
 
 **Model Adapters**:
-- Gemini (`models/gemini.ts`): Uses `@google/genai` SDK, default model `gemini-2.5-flash-lite-preview-09-2025`. Sets `thinkingConfig: { thinkingBudget: 10000 }` to cap thinking tokens per call. Uses `totalTokenCount` for accurate billing (includes thinking tokens). Returns `thinking_tokens` separately for visibility.
-- Anthropic (`models/anthropic.ts`): Uses Claude Sonnet 4.5
-- OpenAI (`models/openai.ts`): Uses GPT-4o
-- All adapters include retry logic with exponential backoff for rate limits
-- Supported models: `gemini-2.0-flash`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite-preview-09-2025`, `gemini-3-flash-preview`, `gemini-3-pro-preview`, `claude-sonnet-4-5-20250929`, `gpt-4o`
+- Gemini (`models/gemini.ts`): Uses `@google/genai` SDK for direct Google AI API access. Sets `thinkingConfig: { thinkingBudget: 10000 }` to cap thinking tokens per call. Uses `totalTokenCount` for accurate billing (includes thinking tokens). Returns `thinking_tokens` separately for visibility.
+- OpenRouter (`models/openrouter.ts`): Uses `openai` SDK targeting `https://openrouter.ai/api/v1`. Supports any model available on OpenRouter (Claude, GPT, Llama, DeepSeek, Mistral, etc.) with a single `OPENROUTER_API_KEY`.
+- Both adapters include retry logic with exponential backoff for rate limits
+- Direct Gemini models: `gemini-2.0-flash`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite-preview-09-2025`, `gemini-3-flash-preview`, `gemini-3-pro-preview`
+- OpenRouter models: any valid OpenRouter model ID (e.g., `anthropic/claude-sonnet-4.5`, `openai/gpt-4o`, `deepseek/deepseek-r1`)
 
 **Cost Protection** (v4.50):
 - **Thinking token tracking**: Gemini thinking models (2.5 Pro, 2.5 Flash, 3 Pro, 3 Flash) generate invisible "thinking tokens" billed as output but previously untracked. The adapter now uses `totalTokenCount` and records `thinking_tokens` separately in the DB.
@@ -995,7 +995,7 @@ PropBench consists of:
 **Environment Configuration**:
 - v2.5: Added `.env` file support via `dotenv` package
 - Both harness and GUI load `.env` from prop-bench root with `override: true`
-- API keys: `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
+- API keys: `GEMINI_API_KEY` (direct Gemini models), `OPENROUTER_API_KEY` (all other models via OpenRouter)
 
 ### Web GUI (v2.5 Improvements)
 
@@ -1052,14 +1052,20 @@ This means:
 
 ```bash
 # 1. Create .env file in prop-bench root
-echo "GEMINI_API_KEY=your-key" > prop-bench/.env
+cat > prop-bench/.env << 'EOF'
+GEMINI_API_KEY=your-gemini-key-here
+OPENROUTER_API_KEY=your-openrouter-key-here
+EOF
 
 # 2. Build Rust CLI
 cd prop-bench
 cargo build --release
 
-# 3. Run benchmark
-npx ts-node harness.ts --theorems benchmarks/v1/theorems.json --models gemini
+# 3. Run benchmark (direct Gemini)
+npx ts-node harness.ts --theorems benchmarks/v1/theorems.json --models gemini-2.5-flash
+
+# 3b. Run benchmark (OpenRouter model)
+npx ts-node harness.ts --theorems benchmarks/v1/theorems.json --models anthropic/claude-sonnet-4.5
 
 # 4. Or use GUI
 cd gui

@@ -8,7 +8,7 @@ An LLM benchmark that scores models on proof efficiency (fewest lines) for propo
 
 **Elo Chart Fix:** Bar heights now use fixed pixel sizing to prevent flex shrinking issues.
 
-**Full Model Names:** Removed short aliases (gemini, claude, gpt). Only full model identifiers are now accepted: `gemini-2.5-flash-lite-preview-09-2025`, `gemini-3-flash-preview`, `gemini-3-pro-preview`, `claude-sonnet-4-5-20250929`, `gpt-4o`.
+**Full Model Names:** Removed short aliases (gemini, claude, gpt). Only full model identifiers are now accepted. Direct Gemini models use names like `gemini-2.5-flash`; all other models use OpenRouter identifiers like `anthropic/claude-sonnet-4.5`.
 
 **Run Completion Tracking:** Runs are dynamically classified as "Running", "Finished", or "Incomplete". Incomplete runs are excluded from combined/aggregate views.
 
@@ -53,8 +53,9 @@ prop-bench/
 ├── harness.ts         # Benchmark orchestrator
 ├── scorer.ts          # Line counting + Elo ratings
 ├── logger.ts          # Structured JSON logging
-├── models/            # Per-provider API adapters
-│   └── gemini.ts
+├── models/            # Model API adapters (Gemini direct + OpenRouter)
+│   ├── gemini.ts
+│   └── openrouter.ts
 ├── src/
 │   └── main.rs        # Rust CLI binary (generate + validate)
 ├── package.json       # TypeScript project config
@@ -259,7 +260,7 @@ interface BenchmarkSummary {
 ```typescript
 interface ModelConfig {
   name: string;
-  provider: "gemini" | "anthropic" | "openai";
+  provider: "gemini" | "openrouter";
   model_id: string;
   api_key_env: string;    // environment variable name
   temperature: number;
@@ -742,8 +743,7 @@ This is safe because JavaScript is single-threaded — counter increments and ar
 ```bash
 # prop-bench/.env
 GEMINI_API_KEY=your-key-here
-ANTHROPIC_API_KEY=your-key-here
-OPENAI_API_KEY=your-key-here
+OPENROUTER_API_KEY=your-key-here
 ```
 
 The harness loads these at startup before any model adapters are instantiated.
@@ -905,19 +905,23 @@ interface ModelResponse {
 function getModel(name: string): ModelAdapter
 ```
 
-Looks up a model adapter by name (case-insensitive). Throws if the name is not recognized.
+Routes model names to adapters using a dual-routing strategy:
 
-**Supported model identifiers:**
+1. **Known Gemini names** (e.g., `gemini-2.5-flash`, `gemini-3-pro-preview`) are matched against a `GEMINI_ALIASES` lookup table and routed to `GeminiAdapter` using the direct Gemini API.
+2. **Everything else** (e.g., `anthropic/claude-sonnet-4.5`, `openai/gpt-4o`, `deepseek/deepseek-r1`) falls through to `OpenRouterAdapter`.
 
-| Full Model Identifier | Adapter |
-|----------------------|---------|
+**Direct Gemini model identifiers:**
+
+| Model Identifier | Adapter |
+|------------------|---------|
+| `gemini-2.0-flash` | `GeminiAdapter` |
+| `gemini-2.5-pro` | `GeminiAdapter` |
+| `gemini-2.5-flash` | `GeminiAdapter` |
 | `gemini-2.5-flash-lite-preview-09-2025` | `GeminiAdapter` |
 | `gemini-3-flash-preview` | `GeminiAdapter` |
 | `gemini-3-pro-preview` | `GeminiAdapter` |
-| `claude-sonnet-4-5-20250929` | `AnthropicAdapter` |
-| `gpt-4o` | `OpenAIAdapter` |
 
-**Note:** Short aliases (gemini, claude, gpt, etc.) have been removed. Only full model identifiers are now accepted.
+Any other model identifier is routed to `OpenRouterAdapter`. This means any model available on OpenRouter can be used without code changes.
 
 Each call to `getModel()` creates a new adapter instance (factory pattern). Adapters are stateless and safe to reuse across multiple calls.
 
@@ -946,42 +950,31 @@ Each call to `getModel()` creates a new adapter instance (factory pattern). Adap
 - Non-rate-limit errors on the first attempt are thrown immediately
 - Non-rate-limit errors on subsequent attempts (after a rate-limit retry) are also thrown immediately
 
-### Anthropic Adapter (`models/anthropic.ts`)
+### OpenRouter Adapter (`models/openrouter.ts`)
 
 | Property | Value |
 |----------|-------|
-| SDK | `@anthropic-ai/sdk` |
-| API key env var | `ANTHROPIC_API_KEY` |
-| Default model | `claude-sonnet-4-5-20250929` |
-| Adapter name | `"anthropic"` |
+| SDK | `openai` (targeting OpenRouter API) |
+| API key env var | `OPENROUTER_API_KEY` |
+| Base URL | `https://openrouter.ai/api/v1` |
+| Adapter name | The model identifier passed to constructor (e.g., `"anthropic/claude-sonnet-4.5"`) |
+| Request timeout | 300,000ms (5 minutes, for thinking models) |
 
-**Token tracking:** Uses `message.usage.input_tokens + message.usage.output_tokens`.
-
-**Response extraction:** Finds the first `text` content block in `message.content` array.
-
-**Retry behavior:** Same exponential backoff pattern as Gemini. Rate-limit detection checks for `429`, `rate`, or `overloaded` in error messages.
-
-### OpenAI Adapter (`models/openai.ts`)
-
-| Property | Value |
-|----------|-------|
-| SDK | `openai` |
-| API key env var | `OPENAI_API_KEY` |
-| Default model | `gpt-4o` |
-| Adapter name | `"openai"` |
+The OpenRouter adapter accepts any model identifier and routes it through the OpenRouter API. It maintains a `DISPLAY_NAMES` lookup table for well-known models (e.g., `"anthropic/claude-sonnet-4.5"` displays as `"Claude Sonnet 4.5"`); unknown models use the raw identifier as display name.
 
 **Token tracking:** Uses `completion.usage.prompt_tokens + completion.usage.completion_tokens` (undefined if usage data is missing).
 
 **Response extraction:** `completion.choices[0]?.message?.content ?? ""`.
 
-**Retry behavior:** Same exponential backoff pattern as Gemini. Rate-limit detection checks for `429`, `rate`, or `quota` in error messages.
+**Retry behavior:** Exponential backoff with jitter on transient errors (5 retries, 1s base delay, 2x exponential, 10% jitter). Transient errors include `fetch failed`, `ECONNRESET`, `ETIMEDOUT`, `503`, `502`. Rate-limit errors (`429`, `rate`, `quota`) are thrown immediately for the harness to handle.
 
 ### Design Decisions
 
-- **API key via env var with override:** Each adapter reads its API key from a well-known environment variable but also accepts an override in `ModelConfig.apiKey`. This supports both standard usage (keys in env) and testing (keys passed programmatically).
+- **Dual routing (Gemini direct + OpenRouter):** Gemini models use the direct Google AI API for lowest latency and best thinking token tracking. All other models route through OpenRouter, providing access to any model on their platform without adding per-provider adapters.
+- **API key via env var with override:** Each adapter reads its API key from a well-known environment variable (`GEMINI_API_KEY` or `OPENROUTER_API_KEY`) but also accepts an override in `ModelConfig.apiKey`. This supports both standard usage (keys in env) and testing (keys passed programmatically).
 - **Stateless adapters:** Adapters create a fresh SDK client on each `callModel()` invocation. This avoids connection pooling complexity and ensures clean state for benchmarking.
-- **Consistent retry logic:** All three adapters use identical retry parameters (5 retries, 1s base delay, 2x exponential, 10% jitter). This ensures that rate-limit handling does not vary across providers and does not skew benchmark results.
-- **Immediate throw for non-rate-limit errors:** Authentication failures, invalid model names, and other non-transient errors are thrown immediately without retrying, to fail fast and provide clear error messages.
+- **Consistent retry logic:** Both adapters use identical retry parameters (5 retries, 1s base delay, 2x exponential, 10% jitter). This ensures that rate-limit handling does not vary across providers and does not skew benchmark results.
+- **Immediate throw for non-transient errors:** Authentication failures, invalid model names, and other non-transient errors are thrown immediately without retrying, to fail fast and provide clear error messages.
 - **Factory-based registry:** `getModel()` returns a new instance each time, allowing the harness to use multiple instances of the same adapter concurrently if needed in future parallelization.
 
 ---
@@ -1522,10 +1515,9 @@ The Rust binary (`propbench`) provides the authoritative theorem generation and 
 ### TypeScript (`package.json`)
 
 **Runtime**:
-- `@anthropic-ai/sdk` ^0.39.0
 - `@google/genai` ^1.0.0 (replaces deprecated `@google/generative-ai`)
 - `dotenv` ^17.2.4 (for .env file support)
-- `openai` ^4.77.0
+- `openai` ^4.77.0 (used by OpenRouter adapter)
 
 **Dev**: typescript ^5.5.0, ts-node ^10.9.2, @types/node ^20.14.0
 
@@ -1553,8 +1545,7 @@ Create a `.env` file in the prop-bench root directory:
 ```bash
 # prop-bench/.env
 GEMINI_API_KEY=your-gemini-key-here
-ANTHROPIC_API_KEY=your-anthropic-key-here
-OPENAI_API_KEY=your-openai-key-here
+OPENROUTER_API_KEY=your-openrouter-key-here
 ```
 
 The harness and GUI server will automatically load these environment variables on startup.

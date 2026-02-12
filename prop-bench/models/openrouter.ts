@@ -1,24 +1,57 @@
 import OpenAI from "openai";
 import type { ModelAdapter, ModelConfig, ModelResponse } from "./index";
 
-const DEFAULT_MODEL = "gpt-4o";
 const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 1000;
+const REQUEST_TIMEOUT_MS = 300_000; // 5 minutes (thinking models need longer)
 
-export class OpenAIAdapter implements ModelAdapter {
-  name = "gpt-4o";
-  displayName = "GPT-4o";
+// Display names for well-known OpenRouter models
+const DISPLAY_NAMES: Record<string, string> = {
+  "anthropic/claude-sonnet-4.5": "Claude Sonnet 4.5",
+  "anthropic/claude-haiku-3.5": "Claude Haiku 3.5",
+  "openai/gpt-4o": "GPT-4o",
+  "openai/gpt-4o-mini": "GPT-4o Mini",
+  "openai/o3-mini": "o3-mini",
+  "google/gemini-2.5-pro": "Gemini 2.5 Pro",
+  "google/gemini-2.5-flash": "Gemini 2.5 Flash",
+  "google/gemini-2.0-flash-001": "Gemini 2.0 Flash",
+  "google/gemini-3-flash-preview": "Gemini 3 Flash",
+  "google/gemini-3-pro-preview": "Gemini 3 Pro",
+  "meta-llama/llama-4-maverick": "Llama 4 Maverick",
+  "meta-llama/llama-4-scout": "Llama 4 Scout",
+  "deepseek/deepseek-r1": "DeepSeek R1",
+  "deepseek/deepseek-chat": "DeepSeek V3",
+  "mistralai/mistral-large-2": "Mistral Large 2",
+  "qwen/qwen-2.5-72b-instruct": "Qwen 2.5 72B",
+};
+
+export class OpenRouterAdapter implements ModelAdapter {
+  name: string;
+  displayName: string;
+
+  constructor(modelId: string) {
+    this.name = modelId;
+    this.displayName = DISPLAY_NAMES[modelId] ?? modelId;
+  }
 
   async callModel(prompt: string, config: ModelConfig): Promise<ModelResponse> {
-    const apiKey = config.apiKey || process.env.OPENAI_API_KEY;
+    const apiKey = config.apiKey || process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
       throw new Error(
-        "OPENAI_API_KEY not set. Provide it via env var or config.apiKey."
+        "OPENROUTER_API_KEY not set. Provide it via env var or config.apiKey."
       );
     }
 
-    const modelName = config.model || DEFAULT_MODEL;
-    const client = new OpenAI({ apiKey });
+    const modelName = config.model || this.name;
+    const client = new OpenAI({
+      apiKey,
+      baseURL: "https://openrouter.ai/api/v1",
+      defaultHeaders: {
+        "HTTP-Referer": "https://github.com/propbench",
+        "X-Title": "PropBench",
+      },
+      timeout: REQUEST_TIMEOUT_MS,
+    });
 
     let lastError: Error | null = null;
 
@@ -41,11 +74,16 @@ export class OpenAIAdapter implements ModelAdapter {
             (completion.usage.completion_tokens ?? 0)
           : undefined;
 
+        const thinking_tokens = (completion.usage as any)?.completion_tokens_details?.reasoning_tokens ?? undefined;
+        const finish_reason = completion.choices[0]?.finish_reason ?? undefined;
+
         return {
           raw_response,
           latency_ms,
           model: modelName,
           tokens_used,
+          thinking_tokens,
+          finish_reason,
         };
       } catch (err: unknown) {
         lastError = err instanceof Error ? err : new Error(String(err));
@@ -79,14 +117,14 @@ export class OpenAIAdapter implements ModelAdapter {
           const delay = BASE_DELAY_MS * Math.pow(2, attempt);
           const jitter = Math.random() * delay * 0.1;
           console.warn(
-            `[openai] Transient error: ${lastError.message} — retrying in ${Math.round(delay + jitter)}ms (attempt ${attempt + 1}/${MAX_RETRIES})`
+            `[openrouter] Transient error: ${lastError.message} — retrying in ${Math.round(delay + jitter)}ms (attempt ${attempt + 1}/${MAX_RETRIES})`
           );
           await sleep(delay + jitter);
         }
       }
     }
 
-    throw lastError ?? new Error("OpenAI API call failed after retries");
+    throw lastError ?? new Error("OpenRouter API call failed after retries");
   }
 }
 

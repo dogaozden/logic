@@ -25,11 +25,19 @@ interface RunProgressProps {
 }
 
 const MODEL_DISPLAY: Record<string, string> = {
-  gemini: "Gemini 2.5 Flash Lite",
-  "gemini-3-flash": "Gemini 3 Flash",
-  "gemini-3-pro": "Gemini 3 Pro",
-  claude: "Claude Sonnet 4.5",
-  gpt: "GPT-4o",
+  // Direct Gemini
+  "gemini-2.5-flash-lite-preview-09-2025": "Gemini 2.5 Flash Lite",
+  "gemini-3-flash-preview": "Gemini 3 Flash",
+  "gemini-3-pro-preview": "Gemini 3 Pro",
+  "gemini-2.5-pro": "Gemini 2.5 Pro",
+  "gemini-2.5-flash": "Gemini 2.5 Flash",
+  "gemini-2.0-flash": "Gemini 2.0 Flash",
+  // OpenRouter
+  "anthropic/claude-sonnet-4.5": "Claude Sonnet 4.5",
+  "openai/gpt-4o": "GPT-4o",
+  "meta-llama/llama-4-maverick": "Llama 4 Maverick",
+  "deepseek/deepseek-r1": "DeepSeek R1",
+  "mistralai/mistral-large-2": "Mistral Large 2",
 };
 
 function formatElapsed(ms: number): string {

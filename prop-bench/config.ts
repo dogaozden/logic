@@ -94,7 +94,7 @@ export interface BenchmarkSummary {
 
 export interface ModelConfig {
   name: string;
-  provider: "gemini" | "anthropic" | "openai";
+  provider: "gemini" | "openrouter";
   model_id: string;
   api_key_env: string; // environment variable name for the API key
   temperature: number;

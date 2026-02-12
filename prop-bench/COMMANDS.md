@@ -127,10 +127,10 @@ npx ts-node harness.ts \
   --models gemini-2.5-flash-lite-preview-09-2025 \
   --propbench-bin ./target/release/propbench
 
-# Run against multiple models
+# Run against multiple models (mixed direct Gemini + OpenRouter)
 npx ts-node harness.ts \
   --theorems benchmarks/v1/theorems.json \
-  --models gemini-2.5-flash-lite-preview-09-2025,claude-sonnet-4-5-20250929,gpt-4o \
+  --models gemini-2.5-flash,anthropic/claude-sonnet-4.5,openai/gpt-4o \
   --propbench-bin ./target/release/propbench
 
 # Run a subset of theorems (e.g., first 10)
@@ -161,10 +161,10 @@ npx ts-node harness.ts \
   --runs 3 \
   --propbench-bin ./target/release/propbench
 
-# Adjust model parameters
+# Adjust model parameters (OpenRouter model)
 npx ts-node harness.ts \
   --theorems benchmarks/v1/theorems.json \
-  --models claude-sonnet-4-5-20250929 \
+  --models anthropic/claude-sonnet-4.5 \
   --temperature 0.0 \
   --max-tokens 8192 \
   --propbench-bin ./target/release/propbench
@@ -235,8 +235,7 @@ Create a `.env` file in the prop-bench root directory:
 ```bash
 # prop-bench/.env
 GEMINI_API_KEY=your-key-here
-ANTHROPIC_API_KEY=your-key-here
-OPENAI_API_KEY=your-key-here
+OPENROUTER_API_KEY=your-key-here
 ```
 
 The harness and GUI server will automatically load these on startup using the `dotenv` package.
@@ -246,37 +245,60 @@ The harness and GUI server will automatically load these on startup using the `d
 ```bash
 # Set before running
 export GEMINI_API_KEY="your-key-here"
-export ANTHROPIC_API_KEY="your-key-here"
-export OPENAI_API_KEY="your-key-here"
+export OPENROUTER_API_KEY="your-key-here"
 ```
 
 | Variable | Required for | Description |
 |----------|-------------|-------------|
-| `GEMINI_API_KEY` | `--models gemini` | Google AI API key |
-| `ANTHROPIC_API_KEY` | `--models claude` | Anthropic API key |
-| `OPENAI_API_KEY` | `--models gpt` | OpenAI API key |
+| `GEMINI_API_KEY` | Direct Gemini models (`gemini-*`) | Google AI API key |
+| `OPENROUTER_API_KEY` | All non-Gemini models (via OpenRouter) | OpenRouter API key |
 
 ## Model Identifiers
 
 **IMPORTANT:** When changing model names, defaults, or CLI arguments, always update the GUI to match. See `CLAUDE.md` for the "PropBench: Keep GUI in sync with CLI" rule.
 
-**Note:** Short aliases (gemini, claude, gpt, etc.) have been removed. Only full model identifiers are now accepted.
+PropBench uses two adapters: **direct Gemini** (via `GEMINI_API_KEY`) and **OpenRouter** (via `OPENROUTER_API_KEY`) for everything else. Known `gemini-*` names route to the direct Gemini adapter; all other model identifiers route through OpenRouter.
 
-| Full Model Identifier | Provider | SDK |
-|-----------------------|----------|-----|
-| `gemini-2.0-flash` | Google | `@google/genai` v1.0.0 |
-| `gemini-2.5-pro` | Google | `@google/genai` v1.0.0 |
-| `gemini-2.5-flash` | Google | `@google/genai` v1.0.0 |
-| `gemini-2.5-flash-lite-preview-09-2025` | Google | `@google/genai` v1.0.0 |
-| `gemini-3-flash-preview` | Google | `@google/genai` v1.0.0 |
-| `gemini-3-pro-preview` | Google | `@google/genai` v1.0.0 |
-| `claude-sonnet-4-5-20250929` | Anthropic | `@anthropic-ai/sdk` v0.39.0 |
-| `gpt-4o` | OpenAI | `openai` v4.77.0 |
+### Direct Gemini Models
+
+| Model Identifier | Display Name |
+|------------------|-------------|
+| `gemini-2.0-flash` | Gemini 2.0 Flash |
+| `gemini-2.5-pro` | Gemini 2.5 Pro |
+| `gemini-2.5-flash` | Gemini 2.5 Flash |
+| `gemini-2.5-flash-lite-preview-09-2025` | Gemini 2.5 Flash Lite |
+| `gemini-3-flash-preview` | Gemini 3 Flash |
+| `gemini-3-pro-preview` | Gemini 3 Pro |
+
+### OpenRouter Models
+
+Any model available on [OpenRouter](https://openrouter.ai/models) can be used. Pass the OpenRouter model identifier directly. Examples:
+
+| Model Identifier | Description |
+|------------------|-------------|
+| `anthropic/claude-sonnet-4.5` | Claude Sonnet 4.5 |
+| `openai/gpt-4o` | GPT-4o |
+| `deepseek/deepseek-r1` | DeepSeek R1 |
+| `meta-llama/llama-4-maverick` | Llama 4 Maverick |
+
+**Note:** Any valid OpenRouter model identifier works -- the table above is just a sample.
+
+### Example CLI Usage
+
+```bash
+# Direct Gemini model
+--models gemini-2.5-flash
+
+# OpenRouter model
+--models anthropic/claude-sonnet-4.5
+
+# Mixed (direct Gemini + OpenRouter)
+--models gemini-2.5-flash,anthropic/claude-sonnet-4.5
+```
 
 **Recent Changes:**
-- Removed short aliases — only full model identifiers accepted now
+- **OpenRouter migration**: Replaced separate Anthropic and OpenAI adapters with a single OpenRouter adapter. All non-Gemini models now route through OpenRouter. Requires `OPENROUTER_API_KEY` instead of `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`.
 - Gemini: migrated from `@google/generative-ai` to `@google/genai` SDK
-- Gemini: default model changed from `gemini-2.0-flash` to `gemini-2.5-flash-lite-preview-09-2025`
 - Gemini: constructor changed from `new GoogleGenerativeAI(apiKey)` to `new GoogleGenAI({ apiKey })`
 
 ## Output Structure
@@ -450,7 +472,7 @@ cargo build
 
 **Elo bar chart fix:** EloChart.tsx now uses pixel-based bar heights within a fixed 170px bar area, preventing flex shrinking from making bars appear the same height.
 
-**Full model names:** Removed short aliases (gemini, claude, gpt, etc.) from `models/index.ts`. Only full model identifiers accepted now: `gemini-2.5-flash-lite-preview-09-2025`, `gemini-3-flash-preview`, `gemini-3-pro-preview`, `claude-sonnet-4-5-20250929`, `gpt-4o`. Adapter `name` fields updated to match.
+**Full model names:** Removed short aliases (gemini, claude, gpt, etc.) from `models/index.ts`. Only full model identifiers accepted now, including both direct Gemini names (e.g., `gemini-2.5-flash`, `gemini-3-pro-preview`) and OpenRouter model IDs (e.g., `anthropic/claude-sonnet-4.5`, `openai/gpt-4o`). Adapter `name` fields updated to match.
 
 **Run completion tracking:** Runs are now dynamically classified as "Running", "Finished", or "Incomplete" based on whether result count matches theorem count. Incomplete runs are excluded from the combined/aggregate view (scorecards, Elo, head-to-head). Only models with at least one complete run appear in the combined view.
 
@@ -524,7 +546,7 @@ cargo build
 
 ### Import Fixes
 - Removed `.js` extensions from all TypeScript imports (was breaking ts-node in CommonJS mode)
-- Affects: `models/index.ts`, `models/gemini.ts`, `models/anthropic.ts`, `models/openai.ts`
+- Affects: `models/index.ts`, `models/gemini.ts`, `models/openrouter.ts`
 
 ### Dashboard Statistics
 - Added "Avg Lines by Difficulty" table showing average proof line counts per model per difficulty tier

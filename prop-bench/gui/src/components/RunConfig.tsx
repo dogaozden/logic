@@ -24,9 +24,17 @@ const MODEL_OPTIONS = [
   { key: "gemini-2.5-flash-lite-preview-09-2025", label: "Gemini 2.5 Flash Lite", envVar: "GEMINI_API_KEY" },
   { key: "gemini-3-flash-preview", label: "Gemini 3 Flash", envVar: "GEMINI_API_KEY" },
   { key: "gemini-3-pro-preview", label: "Gemini 3 Pro", envVar: "GEMINI_API_KEY" },
-  { key: "claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5", envVar: "ANTHROPIC_API_KEY" },
-  { key: "gpt-4o", label: "GPT-4o", envVar: "OPENAI_API_KEY" },
 ] as const;
+
+const OPENROUTER_PRESETS = [
+  { key: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5" },
+  { key: "openai/gpt-4o", label: "GPT-4o" },
+  { key: "meta-llama/llama-4-maverick", label: "Llama 4 Maverick" },
+  { key: "deepseek/deepseek-r1", label: "DeepSeek R1" },
+  { key: "mistralai/mistral-large-2", label: "Mistral Large 2" },
+] as const;
+
+const GEMINI_KEYS = new Set(MODEL_OPTIONS.map((m) => m.key));
 
 interface RunConfigProps {
   config: RunConfigValues;
@@ -72,6 +80,8 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
   const [showCommand, setShowCommand] = useState(false);
   const [incompleteRuns, setIncompleteRuns] = useState<IndividualRun[]>([]);
   const [continueMode, setContinueMode] = useState(false);
+  const [customModelInput, setCustomModelInput] = useState("");
+  const [presetValue, setPresetValue] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -129,6 +139,19 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
     onChange({ ...config, models: next });
   };
 
+  const addOpenRouterModel = (modelId: string) => {
+    const trimmed = modelId.trim();
+    if (trimmed && !config.models.includes(trimmed)) {
+      onChange({ ...config, models: [...config.models, trimmed] });
+    }
+  };
+
+  const removeModel = (key: string) => {
+    onChange({ ...config, models: config.models.filter((m) => m !== key) });
+  };
+
+  const openRouterModels = config.models.filter((m) => !GEMINI_KEYS.has(m));
+
   return (
     <div className="run-config">
       <h3 className="run-config-title">Run Configuration</h3>
@@ -183,7 +206,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
 
       {/* Model selection */}
       <div className="config-section">
-        <label className="config-label">Models</label>
+        <label className="config-label">Gemini Models</label>
         <div className="model-checkboxes">
           {MODEL_OPTIONS.map((m) => (
             <label key={m.key} className="model-checkbox">
@@ -202,6 +225,121 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
             </label>
           ))}
         </div>
+      </div>
+
+      {/* OpenRouter models */}
+      <div className="config-section">
+        <label className="config-label">OpenRouter Models</label>
+
+        {/* Preset dropdown */}
+        <select
+          className="config-input"
+          value={presetValue}
+          onChange={(e) => {
+            if (e.target.value) {
+              addOpenRouterModel(e.target.value);
+              setPresetValue("");
+            }
+          }}
+          disabled={running || continueLocked}
+          style={{ marginBottom: "0.5rem" }}
+        >
+          <option value="">Add a preset model...</option>
+          {OPENROUTER_PRESETS.map((p) => (
+            <option key={p.key} value={p.key}>
+              {p.label} ({p.key})
+            </option>
+          ))}
+        </select>
+
+        {/* Custom model input */}
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <input
+            className="config-input"
+            type="text"
+            placeholder="e.g. anthropic/claude-sonnet-4.5"
+            value={customModelInput}
+            onChange={(e) => setCustomModelInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && customModelInput.trim()) {
+                addOpenRouterModel(customModelInput);
+                setCustomModelInput("");
+              }
+            }}
+            disabled={running || continueLocked}
+            style={{ flex: 1 }}
+          />
+          <button
+            style={{
+              padding: "0.4rem 0.8rem",
+              background: "#3a3a5c",
+              color: "#e0e0e0",
+              border: "1px solid #555",
+              borderRadius: "4px",
+              cursor: running || continueLocked ? "not-allowed" : "pointer",
+              fontSize: "0.85rem",
+            }}
+            disabled={running || continueLocked || !customModelInput.trim()}
+            onClick={() => {
+              addOpenRouterModel(customModelInput);
+              setCustomModelInput("");
+            }}
+          >
+            Add
+          </button>
+        </div>
+
+        {/* Added OpenRouter model chips */}
+        {openRouterModels.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.5rem" }}>
+            {openRouterModels.map((m) => {
+              const preset = OPENROUTER_PRESETS.find((p) => p.key === m);
+              return (
+                <span
+                  key={m}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.3rem",
+                    padding: "0.25rem 0.6rem",
+                    background: "#2a2a4a",
+                    border: "1px solid #555",
+                    borderRadius: "12px",
+                    fontSize: "0.8rem",
+                    color: "#e0e0e0",
+                  }}
+                >
+                  {preset ? preset.label : m}
+                  <button
+                    onClick={() => removeModel(m)}
+                    disabled={running || continueLocked}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#999",
+                      cursor: running || continueLocked ? "not-allowed" : "pointer",
+                      padding: "0 2px",
+                      fontSize: "0.9rem",
+                      lineHeight: 1,
+                    }}
+                    title={`Remove ${m}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        <a
+          href="https://openrouter.ai/models"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: "0.75rem", color: "#888", marginTop: "0.4rem", display: "inline-block" }}
+        >
+          Browse all models at openrouter.ai/models
+        </a>
       </div>
 
       {/* Theorem set picker */}

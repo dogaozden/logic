@@ -1,6 +1,5 @@
 import { GeminiAdapter } from "./gemini";
-import { AnthropicAdapter } from "./anthropic";
-import { OpenAIAdapter } from "./openai";
+import { OpenRouterAdapter } from "./openrouter";
 
 export interface ModelConfig {
   model: string;
@@ -24,26 +23,29 @@ export interface ModelAdapter {
   callModel(prompt: string, config: ModelConfig): Promise<ModelResponse>;
 }
 
-const ADAPTER_ALIASES: Record<string, () => ModelAdapter> = {
+// Direct Gemini API adapters — these use GEMINI_API_KEY directly
+const GEMINI_ALIASES: Record<string, () => ModelAdapter> = {
   "gemini-2.5-pro": () => new GeminiAdapter("gemini-2.5-pro", "Gemini 2.5 Pro", "gemini-2.5-pro"),
   "gemini-2.5-flash": () => new GeminiAdapter("gemini-2.5-flash", "Gemini 2.5 Flash", "gemini-2.5-flash"),
   "gemini-2.0-flash": () => new GeminiAdapter("gemini-2.0-flash", "Gemini 2.0 Flash", "gemini-2.0-flash"),
   "gemini-2.5-flash-lite-preview-09-2025": () => new GeminiAdapter(),
   "gemini-3-flash-preview": () => new GeminiAdapter("gemini-3-flash-preview", "Gemini 3 Flash", "gemini-3-flash-preview"),
   "gemini-3-pro-preview": () => new GeminiAdapter("gemini-3-pro-preview", "Gemini 3 Pro", "gemini-3-pro-preview"),
-  "claude-sonnet-4-5-20250929": () => new AnthropicAdapter(),
-  "gpt-4o": () => new OpenAIAdapter(),
 };
 
+/**
+ * Create a model adapter by name.
+ *
+ * Known Gemini model names (e.g., "gemini-2.5-flash") use the direct Gemini API.
+ * Everything else (e.g., "anthropic/claude-sonnet-4.5") is routed through OpenRouter.
+ */
 export function getModel(name: string): ModelAdapter {
-  const factory = ADAPTER_ALIASES[name.toLowerCase()];
-  if (!factory) {
-    const available = Object.keys(ADAPTER_ALIASES).join(", ");
-    throw new Error(
-      `Unknown model adapter: "${name}". Available: ${available}`
-    );
+  const factory = GEMINI_ALIASES[name.toLowerCase()];
+  if (factory) {
+    return factory();
   }
-  return factory();
+  // Fall through to OpenRouter for any unknown model name
+  return new OpenRouterAdapter(name);
 }
 
-export { GeminiAdapter, AnthropicAdapter, OpenAIAdapter };
+export { GeminiAdapter, OpenRouterAdapter };
