@@ -63,6 +63,8 @@ export class OpenRouterAdapter implements ModelAdapter {
           temperature: config.temperature ?? 0.2,
           max_tokens: config.maxTokens ?? 4096,
           messages: [{ role: "user", content: prompt }],
+          // @ts-ignore — OpenRouter-specific extension for thinking models
+          reasoning: config.maxThinkingTokens ? { max_tokens: config.maxThinkingTokens } : undefined,
         });
         const latency_ms = Math.round(performance.now() - start);
 

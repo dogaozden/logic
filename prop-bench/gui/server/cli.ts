@@ -280,6 +280,7 @@ export interface HarnessOpts {
   models: string[];
   temperature: number;
   maxTokens: number;
+  maxThinkingTokens?: number;
   workers?: number;
   start?: number;
   count?: number;
@@ -314,6 +315,9 @@ export function spawnHarness(opts: HarnessOpts): ChildProcess {
     "--propbench-bin", PROPBENCH_BIN,
   ];
 
+  if (opts.maxThinkingTokens !== undefined) {
+    args.push("--max-thinking-tokens", String(opts.maxThinkingTokens));
+  }
   if (opts.workers !== undefined && opts.workers > 1) {
     args.push("--workers", String(opts.workers));
   }

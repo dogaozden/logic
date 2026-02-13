@@ -50,6 +50,7 @@ export interface StartBenchmarkOpts {
   models: string[];
   temperature: number;
   maxTokens: number;
+  maxThinkingTokens?: number;
   workers?: number;
   start?: number;
   count?: number;

@@ -184,6 +184,7 @@ npx ts-node harness.ts \
 | `--runs <n>` | No | `1` | Run the full benchmark N times back-to-back (each subsequent run uses force mode) |
 | `--temperature <n>` | No | `0.2` | Model temperature |
 | `--max-tokens <n>` | No | `16384` | Max tokens for model response |
+| `--max-thinking-tokens <n>` | No | `10000` | Max thinking/reasoning tokens per API call (Gemini thinkingBudget, OpenRouter reasoning.max_tokens) |
 | `--force` | No | off | Force new run — don't skip completed theorems |
 | `--no-retry-parse` | No | off | Don't retry parse errors — treat unparseable model output as a final result |
 | `--retry-api-errors` | No | off | With `--continue-run`: delete API error results and retry those theorems |

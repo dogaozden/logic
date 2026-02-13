@@ -16,6 +16,7 @@ function BenchmarkRunner() {
     theoremSet: "v1",
     temperature: 0.2,
     maxTokens: 16384,
+    maxThinkingTokens: null,
     workers: null,
     startIndex: null,
     count: "",
@@ -33,6 +34,7 @@ function BenchmarkRunner() {
         continueRunId: config.continueRunId,
         retryApiErrors: true,
         workers: config.workers != null && config.workers > 1 ? config.workers : undefined,
+        maxThinkingTokens: config.maxThinkingTokens ?? undefined,
         maxCost: config.maxCost ?? undefined,
         // These are required by the type but ignored by the server in continue mode
         models: [],
@@ -52,6 +54,7 @@ function BenchmarkRunner() {
       theoremSet: config.theoremSet,
       temperature: config.temperature,
       maxTokens: config.maxTokens ?? 16384,
+      maxThinkingTokens: config.maxThinkingTokens ?? undefined,
       workers: config.workers != null && config.workers > 1 ? config.workers : undefined,
       start: config.startIndex != null && config.startIndex > 0 ? config.startIndex : undefined,
       count: Number.isFinite(countNum) ? countNum : undefined,

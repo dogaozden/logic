@@ -60,6 +60,7 @@ interface CliArgs {
   propbenchBin: string;
   temperature: number;
   maxTokens: number;
+  maxThinkingTokens: number;
   workers: number;
   force: boolean;
   noRetryParse: boolean;
@@ -79,6 +80,7 @@ function parseArgs(): CliArgs {
     propbenchBin: "propbench",
     temperature: 0.2,
     maxTokens: 4096,
+    maxThinkingTokens: 10000,
     workers: 1,
     force: false,
     noRetryParse: false,
@@ -110,6 +112,9 @@ function parseArgs(): CliArgs {
         break;
       case "--max-tokens":
         parsed.maxTokens = parseInt(args[++i], 10);
+        break;
+      case "--max-thinking-tokens":
+        parsed.maxThinkingTokens = parseInt(args[++i], 10);
         break;
       case "--workers":
         parsed.workers = parseInt(args[++i], 10);
@@ -161,6 +166,7 @@ Options:
   --propbench-bin <path>    Path to propbench CLI binary (default: propbench)
   --temperature <n>         Model temperature (default: 0.2)
   --max-tokens <n>          Max tokens for model response (default: 4096)
+  --max-thinking-tokens <n> Max thinking/reasoning tokens per call (default: 10000)
   --workers <n>             Number of parallel API calls (default: 1)
   --force                   Force new run (don't skip completed theorems)
   --no-retry-parse          Don't retry parse errors (treat as final result)
@@ -371,6 +377,7 @@ async function run(): Promise<void> {
   console.log(`Theorems: ${args.theorems}`);
   console.log(`Models:   ${args.models.join(", ")}`);
   console.log(`Workers:  ${args.workers}`);
+  console.log(`Thinking: ${args.maxThinkingTokens} tokens`);
   if (args.force) console.log(`Force:    YES (new run, skipping nothing)`);
   if (args.maxCost != null) console.log(`Max cost: $${args.maxCost.toFixed(2)}`);
   console.log();
@@ -519,6 +526,7 @@ async function run(): Promise<void> {
           model: "",
           temperature: args.temperature,
           maxTokens: args.maxTokens,
+          maxThinkingTokens: args.maxThinkingTokens,
         };
 
         let prompt: string;
@@ -715,6 +723,7 @@ async function run(): Promise<void> {
           model: "",
           temperature: args.temperature,
           maxTokens: args.maxTokens,
+          maxThinkingTokens: args.maxThinkingTokens,
         };
 
         // Step 1: Build prompt

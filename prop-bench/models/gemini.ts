@@ -43,7 +43,7 @@ export class GeminiAdapter implements ModelAdapter {
             config: {
               temperature: config.temperature ?? 0.2,
               maxOutputTokens: config.maxTokens ?? 4096,
-              thinkingConfig: { thinkingBudget: 10000 },
+              thinkingConfig: { thinkingBudget: config.maxThinkingTokens ?? 10000 },
               abortSignal: controller.signal,
             },
           });

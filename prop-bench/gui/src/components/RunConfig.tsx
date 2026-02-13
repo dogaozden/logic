@@ -7,6 +7,7 @@ export interface RunConfigValues {
   theoremSet: string;
   temperature: number;
   maxTokens: number | null;
+  maxThinkingTokens: number | null;
   workers: number | null;
   startIndex: number | null;
   count: string;
@@ -26,15 +27,31 @@ const MODEL_OPTIONS = [
   { key: "gemini-3-pro-preview", label: "Gemini 3 Pro", envVar: "GEMINI_API_KEY" },
 ] as const;
 
-const OPENROUTER_PRESETS = [
+const BUILTIN_PRESETS: { key: string; label: string }[] = [
   { key: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5" },
   { key: "openai/gpt-4o", label: "GPT-4o" },
   { key: "meta-llama/llama-4-maverick", label: "Llama 4 Maverick" },
   { key: "deepseek/deepseek-r1", label: "DeepSeek R1" },
   { key: "mistralai/mistral-large-2", label: "Mistral Large 2" },
-] as const;
+];
 
+const BUILTIN_KEYS = new Set(BUILTIN_PRESETS.map((p) => p.key));
 const GEMINI_KEYS = new Set(MODEL_OPTIONS.map((m) => m.key));
+
+const STORAGE_KEY = "propbench-openrouter-presets";
+
+function loadSavedPresets(): { key: string; label: string }[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePresets(presets: { key: string; label: string }[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
+}
 
 interface RunConfigProps {
   config: RunConfigValues;
@@ -50,6 +67,9 @@ function buildCommand(cfg: RunConfigValues): string {
   parts.push(`--temperature ${cfg.temperature}`);
   if (cfg.maxTokens != null) {
     parts.push(`--max-tokens ${cfg.maxTokens}`);
+  }
+  if (cfg.maxThinkingTokens != null) {
+    parts.push(`--max-thinking-tokens ${cfg.maxThinkingTokens}`);
   }
   if (cfg.workers != null && cfg.workers > 1) {
     parts.push(`--workers ${cfg.workers}`);
@@ -82,6 +102,9 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
   const [continueMode, setContinueMode] = useState(false);
   const [customModelInput, setCustomModelInput] = useState("");
   const [presetValue, setPresetValue] = useState("");
+  const [savedPresets, setSavedPresets] = useState<{ key: string; label: string }[]>(loadSavedPresets);
+
+  const allPresets = [...BUILTIN_PRESETS, ...savedPresets];
 
   useEffect(() => {
     Promise.all([
@@ -151,6 +174,20 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
   };
 
   const openRouterModels = config.models.filter((m) => !GEMINI_KEYS.has(m));
+
+  const handleStart = () => {
+    // Save any new OpenRouter models as presets for next time
+    const knownKeys = new Set([...BUILTIN_KEYS, ...savedPresets.map((p) => p.key)]);
+    const newPresets = openRouterModels
+      .filter((m) => !knownKeys.has(m))
+      .map((m) => ({ key: m, label: m }));
+    if (newPresets.length > 0) {
+      const updated = [...savedPresets, ...newPresets];
+      setSavedPresets(updated);
+      savePresets(updated);
+    }
+    onStart();
+  };
 
   return (
     <div className="run-config">
@@ -245,7 +282,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
           style={{ marginBottom: "0.5rem" }}
         >
           <option value="">Add a preset model...</option>
-          {OPENROUTER_PRESETS.map((p) => (
+          {allPresets.map((p) => (
             <option key={p.key} value={p.key}>
               {p.label} ({p.key})
             </option>
@@ -293,7 +330,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
         {openRouterModels.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.5rem" }}>
             {openRouterModels.map((m) => {
-              const preset = OPENROUTER_PRESETS.find((p) => p.key === m);
+              const preset = allPresets.find((p) => p.key === m);
               return (
                 <span
                   key={m}
@@ -414,6 +451,29 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
           }
           disabled={running || continueLocked}
           placeholder="default"
+        />
+      </div>
+
+      {/* Max thinking tokens */}
+      <div className="config-section">
+        <label className="config-label" htmlFor="cfg-thinking-tokens">
+          Max thinking tokens
+        </label>
+        <input
+          id="cfg-thinking-tokens"
+          className="config-input config-input--sm"
+          type="number"
+          min={1000}
+          max={128000}
+          value={config.maxThinkingTokens ?? ""}
+          onChange={(e) =>
+            onChange({
+              ...config,
+              maxThinkingTokens: e.target.value === "" ? null : parseInt(e.target.value, 10),
+            })
+          }
+          disabled={running || continueLocked}
+          placeholder="10000"
         />
       </div>
 
@@ -554,7 +614,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
       <button
         className="btn-start"
         disabled={running || (continueLocked ? false : config.models.length === 0) || (continueMode && config.continueRunId == null)}
-        onClick={onStart}
+        onClick={handleStart}
       >
         {running ? "Running..." : continueLocked ? "Continue Run" : "Start Benchmark"}
       </button>
