@@ -89,8 +89,16 @@ export class OpenRouterAdapter implements ModelAdapter {
         });
         const latency_ms = Math.round(performance.now() - start);
 
-        const raw_response =
-          completion.choices[0]?.message?.content ?? "";
+        const rawContent = completion.choices[0]?.message?.content;
+        const raw_response = rawContent ?? "";
+
+        // Warn on null content (data loss on cutoff responses)
+        if (rawContent === null || rawContent === undefined) {
+          const fr = completion.choices[0]?.finish_reason;
+          console.warn(
+            `[openrouter] WARNING: API returned null content (finish_reason=${fr}, model=${modelName}). Response may be lost.`
+          );
+        }
 
         const tokens_used = completion.usage
           ? (completion.usage.prompt_tokens ?? 0) +

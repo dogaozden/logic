@@ -2,10 +2,20 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import RunConfig from "../components/RunConfig";
 import type { RunConfigValues } from "../components/RunConfig";
+import { DEFAULT_TIER_BUDGETS } from "../components/RunConfig";
 import RunProgress from "../components/RunProgress";
 import RunHistory from "../components/RunHistory";
 import { useRunner } from "../context/RunnerContext";
 import "../styles/runner.css";
+
+function loadInitialTierBudgets(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem("propbench-tier-budgets");
+    return raw ? { ...DEFAULT_TIER_BUDGETS, ...JSON.parse(raw) } : { ...DEFAULT_TIER_BUDGETS };
+  } catch {
+    return { ...DEFAULT_TIER_BUDGETS };
+  }
+}
 
 function BenchmarkRunner() {
   const navigate = useNavigate();
@@ -25,6 +35,8 @@ function BenchmarkRunner() {
     runs: 1,
     continueRunId: null,
     maxCost: null,
+    tierBudgetsEnabled: true,
+    tierBudgets: loadInitialTierBudgets(),
   });
 
   const handleStart = useCallback(async () => {
@@ -36,6 +48,8 @@ function BenchmarkRunner() {
         workers: config.workers != null && config.workers > 1 ? config.workers : undefined,
         maxThinkingTokens: config.maxThinkingTokens ?? undefined,
         maxCost: config.maxCost ?? undefined,
+        tierBudgetsEnabled: config.tierBudgetsEnabled,
+        tierBudgets: config.tierBudgetsEnabled ? config.tierBudgets : undefined,
         // These are required by the type but ignored by the server in continue mode
         models: [],
         theoremSet: "",
@@ -62,6 +76,8 @@ function BenchmarkRunner() {
       noRetryParse: config.noRetryParse || undefined,
       runs: config.runs > 1 ? config.runs : undefined,
       maxCost: config.maxCost ?? undefined,
+      tierBudgetsEnabled: config.tierBudgetsEnabled,
+      tierBudgets: config.tierBudgetsEnabled ? config.tierBudgets : undefined,
     });
   }, [config, runner]);
 

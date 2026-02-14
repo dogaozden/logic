@@ -2,6 +2,21 @@ import { useState, useEffect } from "react";
 import { api } from "../api/client";
 import type { TheoremSetInfo, IndividualRun } from "../api/client";
 
+export type TierBudgets = Record<string, number>;
+
+export const DEFAULT_TIER_BUDGETS: TierBudgets = {
+  baby: 1024,
+  easy: 1024,
+  medium: 2048,
+  hard: 2048,
+  expert: 4096,
+  nightmare: 6144,
+  marathon: 6144,
+  absurd: 8192,
+  cosmic: 8192,
+  mind: 8192,
+};
+
 export interface RunConfigValues {
   models: string[];
   theoremSet: string;
@@ -16,6 +31,8 @@ export interface RunConfigValues {
   runs: number;
   continueRunId: number | null;
   maxCost: number | null;
+  tierBudgetsEnabled: boolean;
+  tierBudgets: TierBudgets;
 }
 
 const MODEL_OPTIONS = [
@@ -40,6 +57,7 @@ const BUILTIN_KEYS = new Set(BUILTIN_PRESETS.map((p) => p.key));
 const GEMINI_KEYS = new Set(MODEL_OPTIONS.map((m) => m.key));
 
 const STORAGE_KEY = "propbench-openrouter-presets";
+const TIER_BUDGETS_STORAGE_KEY = "propbench-tier-budgets";
 
 function loadSavedPresets(): { key: string; label: string }[] {
   try {
@@ -53,6 +71,23 @@ function loadSavedPresets(): { key: string; label: string }[] {
 function savePresets(presets: { key: string; label: string }[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
 }
+
+function saveTierBudgets(budgets: TierBudgets) {
+  localStorage.setItem(TIER_BUDGETS_STORAGE_KEY, JSON.stringify(budgets));
+}
+
+const TIER_LABELS: { key: string; label: string }[] = [
+  { key: "baby", label: "Baby" },
+  { key: "easy", label: "Easy" },
+  { key: "medium", label: "Medium" },
+  { key: "hard", label: "Hard" },
+  { key: "expert", label: "Expert" },
+  { key: "nightmare", label: "Nightmare" },
+  { key: "marathon", label: "Marathon" },
+  { key: "absurd", label: "Absurd" },
+  { key: "cosmic", label: "Cosmic" },
+  { key: "mind", label: "Mind" },
+];
 
 interface RunConfigProps {
   config: RunConfigValues;
@@ -92,6 +127,17 @@ function buildCommand(cfg: RunConfigValues): string {
   }
   if (cfg.maxCost != null) {
     parts.push(`--max-cost ${cfg.maxCost}`);
+  }
+  if (!cfg.tierBudgetsEnabled) {
+    parts.push("--no-tier-budgets");
+  } else {
+    // Only include --tier-budgets if any value differs from defaults
+    const hasCustom = TIER_LABELS.some(
+      ({ key }) => cfg.tierBudgets[key] !== DEFAULT_TIER_BUDGETS[key]
+    );
+    if (hasCustom) {
+      parts.push(`--tier-budgets '${JSON.stringify(cfg.tierBudgets)}'`);
+    }
   }
   return parts.join(" \\\n  ");
 }
@@ -432,17 +478,18 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
         />
       </div>
 
-      {/* Max tokens */}
+      {/* Max output tokens */}
       <div className="config-section">
         <label className="config-label" htmlFor="cfg-tokens">
-          Max tokens
+          Max output tokens
         </label>
         <input
           id="cfg-tokens"
           className="config-input config-input--sm"
           type="number"
-          min={256}
+          min={512}
           max={32768}
+          step={512}
           value={config.maxTokens ?? ""}
           onChange={(e) =>
             onChange({
@@ -466,6 +513,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
           type="number"
           min={1000}
           max={128000}
+          step={1000}
           value={config.maxThinkingTokens ?? ""}
           onChange={(e) =>
             onChange({
@@ -476,6 +524,74 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
           disabled={running || continueLocked}
           placeholder="10000"
         />
+      </div>
+
+      {/* Tier-based output token budgets */}
+      <div className="config-section">
+        <label className="model-checkbox">
+          <input
+            type="checkbox"
+            checked={config.tierBudgetsEnabled}
+            onChange={(e) => onChange({ ...config, tierBudgetsEnabled: e.target.checked })}
+            disabled={running || continueLocked}
+          />
+          <span className="model-checkbox-name">Tier-based output token budgets</span>
+          <span className="model-checkbox-detail">Cap output tokens per difficulty tier to prevent spiraling</span>
+        </label>
+
+        {config.tierBudgetsEnabled && (
+          <div style={{ marginTop: "0.5rem" }}>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(5, 1fr)",
+              gap: "0.3rem",
+              fontSize: "0.8rem",
+            }}>
+              {TIER_LABELS.map(({ key, label }) => (
+                <div key={key} style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
+                  <span style={{ color: "#aaa", fontSize: "0.7rem", textAlign: "center" }}>{label}</span>
+                  <input
+                    className="config-input config-input--sm"
+                    type="number"
+                    min={512}
+                    max={65536}
+                    step={512}
+                    value={config.tierBudgets[key]}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (!isNaN(val)) {
+                        const updated = { ...config.tierBudgets, [key]: val };
+                        saveTierBudgets(updated);
+                        onChange({ ...config, tierBudgets: updated });
+                      }
+                    }}
+                    disabled={running || continueLocked}
+                    style={{ textAlign: "center", fontSize: "0.75rem", padding: "0.2rem" }}
+                  />
+                </div>
+              ))}
+            </div>
+            <button
+              style={{
+                marginTop: "0.4rem",
+                padding: "0.2rem 0.6rem",
+                background: "transparent",
+                color: "#888",
+                border: "1px solid #555",
+                borderRadius: "4px",
+                cursor: running || continueLocked ? "not-allowed" : "pointer",
+                fontSize: "0.7rem",
+              }}
+              disabled={running || continueLocked}
+              onClick={() => {
+                saveTierBudgets(DEFAULT_TIER_BUDGETS);
+                onChange({ ...config, tierBudgets: { ...DEFAULT_TIER_BUDGETS } });
+              }}
+            >
+              Reset to defaults
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Parallel workers */}

@@ -290,6 +290,8 @@ export interface HarnessOpts {
   runs?: number;
   continueRunId?: number;
   maxCost?: number;
+  tierBudgetsEnabled?: boolean;
+  tierBudgets?: Record<string, number>;
 }
 
 export function spawnHarness(opts: HarnessOpts): ChildProcess {
@@ -344,6 +346,12 @@ export function spawnHarness(opts: HarnessOpts): ChildProcess {
   }
   if (opts.maxCost !== undefined) {
     args.push("--max-cost", String(opts.maxCost));
+  }
+  if (opts.tierBudgetsEnabled === false) {
+    args.push("--no-tier-budgets");
+  }
+  if (opts.tierBudgets !== undefined) {
+    args.push("--tier-budgets", JSON.stringify(opts.tierBudgets));
   }
 
   // Build child env: inherit process.env and also load .env from project root

@@ -683,7 +683,9 @@ npx ts-node harness.ts --theorems <path> --models <list> [options]
 | `--propbench-bin <path>` | `propbench` | Path to the Rust CLI binary for validation |
 | `--workers <n>` | `1` | Number of parallel API workers (concurrent theorem processing) |
 | `--temperature <n>` | `0.2` | Temperature parameter passed to all models |
-| `--max-tokens <n>` | `16384` | Maximum output tokens for model responses |
+| `--max-tokens <n>` | `4096` | Max output tokens, tier-capped per difficulty (Baby/Easy=1024, Med/Hard=2048, Expert=4096, Mind=8192) |
+| `--no-tier-budgets` | off | Disable tier-based output token budgets (use flat `--max-tokens` for all tiers) |
+| `--tier-budgets <json>` | built-in defaults | Custom per-tier token budgets as JSON (e.g. `'{"baby":2048,"mind":8192}'`) |
 | `--max-thinking-tokens <n>` | `10000` | Maximum thinking tokens for reasoning models (1000-128000) |
 | `--force` | off | Force new run — don't skip completed theorems |
 | `--runs <n>` | `1` | Run the full benchmark N times back-to-back (each subsequent run uses force mode) |
@@ -737,6 +739,26 @@ This is safe because JavaScript is single-threaded — counter increments and ar
 - Loads completed theorems via `getRunCompletedTheorems()` and skips them
 - At completion, marks the run as finished via `finishRun()`
 - The GUI provides a "Continue incomplete run" toggle with a dropdown of incomplete runs
+
+### Tier-Based Output Token Budgets
+
+The harness automatically caps output tokens based on theorem difficulty. Analysis of 900+ cutoff responses showed that 0/900 produced valid proofs and more tokens universally correlate with worse outcomes (spiraling). Valid proofs are compact: ~1,400-1,750 output tokens for Gemini models.
+
+| Difficulty | Max Output Tokens |
+|-----------|------------------|
+| Baby, Easy | 1,024 |
+| Medium, Hard | 2,048 |
+| Expert | 4,096 |
+| Nightmare, Marathon | 6,144 |
+| Absurd, Cosmic, Mind | 8,192 |
+
+The `--max-tokens` flag sets the upper bound. For each theorem, the actual budget is `min(--max-tokens, tier ceiling)`. The effective budget is logged with each API call.
+
+Tier budgets can be customized via `--tier-budgets <json>` or disabled entirely with `--no-tier-budgets`. The GUI provides a toggle and editable per-tier table (values saved to localStorage).
+
+### Spiral Detection
+
+After each API response, the harness checks for repeated proof lines (5+ occurrences, consecutive or distributed). This detects "death spiral" mode where models repeat identical invalid steps hundreds of times. When detected, a `SPIRAL DETECTED` warning is logged with the repeated line and count.
 
 ### Environment Configuration
 

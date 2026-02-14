@@ -985,6 +985,11 @@ PropBench consists of:
 - Direct Gemini models: `gemini-2.0-flash`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite-preview-09-2025`, `gemini-3-flash-preview`, `gemini-3-pro-preview`
 - OpenRouter models: any valid OpenRouter model ID (e.g., `anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4.5`, `openai/gpt-4o`, `deepseek/deepseek-r1`)
 
+**Token Budget & Spiral Detection** (v5.1):
+- **Tier-based output token budgets**: Instead of a flat `--max-tokens` for all theorems, the harness caps output tokens per difficulty tier (Baby/Easy=1024, Medium/Hard=2048, Expert=4096, Nightmare/Marathon=6144, Absurd/Cosmic/Mind=8192). Analysis of 900+ cutoff responses showed 0/900 produced valid proofs and more tokens correlated with worse outcomes.
+- **Spiral detection**: After each API response, the harness checks for repeated proof lines (5+ occurrences) and logs `SPIRAL DETECTED` warnings. Detects "death spiral" mode where models repeat identical invalid steps.
+- **Data loss fix**: OpenRouter adapter now warns when API returns null content on cutoff responses (previously silently returned empty string).
+
 **Cost Protection** (v4.50):
 - **Thinking token tracking**: Gemini thinking models (2.5 Pro, 2.5 Flash, 3 Pro, 3 Flash) and OpenRouter reasoning models generate invisible "thinking tokens" billed as output but previously untracked. The adapter now uses `totalTokenCount` and records `thinking_tokens` separately in the DB.
 - **Thinking budget cap**: Configurable via `--max-thinking-tokens <n>` CLI flag (default 10000). Gemini uses `thinkingConfig: { thinkingBudget: N }`, OpenRouter uses `reasoning: { max_tokens: N }`. This caps thinking tokens per call, preventing runaway 365K+ token calls.

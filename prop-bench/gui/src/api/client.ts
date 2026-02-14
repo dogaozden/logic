@@ -60,6 +60,8 @@ export interface StartBenchmarkOpts {
   runs?: number;
   continueRunId?: number;
   maxCost?: number;
+  tierBudgetsEnabled?: boolean;
+  tierBudgets?: Record<string, number>;
 }
 
 export interface RunInfo {

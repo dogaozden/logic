@@ -315,7 +315,52 @@ interface ParsedJustification {
  * Parse a line (after line number stripping) into formula + justification.
  */
 function parseJustification(text: string): ParsedJustification | null {
-  const trimmed = text.trim();
+  let trimmed = text.trim();
+
+  // ── Early stripping of trailing commentary ──
+  // Strip trailing "-- ..." comments (require space after -- to avoid false positives)
+  trimmed = trimmed.replace(/\s+--\s.*$/, '').trim();
+
+  // Strip trailing parenthetical commentary (but preserve justification parens)
+  // Must handle nested parens like "(Simplifies ~[P . (T > T)] to ~P)"
+  while (true) {
+    // Find the last ')' at or near end of string
+    const lastClose = trimmed.lastIndexOf(')');
+    if (lastClose < 0) break;
+    // Only strip if it's at or near end (allow trailing whitespace)
+    if (trimmed.slice(lastClose + 1).trim() !== '') break;
+
+    // Walk backward to find matching '('
+    let depth = 0;
+    let openIdx = -1;
+    for (let i = lastClose; i >= 0; i--) {
+      if (trimmed[i] === ')') depth++;
+      else if (trimmed[i] === '(') { depth--; if (depth === 0) { openIdx = i; break; } }
+    }
+    if (openIdx < 0) break;
+
+    // Ensure there's non-whitespace content before the paren group
+    const before = trimmed.slice(0, openIdx).trimEnd();
+    if (!before) break;
+
+    const parenContent = trimmed.slice(openIdx + 1, lastClose).trim();
+
+    // Check if paren content looks like a justification: "RULE" or "RULE LINES"
+    const ruleCheck = parenContent.match(/^([A-Za-z][A-Za-z\s.]*?)(?:\s+([\d,\s\-–]+))?$/);
+    if (ruleCheck) {
+      const possibleRule = ruleCheck[1].trim();
+      if (canonicalizeRule(possibleRule)) {
+        break; // This is a justification paren — stop stripping
+      }
+      // Also check for CP/IP which are technique rules
+      if (/^(CP|IP)$/i.test(possibleRule)) {
+        break;
+      }
+    }
+
+    // Not a justification — strip it
+    trimmed = before;
+  }
 
   // Case 1: Just "Premise" (with optional trailing noise in parens)
   const premiseMatch = trimmed.match(/^(.+?)\s+Premise(?:\s*\([^)]*\))*$/i);
@@ -356,7 +401,7 @@ function parseJustification(text: string): ParsedJustification | null {
 
   // Case 3a: Bare subproof close with no formula: "CP 3-7" or "IP 4-9"
   const bareSubproofCloseMatch = trimmed.match(
-    /^(CP|IP)\s+(\d+)\s*[-–]\s*(\d+)$/i
+    /^(CP|IP)\s+(\d+)\s*[-–,]\s*(\d+)$/i
   );
   if (bareSubproofCloseMatch) {
     const tech = canonicalizeRule(bareSubproofCloseMatch[1]);
@@ -370,7 +415,7 @@ function parseJustification(text: string): ParsedJustification | null {
 
   // Case 3b: Subproof close: "CP 3-7" or "IP 4-9" at the end (with formula)
   const subproofCloseMatch = trimmed.match(
-    /^(.+?)\s+(CP|IP)\s+(\d+)\s*[-–]\s*(\d+)$/i
+    /^(.+?)\s+(CP|IP)\s+(\d+)\s*[-–,]\s*(\d+)$/i
   );
   if (subproofCloseMatch) {
     const tech = canonicalizeRule(subproofCloseMatch[2]);

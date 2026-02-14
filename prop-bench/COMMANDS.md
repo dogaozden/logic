@@ -183,13 +183,15 @@ npx ts-node harness.ts \
 | `--workers <n>` | No | `1` | Number of parallel API workers |
 | `--runs <n>` | No | `1` | Run the full benchmark N times back-to-back (each subsequent run uses force mode) |
 | `--temperature <n>` | No | `0.2` | Model temperature |
-| `--max-tokens <n>` | No | `16384` | Max tokens for model response |
+| `--max-tokens <n>` | No | `4096` | Max output tokens (tier-capped: Baby/Easy=1024, Med/Hard=2048, Expert=4096, Mind=8192) |
 | `--max-thinking-tokens <n>` | No | `10000` | Max thinking/reasoning tokens per API call (Gemini thinkingBudget, OpenRouter reasoning.max_tokens) |
 | `--force` | No | off | Force new run — don't skip completed theorems |
 | `--no-retry-parse` | No | off | Don't retry parse errors — treat unparseable model output as a final result |
 | `--retry-api-errors` | No | off | With `--continue-run`: delete API error results and retry those theorems |
 | `--continue-run <id>` | No | — | Continue an incomplete run by its DB run ID |
 | `--max-cost <n>` | No | no limit | Abort run when estimated cost exceeds $n (e.g. `--max-cost 5`) |
+| `--no-tier-budgets` | No | off | Disable tier-based output token budgets (use flat `--max-tokens` for all tiers) |
+| `--tier-budgets <json>` | No | built-in defaults | Custom per-tier token budgets as JSON (e.g. `'{"baby":2048,"mind":8192}'`) |
 
 ### Resume interrupted runs
 
@@ -452,6 +454,23 @@ cargo test
 # Build Rust in debug mode
 cargo build
 ```
+
+## Recent Improvements (v5+)
+
+### v5.1 — Token Budget & Spiral Detection
+
+**Tier-based output token budgets:** Instead of a flat `--max-tokens` for all theorems, the harness now caps output tokens per difficulty tier. This prevents wasting tokens on spiraling responses (models repeating identical invalid lines). Token ceilings:
+- Baby/Easy: 1,024
+- Medium/Hard: 2,048
+- Expert: 4,096
+- Nightmare/Marathon: 6,144
+- Absurd/Cosmic/Mind: 8,192
+
+The `--max-tokens` flag now sets the upper bound — the actual budget for each theorem is `min(--max-tokens, tier ceiling)`. The effective budget is logged for each API call.
+
+**Spiral detection:** The harness now detects when a model repeats proof lines 5+ times (consecutively or across the response) and logs a `SPIRAL DETECTED` warning. Based on analysis of 900+ cutoff responses where 0/900 produced valid proofs and more tokens universally correlated with worse outcomes.
+
+**OpenRouter data loss fix:** Fixed a bug where the OpenRouter adapter silently returned empty strings when the API returned `null` content on cutoff responses. The adapter now logs a warning when this occurs.
 
 ## Recent Improvements (v4+)
 

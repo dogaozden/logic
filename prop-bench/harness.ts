@@ -68,6 +68,8 @@ interface CliArgs {
   runs: number;
   continueRunId: number | null;
   maxCost: number | null;
+  tierBudgetsEnabled: boolean;
+  tierBudgets: Record<string, number> | null;
 }
 
 function parseArgs(): CliArgs {
@@ -88,6 +90,8 @@ function parseArgs(): CliArgs {
     runs: 1,
     continueRunId: null,
     maxCost: null,
+    tierBudgetsEnabled: true,
+    tierBudgets: null,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -137,6 +141,17 @@ function parseArgs(): CliArgs {
       case "--max-cost":
         parsed.maxCost = parseFloat(args[++i]);
         break;
+      case "--no-tier-budgets":
+        parsed.tierBudgetsEnabled = false;
+        break;
+      case "--tier-budgets":
+        try {
+          parsed.tierBudgets = JSON.parse(args[++i]);
+        } catch {
+          console.error("Invalid JSON for --tier-budgets");
+          process.exit(1);
+        }
+        break;
       default:
         console.error(`Unknown argument: ${args[i]}`);
         printUsage();
@@ -174,6 +189,8 @@ Options:
   --runs <n>                Run the full benchmark N times sequentially (default: 1)
   --continue-run <id>       Continue an incomplete run by its DB run ID
   --max-cost <n>            Abort run when estimated cost exceeds $n (e.g. --max-cost 5)
+  --no-tier-budgets         Disable tier-based output token budgets (use flat --max-tokens for all tiers)
+  --tier-budgets <json>     Custom per-tier token budgets as JSON (e.g. '{"baby":2048,"easy":2048,"mind":8192}')
 `);
 }
 
@@ -217,6 +234,87 @@ function estimateCallCost(modelSlug: string, totalTokens: number): number {
   if (!pricing || !totalTokens) return 0;
   // Use output pricing for total tokens (conservative: thinking tokens are billed as output)
   return (totalTokens / 1_000_000) * pricing.output;
+}
+
+// ---------------------------------------------------------------------------
+// Tier-based output token budgets
+// ---------------------------------------------------------------------------
+// Valid proofs are compact: ~1,400-1,750 output tokens for Gemini models,
+// and models that use 10k+ output tokens are ALWAYS spiraling/invalid.
+// These per-tier ceilings prevent wasting tokens on impossible problems.
+
+const DEFAULT_TIER_BUDGETS: Record<string, number> = {
+  baby:      1024,
+  easy:      1024,
+  medium:    2048,
+  hard:      2048,
+  expert:    4096,
+  nightmare: 6144,
+  marathon:  6144,
+  absurd:    8192,
+  cosmic:    8192,
+  mind:      8192,
+};
+
+/**
+ * Returns the max output tokens for a theorem, capped by its difficulty tier.
+ * If the user's --max-tokens is lower than the tier ceiling, use the user's value.
+ * When tier budgets are disabled, always returns userMaxTokens.
+ */
+function getMaxTokensForDifficulty(
+  difficulty: string,
+  userMaxTokens: number,
+  enabled: boolean,
+  customBudgets: Record<string, number> | null,
+): number {
+  if (!enabled) return userMaxTokens;
+  const budgets = customBudgets ?? DEFAULT_TIER_BUDGETS;
+  const tierBudget = budgets[difficulty.toLowerCase()] ?? userMaxTokens;
+  return Math.min(userMaxTokens, tierBudget);
+}
+
+// ---------------------------------------------------------------------------
+// Spiral detection
+// ---------------------------------------------------------------------------
+// Detects when a model repeats identical proof lines — a clear sign of
+// failure. Returns the repeated line and count if detected, null otherwise.
+
+function detectSpiral(rawResponse: string): { repeatedLine: string; count: number } | null {
+  const lines = rawResponse.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+  if (lines.length < 6) return null;
+
+  // Count consecutive identical lines
+  let maxRun = 1;
+  let maxLine = "";
+  let currentRun = 1;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i] === lines[i - 1]) {
+      currentRun++;
+      if (currentRun > maxRun) {
+        maxRun = currentRun;
+        maxLine = lines[i];
+      }
+    } else {
+      currentRun = 1;
+    }
+  }
+
+  // Also check for repeated patterns (same line appearing many times non-consecutively)
+  const freq = new Map<string, number>();
+  for (const line of lines) {
+    freq.set(line, (freq.get(line) ?? 0) + 1);
+  }
+  for (const [line, count] of freq) {
+    if (count > maxRun && count >= 5) {
+      maxRun = count;
+      maxLine = line;
+    }
+  }
+
+  if (maxRun >= 5) {
+    return { repeatedLine: maxLine.slice(0, 80), count: maxRun };
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -386,6 +484,12 @@ async function run(): Promise<void> {
   console.log(`Models:   ${args.models.join(", ")}`);
   console.log(`Workers:  ${args.workers}`);
   console.log(`Thinking: ${args.maxThinkingTokens} tokens`);
+  if (args.tierBudgetsEnabled) {
+    const b = args.tierBudgets ?? DEFAULT_TIER_BUDGETS;
+    console.log(`Output:   ${args.maxTokens} tokens (tier-capped: Baby/Easy=${b.baby ?? b.easy}, Med=${b.medium}, Hard=${b.hard}, Mind=${b.mind})`);
+  } else {
+    console.log(`Output:   ${args.maxTokens} tokens (flat — tier budgets disabled)`);
+  }
   if (args.force) console.log(`Force:    YES (new run, skipping nothing)`);
   if (args.maxCost != null) console.log(`Max cost: $${args.maxCost.toFixed(2)}`);
   console.log();
@@ -530,10 +634,12 @@ async function run(): Promise<void> {
           timestamp: new Date().toISOString(),
         };
 
+        // Tier-based token budget: cap output tokens by difficulty
+        const effectiveMaxTokens = getMaxTokensForDifficulty(benchThm.difficulty, args.maxTokens, args.tierBudgetsEnabled, args.tierBudgets);
         const modelConfig: ModelConfig = {
           model: "",
           temperature: args.temperature,
-          maxTokens: args.maxTokens,
+          maxTokens: effectiveMaxTokens,
           maxThinkingTokens: args.maxThinkingTokens,
           systemPrompt: getSystemPrompt(),
         };
@@ -562,7 +668,7 @@ async function run(): Promise<void> {
 
           if (response.tokens_used) {
             const callCost = estimateCallCost(adapter.name, response.tokens_used);
-            console.log(`  cost: +$${callCost.toFixed(4)} (${response.tokens_used} tokens${response.thinking_tokens ? `, ${response.thinking_tokens} thinking` : ""})`);
+            console.log(`  cost: +$${callCost.toFixed(4)} (${response.tokens_used} tokens${response.thinking_tokens ? `, ${response.thinking_tokens} thinking` : ""}, budget: ${effectiveMaxTokens})`);
           }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -575,6 +681,12 @@ async function run(): Promise<void> {
           totalErrors++;
           console.log(`  -> API ERROR (gave up after ${MAX_ATTEMPTS} attempts): ${msg}`);
           return;
+        }
+
+        // Spiral detection: warn if model is repeating itself
+        const spiral = detectSpiral(response.raw_response);
+        if (spiral) {
+          console.warn(`  SPIRAL DETECTED: "${spiral.repeatedLine}" repeated ${spiral.count}x`);
         }
 
         const { proof, error: parseError } = parseModelResponse(response.raw_response, theorem);
@@ -728,10 +840,12 @@ async function run(): Promise<void> {
           timestamp: new Date().toISOString(),
         };
 
+        // Tier-based token budget: cap output tokens by difficulty
+        const effectiveMaxTokens = getMaxTokensForDifficulty(benchThm.difficulty, args.maxTokens, args.tierBudgetsEnabled, args.tierBudgets);
         const modelConfig: ModelConfig = {
           model: "",
           temperature: args.temperature,
-          maxTokens: args.maxTokens,
+          maxTokens: effectiveMaxTokens,
           maxThinkingTokens: args.maxThinkingTokens,
           systemPrompt: getSystemPrompt(),
         };
@@ -765,7 +879,7 @@ async function run(): Promise<void> {
           if (response.tokens_used) {
             const callCost = estimateCallCost(adapter.name, response.tokens_used);
             runCostUsd += callCost;
-            console.log(`  cost: $${runCostUsd.toFixed(4)} (+$${callCost.toFixed(4)}, ${response.tokens_used} tokens${response.thinking_tokens ? `, ${response.thinking_tokens} thinking` : ""})`);
+            console.log(`  cost: $${runCostUsd.toFixed(4)} (+$${callCost.toFixed(4)}, ${response.tokens_used} tokens${response.thinking_tokens ? `, ${response.thinking_tokens} thinking` : ""}, budget: ${effectiveMaxTokens})`);
 
             if (args.maxCost != null && runCostUsd >= args.maxCost) {
               costAborted = true;
@@ -783,6 +897,12 @@ async function run(): Promise<void> {
           totalErrors++;
           console.log(`  -> API ERROR (gave up after ${MAX_ATTEMPTS} attempts): ${msg}`);
           return;
+        }
+
+        // Spiral detection: warn if model is repeating itself
+        const spiral = detectSpiral(response.raw_response);
+        if (spiral) {
+          console.warn(`  SPIRAL DETECTED: "${spiral.repeatedLine}" repeated ${spiral.count}x`);
         }
 
         // Step 3: Parse response
