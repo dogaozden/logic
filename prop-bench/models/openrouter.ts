@@ -59,11 +59,29 @@ export class OpenRouterAdapter implements ModelAdapter {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const start = performance.now();
+        // Build messages: if systemPrompt is provided, use structured messages
+        // with cache_control for Anthropic prompt caching (90% input cost savings)
+        const messages: any[] = config.systemPrompt
+          ? [
+              {
+                role: "system",
+                content: [
+                  {
+                    type: "text",
+                    text: config.systemPrompt,
+                    cache_control: { type: "ephemeral" },
+                  },
+                ],
+              },
+              { role: "user", content: prompt },
+            ]
+          : [{ role: "user", content: prompt }];
+
         const completion = await client.chat.completions.create({
           model: modelName,
           temperature: config.temperature ?? 0.2,
           max_tokens: config.maxTokens ?? 4096,
-          messages: [{ role: "user", content: prompt }],
+          messages,
           // @ts-ignore — OpenRouter-specific extension for thinking models
           reasoning: config.maxThinkingTokens ? { max_tokens: config.maxThinkingTokens } : undefined,
           // @ts-ignore — OpenRouter-specific extension for effort level

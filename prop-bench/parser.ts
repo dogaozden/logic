@@ -317,8 +317,8 @@ interface ParsedJustification {
 function parseJustification(text: string): ParsedJustification | null {
   const trimmed = text.trim();
 
-  // Case 1: Just "Premise"
-  const premiseMatch = trimmed.match(/^(.+?)\s+Premise$/i);
+  // Case 1: Just "Premise" (with optional trailing noise in parens)
+  const premiseMatch = trimmed.match(/^(.+?)\s+Premise(?:\s*\([^)]*\))*$/i);
   if (premiseMatch) {
     return {
       justification: "Premise",
@@ -401,8 +401,50 @@ function parseJustification(text: string): ParsedJustification | null {
  *   "FORMULA RULE N,N" and "FORMULA N,N RULE"
  */
 function tryExtractRuleAndLines(text: string): ParsedJustification | null {
-  // Strip trailing -- comments first, then loop to strip ALL trailing parenthetical groups
+  // Strip trailing -- comments first
   let cleaned = text.replace(/\s*--.*$/, "").trim();
+
+  // Check if the text ends with a parenthesized justification like "(DeM 1)" or "(NegE 5, 6)" or "(CP 1-7)"
+  // Match: FORMULA (RULE LINES) where LINES can be "1", "1,2", "1-7", etc.
+  const parenJustMatch = cleaned.match(/^(.+?)\s*\(\s*([A-Za-z][A-Za-z\s]*?)(?:\s+([\d,\s\-–]+))?\s*\)$/);
+  if (parenJustMatch) {
+    const formulaPart = parenJustMatch[1].trim();
+    const rulePart = parenJustMatch[2].trim();
+    const linesPart = parenJustMatch[3];
+
+    const canon = canonicalizeRule(rulePart);
+    if (canon) {
+      // For technique rules (CP/IP), preserve range format (1-7)
+      if (canon.kind === "technique" && linesPart) {
+        const normalized = linesPart.replace(/\s+/g, "").replace(/–/g, "-"); // normalize en-dash to hyphen
+        return {
+          justification: `${canon.canonical} ${normalized}`,
+          formula: formulaPart,
+        };
+      }
+      // For inference/equivalence rules, parse line numbers into comma-separated list
+      else if ((canon.kind === "inference" || canon.kind === "equivalence") && linesPart) {
+        const lines = linesPart
+          .split(/[\s,]+/)
+          .map((s) => s.replace(/[-–]/g, "")) // remove dashes
+          .map((s) => parseInt(s, 10))
+          .filter((n) => !isNaN(n));
+        return {
+          justification: `${canon.canonical} ${lines.join(",")}`,
+          formula: formulaPart,
+        };
+      }
+      // Rule with no line numbers (e.g., equivalence rules)
+      else if (!linesPart) {
+        return {
+          justification: canon.canonical,
+          formula: formulaPart,
+        };
+      }
+    }
+  }
+
+  // Strip trailing parenthetical groups that are NOT justifications (e.g., noise)
   while (/\s*\([^)]*\)\s*$/.test(cleaned)) {
     cleaned = cleaned.replace(/\s*\([^)]*\)\s*$/, "").trim();
   }
@@ -479,6 +521,28 @@ function tryExtractRuleAndLines(text: string): ParsedJustification | null {
         const formulaPart = cleaned.slice(0, cleaned.length - match[0].length).trim();
         return {
           justification: `${canon.canonical} ${lineNum}`,
+          formula: formulaPart,
+        };
+      }
+    }
+  }
+
+  // Pattern D: Just "RULE" at end (no line numbers, for equivalence rules)
+  for (const wordCount of [3, 2, 1]) {
+    const ruleOnlyPattern = wordCount === 1
+      ? /\s+(\S+)$/
+      : wordCount === 2
+      ? /\s+(\S+\s+\S+)$/
+      : /\s+(\S+\s+\S+\s+\S+)$/;
+
+    const match = cleaned.match(ruleOnlyPattern);
+    if (match) {
+      const rulePart = match[1].trim();
+      const canon = canonicalizeRule(rulePart);
+      if (canon && canon.kind === "equivalence") {
+        const formulaPart = cleaned.slice(0, cleaned.length - match[0].length).trim();
+        return {
+          justification: canon.canonical,
           formula: formulaPart,
         };
       }

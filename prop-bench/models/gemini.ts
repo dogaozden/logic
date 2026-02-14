@@ -36,10 +36,15 @@ export class GeminiAdapter implements ModelAdapter {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
         let response;
+        // If systemPrompt is provided, prepend it to the user prompt
+        const fullPrompt = config.systemPrompt
+          ? `${config.systemPrompt}\n\n${prompt}`
+          : prompt;
+
         try {
           response = await client.models.generateContent({
             model: modelName,
-            contents: prompt,
+            contents: fullPrompt,
             config: {
               temperature: config.temperature ?? 0.2,
               maxOutputTokens: config.maxTokens ?? 4096,

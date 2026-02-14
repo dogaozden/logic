@@ -7,6 +7,8 @@ export interface ModelConfig {
   maxTokens?: number;
   maxThinkingTokens?: number;
   apiKey?: string;
+  /** Static system prompt for caching (OpenRouter/Anthropic). If set, `prompt` in callModel is just the user message. */
+  systemPrompt?: string;
 }
 
 export interface ModelResponse {

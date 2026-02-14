@@ -117,11 +117,10 @@ no backticks, no commentary, no natural language reasoning.`;
 // --- Prompt builder ---------------------------------------------------------
 
 /**
- * Build a complete benchmark prompt for a given theorem (tautology).
- * All theorems are tautologies with no premises — proofs use CP and/or IP.
+ * Static system prompt — identical for every theorem.
+ * Separated out so adapters can cache it (e.g., Anthropic prompt caching).
  */
-export function buildPrompt(theorem: Theorem): string {
-  return `\
+export const SYSTEM_PROMPT = `\
 You are a formal logic proof assistant. Given a theorem, produce a
 correct Fitch-style natural deduction proof using ONLY the rules and
 techniques listed below. Your primary goal is to get the correct proof with the fewest logical operations.
@@ -134,8 +133,13 @@ ${EQUIVALENCE_RULES}
 
 ${TECHNIQUES}
 
-${OUTPUT_FORMAT}
+${OUTPUT_FORMAT}`;
 
+/**
+ * Build the theorem-specific user prompt (short, changes every call).
+ */
+export function buildUserPrompt(theorem: Theorem): string {
+  return `\
 -------------------------------------
 THEOREM TO PROVE
 Prove the following tautology:
@@ -147,4 +151,12 @@ to derive the formula.
 
 Write your proof below. Output ONLY the numbered proof lines.
 Do not include any explanation, commentary, or extra text.`;
+}
+
+/**
+ * Build a complete benchmark prompt for a given theorem (tautology).
+ * All theorems are tautologies with no premises — proofs use CP and/or IP.
+ */
+export function buildPrompt(theorem: Theorem): string {
+  return `${SYSTEM_PROMPT}\n\n${buildUserPrompt(theorem)}`;
 }

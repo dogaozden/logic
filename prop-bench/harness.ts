@@ -268,9 +268,16 @@ function resultKey(theoremId: string, modelName: string): string {
 }
 
 function promptForTheorem(theorem: Theorem): string {
-  // Use the dedicated prompt builder from prompt.ts
-  const { buildPrompt: build } = require("./prompt");
-  return build(theorem);
+  // Use the dedicated prompt builder from prompt.ts — returns only the
+  // theorem-specific user prompt. The static system prompt is passed
+  // separately via ModelConfig.systemPrompt for prompt caching.
+  const { buildUserPrompt } = require("./prompt");
+  return buildUserPrompt(theorem);
+}
+
+function getSystemPrompt(): string {
+  const { SYSTEM_PROMPT } = require("./prompt");
+  return SYSTEM_PROMPT;
 }
 
 function parseModelResponse(
@@ -528,6 +535,7 @@ async function run(): Promise<void> {
           temperature: args.temperature,
           maxTokens: args.maxTokens,
           maxThinkingTokens: args.maxThinkingTokens,
+          systemPrompt: getSystemPrompt(),
         };
 
         let prompt: string;
@@ -725,6 +733,7 @@ async function run(): Promise<void> {
           temperature: args.temperature,
           maxTokens: args.maxTokens,
           maxThinkingTokens: args.maxThinkingTokens,
+          systemPrompt: getSystemPrompt(),
         };
 
         // Step 1: Build prompt
