@@ -28,6 +28,7 @@ const MODEL_OPTIONS = [
 ] as const;
 
 const BUILTIN_PRESETS: { key: string; label: string }[] = [
+  { key: "anthropic/claude-opus-4-6", label: "Claude Opus 4.6" },
   { key: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5" },
   { key: "openai/gpt-4o", label: "GPT-4o" },
   { key: "meta-llama/llama-4-maverick", label: "Llama 4 Maverick" },

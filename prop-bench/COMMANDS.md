@@ -284,6 +284,8 @@ Any model available on [OpenRouter](https://openrouter.ai/models) can be used. P
 
 **Note:** Any valid OpenRouter model identifier works -- the table above is just a sample.
 
+**Effort level:** All OpenRouter models run with maximum effort (`verbosity: "max"`). For Claude Opus 4.6, this enables the highest quality responses. Other models fall back to high effort automatically.
+
 ### Example CLI Usage
 
 ```bash

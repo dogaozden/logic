@@ -979,15 +979,16 @@ PropBench consists of:
 - Result: Improved accuracy from 50% to 100% on first 10 theorems
 
 **Model Adapters**:
-- Gemini (`models/gemini.ts`): Uses `@google/genai` SDK for direct Google AI API access. Sets `thinkingConfig: { thinkingBudget: 10000 }` to cap thinking tokens per call. Uses `totalTokenCount` for accurate billing (includes thinking tokens). Returns `thinking_tokens` separately for visibility.
-- OpenRouter (`models/openrouter.ts`): Uses `openai` SDK targeting `https://openrouter.ai/api/v1`. Supports any model available on OpenRouter (Claude, GPT, Llama, DeepSeek, Mistral, etc.) with a single `OPENROUTER_API_KEY`.
+- Gemini (`models/gemini.ts`): Uses `@google/genai` SDK for direct Google AI API access. Thinking token budget is configurable via `--max-thinking-tokens` (default 10000). Uses `totalTokenCount` for accurate billing (includes thinking tokens). Returns `thinking_tokens` separately for visibility.
+- OpenRouter (`models/openrouter.ts`): Uses `openai` SDK targeting `https://openrouter.ai/api/v1`. Supports any model available on OpenRouter (Claude, GPT, Llama, DeepSeek, Mistral, etc.) with a single `OPENROUTER_API_KEY`. Thinking token budget is configurable via `--max-thinking-tokens` (default 10000) for reasoning models. Always passes `verbosity: "max"` for maximum effort on all models.
 - Both adapters include retry logic with exponential backoff for rate limits
 - Direct Gemini models: `gemini-2.0-flash`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite-preview-09-2025`, `gemini-3-flash-preview`, `gemini-3-pro-preview`
-- OpenRouter models: any valid OpenRouter model ID (e.g., `anthropic/claude-sonnet-4.5`, `openai/gpt-4o`, `deepseek/deepseek-r1`)
+- OpenRouter models: any valid OpenRouter model ID (e.g., `anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4.5`, `openai/gpt-4o`, `deepseek/deepseek-r1`)
 
 **Cost Protection** (v4.50):
-- **Thinking token tracking**: Gemini thinking models (2.5 Pro, 2.5 Flash, 3 Pro, 3 Flash) generate invisible "thinking tokens" billed as output but previously untracked. The adapter now uses `totalTokenCount` and records `thinking_tokens` separately in the DB.
-- **Thinking budget cap**: `thinkingConfig: { thinkingBudget: 10000 }` caps thinking tokens per call, preventing runaway 365K+ token calls.
+- **Thinking token tracking**: Gemini thinking models (2.5 Pro, 2.5 Flash, 3 Pro, 3 Flash) and OpenRouter reasoning models generate invisible "thinking tokens" billed as output but previously untracked. The adapter now uses `totalTokenCount` and records `thinking_tokens` separately in the DB.
+- **Thinking budget cap**: Configurable via `--max-thinking-tokens <n>` CLI flag (default 10000). Gemini uses `thinkingConfig: { thinkingBudget: N }`, OpenRouter uses `reasoning: { max_tokens: N }`. This caps thinking tokens per call, preventing runaway 365K+ token calls.
+- **Maximum verbosity**: OpenRouter adapter always passes `verbosity: "max"` to request highest quality responses from all models.
 - **Cost tracking**: Each API call logs estimated cost using per-model pricing tables. Run summaries include total cost.
 - **`--max-cost` flag**: Aborts a run when estimated spending exceeds a budget (e.g. `--max-cost 5` for $5 limit). Available in both CLI and GUI.
 - **DB migration**: Added `thinking_tokens` column to the `results` table.
@@ -1003,6 +1004,7 @@ PropBench consists of:
 - `cli.ts`: Uses local `node_modules/.bin/ts-node` instead of npx to avoid resolution issues
 - `cli.ts`: Explicitly reads `.env` and injects vars into child process environment
 - `cli.ts`: Pre-spawn validation (checks theorems file, propbench binary, harness entry point exist)
+- `cli.ts`: Passes `--max-thinking-tokens` argument when specified in run configuration
 - `benchmark.ts`: Rewrote SSE handler with structured progress events (completed, total, validCount, invalidCount, errorCount, skippedCount)
 - `benchmark.ts`: Fixed error event format to send `{type:"error", error:"..."}` not `{type:"error", data:"..."}`
 - `results.ts`: Fixed to use RESULTS_DIR instead of BENCHMARKS_DIR
@@ -1010,6 +1012,7 @@ PropBench consists of:
 
 **Frontend Fixes** (`gui/src/`):
 - `BenchmarkRunner.tsx`: Fixed stale closure bug in SSE onerror handler using `useRef` instead of stale state
+- `BenchmarkRunner.tsx`: Added "Max thinking tokens" input field for configuring thinking token budget (default 10000)
 - `ProofViewer.tsx`: Added collapsible "Show Raw Model Response" section showing full model output
 - `ProofViewer.tsx`: Added latency display in milliseconds
 - `TheoremDetail.tsx`: Passes rawResponse and latencyMs to ProofViewer
@@ -1025,6 +1028,7 @@ PropBench consists of:
 - All custom spec inputs are uncapped (u8 max = 255) for variables, passes, transforms_per_pass, and substitution_depth
 - When generating theorems via GUI, presets are resolved from `tier-presets.json` rather than hardcoded Rust values
 - Rust binary's `DifficultySpec::from_tier()` remains as fallback for direct CLI usage
+- Custom OpenRouter models entered in the GUI are automatically saved as presets (persisted in localStorage) for future runs
 
 ### Results
 

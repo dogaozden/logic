@@ -198,6 +198,7 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   "google/gemini-3-flash-preview":         { input: 0.50,  output: 3.00  },
   "google/gemini-2.0-flash-001":           { input: 0.10,  output: 0.40  },
   // OpenRouter — Anthropic
+  "anthropic/claude-opus-4-6":             { input: 5.00,  output: 25.00 },
   "anthropic/claude-sonnet-4.5":           { input: 3.00,  output: 15.00 },
   "anthropic/claude-haiku-3.5":            { input: 0.80,  output: 4.00  },
   // OpenRouter — OpenAI

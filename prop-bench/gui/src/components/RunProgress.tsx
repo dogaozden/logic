@@ -33,6 +33,7 @@ const MODEL_DISPLAY: Record<string, string> = {
   "gemini-2.5-flash": "Gemini 2.5 Flash",
   "gemini-2.0-flash": "Gemini 2.0 Flash",
   // OpenRouter
+  "anthropic/claude-opus-4-6": "Claude Opus 4.6",
   "anthropic/claude-sonnet-4.5": "Claude Sonnet 4.5",
   "openai/gpt-4o": "GPT-4o",
   "meta-llama/llama-4-maverick": "Llama 4 Maverick",

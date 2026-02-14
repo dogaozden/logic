@@ -7,6 +7,7 @@ const REQUEST_TIMEOUT_MS = 300_000; // 5 minutes (thinking models need longer)
 
 // Display names for well-known OpenRouter models
 const DISPLAY_NAMES: Record<string, string> = {
+  "anthropic/claude-opus-4-6": "Claude Opus 4.6",
   "anthropic/claude-sonnet-4.5": "Claude Sonnet 4.5",
   "anthropic/claude-haiku-3.5": "Claude Haiku 3.5",
   "openai/gpt-4o": "GPT-4o",
@@ -65,6 +66,8 @@ export class OpenRouterAdapter implements ModelAdapter {
           messages: [{ role: "user", content: prompt }],
           // @ts-ignore — OpenRouter-specific extension for thinking models
           reasoning: config.maxThinkingTokens ? { max_tokens: config.maxThinkingTokens } : undefined,
+          // @ts-ignore — OpenRouter-specific extension for effort level
+          verbosity: "max",
         });
         const latency_ms = Math.round(performance.now() - start);
 

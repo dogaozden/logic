@@ -265,6 +265,7 @@ interface ModelConfig {
   api_key_env: string;    // environment variable name
   temperature: number;
   max_tokens: number;
+  maxThinkingTokens?: number;  // thinking token budget (optional, default: 10000)
 }
 ```
 
@@ -683,6 +684,7 @@ npx ts-node harness.ts --theorems <path> --models <list> [options]
 | `--workers <n>` | `1` | Number of parallel API workers (concurrent theorem processing) |
 | `--temperature <n>` | `0.2` | Temperature parameter passed to all models |
 | `--max-tokens <n>` | `16384` | Maximum output tokens for model responses |
+| `--max-thinking-tokens <n>` | `10000` | Maximum thinking tokens for reasoning models (1000-128000) |
 | `--force` | off | Force new run — don't skip completed theorems |
 | `--runs <n>` | `1` | Run the full benchmark N times back-to-back (each subsequent run uses force mode) |
 | `--no-retry-parse` | off | Don't retry parse errors — treat unparseable model output as a final result |
@@ -940,7 +942,9 @@ Each call to `getModel()` creates a new adapter instance (factory pattern). Adap
 - Package name changed in package.json
 - Response format unchanged
 
-**Token tracking:** Uses `response.usageMetadata` to report `promptTokenCount + candidatesTokenCount`.
+**Token tracking:** Uses `response.usageMetadata` to report `promptTokenCount + candidatesTokenCount`. Thinking tokens are tracked separately via `thinkingTokens` field in response.
+
+**Thinking token budget:** Configurable via `config.maxThinkingTokens` (default: 10000). Used to control extended reasoning time for complex theorems.
 
 **Retry behavior:** Exponential backoff with jitter on rate-limit errors:
 - Max retries: 5
@@ -960,9 +964,15 @@ Each call to `getModel()` creates a new adapter instance (factory pattern). Adap
 | Adapter name | The model identifier passed to constructor (e.g., `"anthropic/claude-sonnet-4.5"`) |
 | Request timeout | 300,000ms (5 minutes, for thinking models) |
 
-The OpenRouter adapter accepts any model identifier and routes it through the OpenRouter API. It maintains a `DISPLAY_NAMES` lookup table for well-known models (e.g., `"anthropic/claude-sonnet-4.5"` displays as `"Claude Sonnet 4.5"`); unknown models use the raw identifier as display name.
+The OpenRouter adapter accepts any model identifier and routes it through the OpenRouter API. It maintains a `DISPLAY_NAMES` lookup table for well-known models (e.g., `"anthropic/claude-sonnet-4.5"` displays as `"Claude Sonnet 4.5"`, `"anthropic/claude-opus-4-6"` displays as `"Claude Opus 4.6"`); unknown models use the raw identifier as display name.
 
-**Token tracking:** Uses `completion.usage.prompt_tokens + completion.usage.completion_tokens` (undefined if usage data is missing).
+**Token tracking:** Uses `completion.usage.prompt_tokens + completion.usage.completion_tokens` (undefined if usage data is missing). Thinking tokens are tracked separately via `finish_reason` and returned thinking token count when available.
+
+**Thinking token budget:** Configurable via `config.maxThinkingTokens` (default: 10000). When set, passes `reasoning: { max_tokens: N }` to the API for extended reasoning support.
+
+**Maximum effort mode:** Always passes `verbosity: "max"` on every API call. For Claude Opus 4.6, this enables maximum effort (highest quality responses). For other models, falls back to "high" automatically.
+
+**Opus 4.6 support:** Added to `DISPLAY_NAMES` and `MODEL_PRICING` with pricing of $5.00 input / $25.00 output per million tokens.
 
 **Response extraction:** `completion.choices[0]?.message?.content ?? ""`.
 
@@ -976,6 +986,8 @@ The OpenRouter adapter accepts any model identifier and routes it through the Op
 - **Consistent retry logic:** Both adapters use identical retry parameters (5 retries, 1s base delay, 2x exponential, 10% jitter). This ensures that rate-limit handling does not vary across providers and does not skew benchmark results.
 - **Immediate throw for non-transient errors:** Authentication failures, invalid model names, and other non-transient errors are thrown immediately without retrying, to fail fast and provide clear error messages.
 - **Factory-based registry:** `getModel()` returns a new instance each time, allowing the harness to use multiple instances of the same adapter concurrently if needed in future parallelization.
+- **Max verbosity for OpenRouter:** Always passes `verbosity: "max"` to enable maximum effort mode for Claude Opus 4.6 and other models that support it. This ensures the highest quality responses for complex proofs.
+- **Configurable thinking budgets:** Both adapters support `maxThinkingTokens` for adaptive reasoning time, allowing models to spend more tokens on difficult theorems while staying within cost constraints.
 
 ---
 
@@ -1360,8 +1372,9 @@ These stats endpoints require SQLite availability and return `503` if `propbench
 - Displays validCount, invalidCount, parseErrorCount, apiErrorCount, skippedCount counters
 - Progress bar and status messages
 - Default max tokens changed from 4096 to 16384
-- Numeric fields (max tokens, parallel workers, start index) use nullable types and can be fully cleared/emptied, showing placeholder text when empty instead of forcing a value
+- Numeric fields (max tokens, parallel workers, start index, max thinking tokens) use nullable types and can be fully cleared/emptied, showing placeholder text when empty instead of forcing a value
 - "Sequential Runs" input field for running benchmarks N times back-to-back
+- "Max thinking tokens" input field (1000-128000, default: 10000) for controlling thinking token budget on reasoning models
 
 **Proof Viewer (`components/ProofViewer.tsx`):**
 - Displays Fitch-style proofs with indentation and line numbers
@@ -1377,11 +1390,13 @@ These stats endpoints require SQLite availability and return `503` if `propbench
 - **Important:** When CLI model names/defaults change, this component must be updated per CLAUDE.md rules
 - Includes a "Parallel Workers" field for configuring concurrent API calls
 - "Sequential Runs" field for running benchmarks N times back-to-back
+- "Max thinking tokens" field (1000-128000, default: 10000) for controlling thinking token budget on reasoning models
 - "Force new run" checkbox: when enabled, passes `--force` to the harness to skip resume logic and run all theorems fresh
 - "Don't retry parse errors" checkbox: when enabled, passes `--no-retry-parse` to the harness so unparseable model output is treated as a final result rather than retried (see [Retry Policy](#retry-policy) for design rationale)
-- Numeric fields (max tokens, workers, start index, sequential runs) use nullable types (`number | null`) and can be fully cleared/emptied; placeholder text is shown when empty
+- Numeric fields (max tokens, workers, start index, sequential runs, max thinking tokens) use nullable types (`number | null`) and can be fully cleared/emptied; placeholder text is shown when empty
 - Auto-selects the theorem set that has the most recent benchmark run
 - **Continue incomplete run:** Toggle to resume a previously interrupted run. When enabled, shows a dropdown of incomplete runs (fetched via `api.getIndividualRuns()`, filtered to `status === "Incomplete"`). Selecting a run displays its settings as read-only info (model, set, temperature, max tokens, progress) and disables all other config fields except workers. Start button text changes to "Continue Run".
+- **OpenRouter preset auto-save:** Custom OpenRouter model identifiers typed into the text input are automatically saved to localStorage when a benchmark run starts. Saved models appear in the preset dropdown on subsequent visits, with built-in presets (Claude Opus 4.6, GPT-4o, Llama, DeepSeek, Mistral) always present.
 
 **Avg Lines by Difficulty Table (`components/AvgLinesByDifficultyTable.tsx`):**
 - Displays average proof line count per model per difficulty tier
@@ -1427,6 +1442,7 @@ These stats endpoints require SQLite availability and return `503` if `propbench
 - Displays real-time benchmark runner progress during a run
 - Shows human-readable model display names instead of raw adapter slugs (e.g., "Gemini 2.5 Flash Lite" instead of "gemini")
 - Uses a model display name mapping to translate CLI model identifiers to user-friendly labels
+- Includes Claude Opus 4.6 in display name mappings
 
 **Vite Proxy (`vite.config.ts`):**
 - **v2.5 fix:** Added SSE buffering fix by setting `cache-control` and `x-accel-buffering` headers in proxy configuration
