@@ -108,6 +108,11 @@ export class OpenRouterAdapter implements ModelAdapter {
         const thinking_tokens = (completion.usage as any)?.completion_tokens_details?.reasoning_tokens ?? undefined;
         const finish_reason = completion.choices[0]?.finish_reason ?? undefined;
 
+        // Debug: log full usage breakdown to diagnose token accounting anomalies
+        if (completion.usage) {
+          console.log(`[openrouter] Token usage for ${modelName}: ${JSON.stringify(completion.usage, null, 2)}`);
+        }
+
         return {
           raw_response,
           latency_ms,
