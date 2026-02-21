@@ -603,14 +603,18 @@ async function run(): Promise<void> {
 
     const MAX_ATTEMPTS = 10;
     const MAX_PARSE_ATTEMPTS = 3;
+    let quotaAborted = false;
 
     async function processWorkItem(item: WorkItem): Promise<void> {
+      if (quotaAborted) return;
+
       const benchThm = benchTheorems[item.theoremIndex];
       const adapter = adapters[item.adapterIndex];
       const theorem = toTheorem(benchThm);
       const progress = `[${item.itemNumber}/${totalItems}]`;
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        if (quotaAborted) return;
         if (attempt > 1) {
           const delay = Math.min(1000 * Math.pow(2, attempt - 2), 30_000);
           console.log(`${progress} ${benchThm.id} x ${adapter.displayName} — retrying (attempt ${attempt}) after ${delay}ms...`);
@@ -673,6 +677,17 @@ async function run(): Promise<void> {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           result.validation_errors = [`API error: ${msg}`];
+
+          // Detect unrecoverable quota errors (daily limits, limit: 0) — abort entire run
+          const msgLower = msg.toLowerCase();
+          if (msgLower.includes("per_day") || msgLower.includes("per_model_per_day") || (msgLower.includes("quota") && msgLower.includes("limit: 0"))) {
+            quotaAborted = true;
+            try { db.insertResult(setName, result, continueRunId); } catch {}
+            totalErrors++;
+            console.log(`  -> QUOTA EXHAUSTED — aborting run (daily limit reached)`);
+            return;
+          }
+
           if (attempt < MAX_ATTEMPTS) {
             console.log(`  -> API ERROR (will retry): ${msg}`);
             continue;
@@ -889,6 +904,17 @@ async function run(): Promise<void> {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           result.validation_errors = [`API error: ${msg}`];
+
+          // Detect unrecoverable quota errors (daily limits, limit: 0) — abort entire run
+          const msgLower = msg.toLowerCase();
+          if (msgLower.includes("per_day") || msgLower.includes("per_model_per_day") || (msgLower.includes("quota") && msgLower.includes("limit: 0"))) {
+            costAborted = true;
+            try { db.insertResult(setName, result, runIds.get(adapter.name)); } catch {}
+            totalErrors++;
+            console.log(`  -> QUOTA EXHAUSTED — aborting run (daily limit reached)`);
+            return;
+          }
+
           if (attempt < MAX_ATTEMPTS) {
             console.log(`  -> API ERROR (will retry): ${msg}`);
             continue;
