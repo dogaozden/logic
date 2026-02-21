@@ -272,6 +272,7 @@ PropBench uses two adapters: **direct Gemini** (via `GEMINI_API_KEY`) and **Open
 | `gemini-2.5-flash-lite-preview-09-2025` | Gemini 2.5 Flash Lite |
 | `gemini-3-flash-preview` | Gemini 3 Flash |
 | `gemini-3-pro-preview` | Gemini 3 Pro |
+| `gemini-3.1-pro-preview` | Gemini 3.1 Pro |
 
 ### OpenRouter Models
 

@@ -47,7 +47,9 @@ export class GeminiAdapter implements ModelAdapter {
             contents: fullPrompt,
             config: {
               temperature: config.temperature ?? 0.2,
-              maxOutputTokens: config.maxTokens ?? 4096,
+              // Gemini counts thinking tokens toward maxOutputTokens, so add
+              // the thinking budget on top of the desired output token limit.
+              maxOutputTokens: (config.maxTokens ?? 4096) + (config.maxThinkingTokens ?? 10000),
               thinkingConfig: { thinkingBudget: config.maxThinkingTokens ?? 10000 },
               abortSignal: controller.signal,
             },

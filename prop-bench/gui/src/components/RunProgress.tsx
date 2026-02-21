@@ -29,6 +29,7 @@ const MODEL_DISPLAY: Record<string, string> = {
   "gemini-2.5-flash-lite-preview-09-2025": "Gemini 2.5 Flash Lite",
   "gemini-3-flash-preview": "Gemini 3 Flash",
   "gemini-3-pro-preview": "Gemini 3 Pro",
+  "gemini-3.1-pro-preview": "Gemini 3.1 Pro",
   "gemini-2.5-pro": "Gemini 2.5 Pro",
   "gemini-2.5-flash": "Gemini 2.5 Flash",
   "gemini-2.0-flash": "Gemini 2.0 Flash",

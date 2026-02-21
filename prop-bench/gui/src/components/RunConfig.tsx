@@ -42,6 +42,7 @@ const MODEL_OPTIONS = [
   { key: "gemini-2.5-flash-lite-preview-09-2025", label: "Gemini 2.5 Flash Lite", envVar: "GEMINI_API_KEY" },
   { key: "gemini-3-flash-preview", label: "Gemini 3 Flash", envVar: "GEMINI_API_KEY" },
   { key: "gemini-3-pro-preview", label: "Gemini 3 Pro", envVar: "GEMINI_API_KEY" },
+  { key: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", envVar: "GEMINI_API_KEY" },
 ] as const;
 
 const BUILTIN_PRESETS: { key: string; label: string }[] = [
