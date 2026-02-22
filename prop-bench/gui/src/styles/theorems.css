@@ -710,3 +710,79 @@
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Light mode overrides — all hardcoded dark-mode colors in this file
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Difficulty badge variants ─────────────────────────────────────────── */
+/* Dark theme uses very low-opacity tints that wash out on a white background.
+   Light theme uses slightly higher-opacity tints of a darker shade + dark text. */
+
+[data-theme="light"] .difficulty-badge--baby {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+[data-theme="light"] .difficulty-badge--easy {
+  background: rgba(93, 126, 62, 0.12);
+  color: #4a6b2a;
+}
+
+[data-theme="light"] .difficulty-badge--medium {
+  background: rgba(196, 136, 29, 0.12);
+  color: #a06e10;
+}
+
+[data-theme="light"] .difficulty-badge--hard {
+  background: rgba(168, 70, 50, 0.12);
+  color: #a84632;
+}
+
+[data-theme="light"] .difficulty-badge--expert {
+  background: rgba(139, 92, 246, 0.1);
+  color: #7c3aed;
+}
+
+[data-theme="light"] .difficulty-badge--nightmare {
+  background: rgba(185, 28, 28, 0.1);
+  color: #b91c1c;
+}
+
+[data-theme="light"] .difficulty-badge--marathon {
+  background: rgba(234, 88, 12, 0.1);
+  color: #ea580c;
+}
+
+[data-theme="light"] .difficulty-badge--absurd {
+  background: rgba(219, 39, 119, 0.1);
+  color: #db2777;
+}
+
+[data-theme="light"] .difficulty-badge--cosmic {
+  background: rgba(79, 70, 229, 0.1);
+  color: #4f46e5;
+}
+
+[data-theme="light"] .difficulty-badge--mind {
+  background: rgba(2, 132, 199, 0.1);
+  color: #0284c7;
+}
+
+[data-theme="light"] .difficulty-badge--custom {
+  background: rgba(107, 101, 90, 0.1);
+  color: #6b635a;
+}
+
+/* ─── Proof viewer ──────────────────────────────────────────────────────── */
+
+/* Invalid proof line: very faint red tint — bump opacity slightly */
+[data-theme="light"] .proof-line--invalid {
+  background: rgba(168, 70, 50, 0.06);
+}
+
+/* Proof errors box: adjust tints for light bg */
+[data-theme="light"] .proof-errors {
+  background: rgba(168, 70, 50, 0.06);
+  border-color: rgba(168, 70, 50, 0.2);
+}

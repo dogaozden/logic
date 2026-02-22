@@ -21,6 +21,7 @@ pub fn run() {
             get_classic_theorems,
             generate_theorem,
             generate_theorem_with_value,
+            generate_theorem_by_tier,
             create_proof,
             apply_rule,
             open_subproof,

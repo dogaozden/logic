@@ -2,12 +2,12 @@ use tauri::{self, State};
 use std::sync::Mutex;
 use crate::models::{
     Formula, Proof, Theorem, UserStatistics, Justification,
-    theorem::{Difficulty, get_classic_theorems as get_classics},
+    theorem::{Difficulty, DifficultyTier, get_classic_theorems as get_classics},
     rules::{InferenceRule, EquivalenceRule, ProofTechnique},
 };
 use crate::services::{
     ProofVerifier, TheoremGenerator, StorageService, PortfolioEntry,
-    GeneratedTheorem,
+    GeneratedTheorem, ObfuscateGenerator,
 };
 use serde::{Deserialize, Serialize};
 
@@ -32,6 +32,19 @@ pub fn generate_theorem_with_value(difficulty_value: u8) -> Result<Theorem, Stri
     }
     let generator = TheoremGenerator::with_difficulty_value(difficulty_value);
     Ok(generator.generate_with_value(difficulty_value))
+}
+
+/// Generate a theorem using the 10-tier difficulty system (Baby through Mind).
+/// Uses DifficultySpec-based generation with multi-pass obfuscation pipeline.
+#[tauri::command]
+pub fn generate_theorem_by_tier(tier: String) -> Result<Theorem, String> {
+    let difficulty_tier = DifficultyTier::from_str(&tier)
+        .ok_or_else(|| format!(
+            "Unknown tier '{}'. Valid tiers: Baby, Easy, Medium, Hard, Expert, Nightmare, Marathon, Absurd, Cosmic, Mind",
+            tier
+        ))?;
+    let mut rng = rand::thread_rng();
+    Ok(ObfuscateGenerator::generate_with_tier(difficulty_tier, &mut rng))
 }
 
 /// Generate a theorem with its proof tree (solution)

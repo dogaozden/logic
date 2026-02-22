@@ -26,7 +26,7 @@ function BenchmarkRunner() {
     theoremSet: "v1",
     temperature: 0.2,
     maxTokens: 16384,
-    maxThinkingTokens: null,
+    maxThinkingTokens: 32768,
     workers: null,
     startIndex: null,
     count: "",

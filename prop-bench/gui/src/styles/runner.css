@@ -595,3 +595,41 @@ select.config-input {
   background: #7f1d1d;
   color: var(--error);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Light mode overrides — all hardcoded dark-mode colors in this file
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Error banner: dark maroon bg → subtle earth-tone red tint */
+[data-theme="light"] .runner-error {
+  background: rgba(168, 70, 50, 0.08);
+}
+
+/* Start button: muted olive green to match earth-tone palette */
+[data-theme="light"] .btn-start {
+  background: #5d7e3e;
+  color: #faf8f4;
+}
+
+[data-theme="light"] .btn-start:hover:not(:disabled) {
+  background: #4a6b2a;
+}
+
+/* Stop button: earth-tone red */
+[data-theme="light"] .btn-stop {
+  background: #a84632;
+  color: #faf8f4;
+}
+
+[data-theme="light"] .btn-stop:hover {
+  background: #8b3526;
+}
+
+/* Danger small button hover: light red tint */
+[data-theme="light"] .btn-sm--danger:hover {
+  background: rgba(168, 70, 50, 0.15);
+  color: var(--error);
+}
+
+/* Select dropdown arrow: stroke='%236b7280' (gray-500) is already readable
+   on light backgrounds, so no SVG override is needed here */

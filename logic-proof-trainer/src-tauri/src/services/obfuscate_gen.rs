@@ -11,7 +11,7 @@
 use rand::Rng;
 use crate::models::Formula;
 use crate::models::rules::equivalence::EquivalenceRule;
-use crate::models::theorem::{BaseComplexity, Difficulty, DifficultySpec, Theme, Theorem};
+use crate::models::theorem::{BaseComplexity, Difficulty, DifficultySpec, DifficultyTier, Theme, Theorem};
 use crate::services::truth_table::{is_tautology, is_tautology_dynamic};
 
 /// Configuration for obfuscation generation
@@ -280,6 +280,34 @@ impl ObfuscateGenerator {
 
     /// Generate an obfuscated theorem using a DifficultySpec (multi-pass pipeline).
     pub fn generate_with_spec(spec: &DifficultySpec, rng: &mut impl Rng) -> Theorem {
+        let formula = Self::run_spec_pipeline(spec, rng);
+
+        Theorem::with_difficulty_value(
+            vec![],
+            formula,
+            Difficulty::Expert,
+            100,
+            Some(Theme::Equivalence),
+            None,
+        )
+    }
+
+    /// Generate an obfuscated theorem for a specific DifficultyTier.
+    /// Sets the `tier` field on the returned Theorem.
+    pub fn generate_with_tier(tier: DifficultyTier, rng: &mut impl Rng) -> Theorem {
+        let spec = DifficultySpec::from_tier(tier);
+        let formula = Self::run_spec_pipeline(&spec, rng);
+
+        Theorem::from_tier(
+            vec![],
+            formula,
+            tier,
+            Some(Theme::Equivalence),
+        )
+    }
+
+    /// Core spec-based pipeline: generates a tautology formula from a DifficultySpec.
+    fn run_spec_pipeline(spec: &DifficultySpec, rng: &mut impl Rng) -> Formula {
         let config = ObfuscateConfig::from_spec(spec);
         let gen = ObfuscateGenerator::new(config);
 
@@ -318,14 +346,7 @@ impl ObfuscateGenerator {
             );
         }
 
-        Theorem::with_difficulty_value(
-            vec![],
-            formula,
-            Difficulty::Expert,
-            100,
-            Some(Theme::Equivalence),
-            None,
-        )
+        formula
     }
 
     /// Generate base theorem with explicit complexity control.

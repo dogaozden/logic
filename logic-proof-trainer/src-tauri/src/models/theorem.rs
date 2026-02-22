@@ -134,6 +134,25 @@ impl DifficultyTier {
             Self::Mind => "Mind",
         }
     }
+
+    /// Map a DifficultyTier to the legacy 4-level Difficulty for backward compatibility.
+    pub fn to_legacy_difficulty(&self) -> Difficulty {
+        match self {
+            Self::Baby | Self::Easy => Difficulty::Easy,
+            Self::Medium => Difficulty::Medium,
+            Self::Hard => Difficulty::Hard,
+            Self::Expert | Self::Nightmare | Self::Marathon
+            | Self::Absurd | Self::Cosmic | Self::Mind => Difficulty::Expert,
+        }
+    }
+
+    /// Return all tiers in order from easiest to hardest.
+    pub fn all() -> &'static [DifficultyTier] {
+        &[
+            Self::Baby, Self::Easy, Self::Medium, Self::Hard, Self::Expert,
+            Self::Nightmare, Self::Marathon, Self::Absurd, Self::Cosmic, Self::Mind,
+        ]
+    }
 }
 
 impl Difficulty {
@@ -195,6 +214,10 @@ pub struct Theorem {
     /// For classic theorems, this is derived from the preset difficulty.
     #[serde(default = "default_difficulty_value")]
     pub difficulty_value: u8,
+    /// The 10-level tier used to generate this theorem (Baby through Mind).
+    /// None for legacy theorems generated before the tier system.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tier: Option<DifficultyTier>,
     pub theme: Option<Theme>,
     pub name: Option<String>,
     pub is_classic: bool,
@@ -232,8 +255,29 @@ impl Theorem {
             conclusion,
             difficulty,
             difficulty_value,
+            tier: None,
             theme,
             name,
+            is_classic: false,
+        }
+    }
+
+    /// Create a theorem generated from a DifficultyTier.
+    pub fn from_tier(
+        premises: Vec<Formula>,
+        conclusion: Formula,
+        tier: DifficultyTier,
+        theme: Option<Theme>,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            premises,
+            conclusion,
+            difficulty: tier.to_legacy_difficulty(),
+            difficulty_value: 100, // Tier-based generation uses spec, not legacy value
+            tier: Some(tier),
+            theme,
+            name: None,
             is_classic: false,
         }
     }
@@ -278,6 +322,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             difficulty_value: Theorem::default_value_for_preset(Difficulty::Easy),
             theme: Some(Theme::ModusPonens),
             name: Some("Modus Ponens".to_string()),
+            tier: None,
             is_classic: true,
         },
         // 2. Modus Tollens
@@ -292,6 +337,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             difficulty_value: Theorem::default_value_for_preset(Difficulty::Easy),
             theme: Some(Theme::ModusTollens),
             name: Some("Modus Tollens".to_string()),
+            tier: None,
             is_classic: true,
         },
         // 3. Hypothetical Syllogism
@@ -306,6 +352,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             difficulty_value: Theorem::default_value_for_preset(Difficulty::Easy),
             theme: Some(Theme::HypotheticalSyllogism),
             name: Some("Hypothetical Syllogism".to_string()),
+            tier: None,
             is_classic: true,
         },
         // 4. Disjunctive Syllogism
@@ -320,6 +367,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             difficulty_value: Theorem::default_value_for_preset(Difficulty::Easy),
             theme: Some(Theme::DisjunctiveSyllogism),
             name: Some("Disjunctive Syllogism".to_string()),
+            tier: None,
             is_classic: true,
         },
         // 5. Constructive Dilemma
@@ -334,6 +382,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             difficulty_value: Theorem::default_value_for_preset(Difficulty::Medium),
             theme: Some(Theme::ConstructiveDilemma),
             name: Some("Constructive Dilemma".to_string()),
+            tier: None,
             is_classic: true,
         },
         // 6. Law of Excluded Middle (requires indirect proof)
@@ -345,6 +394,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             difficulty_value: Theorem::default_value_for_preset(Difficulty::Medium),
             theme: Some(Theme::IndirectProof),
             name: Some("Law of Excluded Middle".to_string()),
+            tier: None,
             is_classic: true,
         },
         // 7. Double Negation Elimination
@@ -356,6 +406,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             difficulty_value: Theorem::default_value_for_preset(Difficulty::Easy),
             theme: Some(Theme::DoubleNegation),
             name: Some("Double Negation Elimination".to_string()),
+            tier: None,
             is_classic: true,
         },
         // 8. Contraposition
@@ -367,6 +418,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             difficulty_value: Theorem::default_value_for_preset(Difficulty::Medium),
             theme: Some(Theme::ConditionalProof),
             name: Some("Contraposition".to_string()),
+            tier: None,
             is_classic: true,
         },
         // 9. DeMorgan's Law (And to Or)
@@ -378,6 +430,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             difficulty_value: Theorem::default_value_for_preset(Difficulty::Hard),
             theme: Some(Theme::Equivalence),
             name: Some("De Morgan (And to Or)".to_string()),
+            tier: None,
             is_classic: true,
         },
         // 10. DeMorgan's Law (Or to And)
@@ -389,6 +442,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             difficulty_value: Theorem::default_value_for_preset(Difficulty::Hard),
             theme: Some(Theme::Equivalence),
             name: Some("De Morgan (Or to And)".to_string()),
+            tier: None,
             is_classic: true,
         },
         // 11. Material Implication
@@ -400,6 +454,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             difficulty_value: Theorem::default_value_for_preset(Difficulty::Medium),
             theme: Some(Theme::Equivalence),
             name: Some("Material Implication".to_string()),
+            tier: None,
             is_classic: true,
         },
         // 12. Exportation
@@ -411,6 +466,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             difficulty_value: Theorem::default_value_for_preset(Difficulty::Hard),
             theme: Some(Theme::ConditionalProof),
             name: Some("Exportation".to_string()),
+            tier: None,
             is_classic: true,
         },
         // 13. Pierce's Law (requires indirect proof)
@@ -422,6 +478,7 @@ pub fn get_classic_theorems() -> Vec<Theorem> {
             difficulty_value: Theorem::default_value_for_preset(Difficulty::Expert),
             theme: Some(Theme::IndirectProof),
             name: Some("Peirce's Law".to_string()),
+            tier: None,
             is_classic: true,
         },
     ]

@@ -2,9 +2,11 @@ import React, { Suspense } from "react";
 import { Routes, Route, NavLink } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import { RunnerProvider } from "./context/RunnerContext";
+import { ThemeToggle } from "./components/ThemeToggle";
 
 const TheoremExplorer = React.lazy(() => import("./pages/TheoremExplorer"));
 const BenchmarkRunner = React.lazy(() => import("./pages/BenchmarkRunner"));
+const Leaderboard = React.lazy(() => import("./pages/Leaderboard"));
 
 function App() {
   return (
@@ -17,6 +19,9 @@ function App() {
           </div>
           <ul className="sidebar-nav">
             <li>
+              <NavLink to="/leaderboard">Leaderboard</NavLink>
+            </li>
+            <li>
               <NavLink to="/" end>
                 Dashboard
               </NavLink>
@@ -28,6 +33,9 @@ function App() {
               <NavLink to="/runner">Runner</NavLink>
             </li>
           </ul>
+          <div className="sidebar-footer">
+            <ThemeToggle />
+          </div>
         </nav>
         <main className="main-content">
           <Suspense fallback={<div className="loading">Loading...</div>}>
@@ -35,6 +43,7 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/theorems" element={<TheoremExplorer />} />
               <Route path="/runner" element={<BenchmarkRunner />} />
+              <Route path="/leaderboard" element={<Leaderboard />} />
             </Routes>
           </Suspense>
         </main>

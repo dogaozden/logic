@@ -1,5 +1,13 @@
 # PropBench Commands
 
+### Development server
+
+```bash
+cd ~/Documents/AI_Projects/logic/prop-bench/gui
+npm run dev
+# Runs both Vite frontend (http://localhost:3000) and Express backend (http://localhost:3001) concurrently
+```
+
 ## Setup
 
 ```bash

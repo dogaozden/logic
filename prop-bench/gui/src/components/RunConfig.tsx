@@ -275,7 +275,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
                 </select>
 
                 {selectedContinueRun && (
-                  <div className="continue-run-info" style={{ marginTop: "0.5rem", padding: "0.5rem", background: "var(--surface-2, #1a1a2e)", borderRadius: "6px", fontSize: "0.85rem" }}>
+                  <div className="continue-run-info" style={{ marginTop: "0.5rem", padding: "0.5rem", background: "var(--bg-tertiary)", borderRadius: "6px", fontSize: "0.85rem" }}>
                     <div><strong>Model:</strong> {selectedContinueRun.modelDisplay}</div>
                     <div><strong>Theorem set:</strong> {selectedContinueRun.setName}</div>
                     <div><strong>Temperature:</strong> {selectedContinueRun.temperature}</div>
@@ -357,9 +357,9 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
           <button
             style={{
               padding: "0.4rem 0.8rem",
-              background: "#3a3a5c",
-              color: "#e0e0e0",
-              border: "1px solid #555",
+              background: "var(--bg-hover)",
+              color: "var(--text-primary)",
+              border: "1px solid var(--border)",
               borderRadius: "4px",
               cursor: running || continueLocked ? "not-allowed" : "pointer",
               fontSize: "0.85rem",
@@ -387,11 +387,11 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
                     alignItems: "center",
                     gap: "0.3rem",
                     padding: "0.25rem 0.6rem",
-                    background: "#2a2a4a",
-                    border: "1px solid #555",
+                    background: "var(--bg-tertiary)",
+                    border: "1px solid var(--border)",
                     borderRadius: "12px",
                     fontSize: "0.8rem",
-                    color: "#e0e0e0",
+                    color: "var(--text-primary)",
                   }}
                 >
                   {preset ? preset.label : m}
@@ -401,7 +401,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
                     style={{
                       background: "none",
                       border: "none",
-                      color: "#999",
+                      color: "var(--text-muted)",
                       cursor: running || continueLocked ? "not-allowed" : "pointer",
                       padding: "0 2px",
                       fontSize: "0.9rem",
@@ -421,7 +421,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
           href="https://openrouter.ai/models"
           target="_blank"
           rel="noopener noreferrer"
-          style={{ fontSize: "0.75rem", color: "#888", marginTop: "0.4rem", display: "inline-block" }}
+          style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.4rem", display: "inline-block" }}
         >
           Browse all models at openrouter.ai/models
         </a>
@@ -523,7 +523,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
             })
           }
           disabled={running || continueLocked}
-          placeholder="10000"
+          placeholder="32768"
         />
       </div>
 
@@ -550,7 +550,7 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
             }}>
               {TIER_LABELS.map(({ key, label }) => (
                 <div key={key} style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-                  <span style={{ color: "#aaa", fontSize: "0.7rem", textAlign: "center" }}>{label}</span>
+                  <span style={{ color: "var(--text-secondary)", fontSize: "0.7rem", textAlign: "center" }}>{label}</span>
                   <input
                     className="config-input config-input--sm"
                     type="number"
@@ -577,8 +577,8 @@ function RunConfig({ config, onChange, running, onStart }: RunConfigProps) {
                 marginTop: "0.4rem",
                 padding: "0.2rem 0.6rem",
                 background: "transparent",
-                color: "#888",
-                border: "1px solid #555",
+                color: "var(--text-secondary)",
+                border: "1px solid var(--border)",
                 borderRadius: "4px",
                 cursor: running || continueLocked ? "not-allowed" : "pointer",
                 fontSize: "0.7rem",

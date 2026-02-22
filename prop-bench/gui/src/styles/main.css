@@ -21,6 +21,98 @@
   --sidebar-width: 220px;
 }
 
+/* ─── Light Theme ────────────────────────────────────────────────────────── */
+
+[data-theme="light"] {
+  /* Cream / earth-tone palette — inspired by Logic Proof Trainer */
+  --bg-primary:     #faf8f4;
+  --bg-secondary:   #f3efe8;
+  --bg-tertiary:    #e8e2d9;
+  --bg-hover:       #ddd6cb;
+  --border:         #d4cdc2;
+  --text-primary:   #2d2a26;
+  --text-secondary: #6b635a;
+  --text-muted:     #9e958a;
+  --accent:         #b5651d;
+  --accent-dim:     #cc7722;
+  --success:        #5d7e3e;
+  --error:          #a84632;
+  --warning:        #c4881d;
+}
+
+/* --- Light mode: danger button --- */
+[data-theme="light"] .generate-btn--danger {
+  background: rgba(168, 70, 50, 0.1);
+  color: #a84632;
+  border-color: rgba(168, 70, 50, 0.35);
+}
+
+[data-theme="light"] .generate-btn--danger:hover {
+  background: rgba(168, 70, 50, 0.2);
+  color: #8b3526;
+}
+
+/* --- Light mode: primary button hover text --- */
+[data-theme="light"] .generate-btn--primary:hover {
+  color: #faf8f4;
+}
+
+/* --- Light mode: modal backdrop --- */
+[data-theme="light"] .generate-modal-backdrop {
+  background: rgba(45, 42, 38, 0.35);
+}
+
+/* --- Light mode: head-to-head win/loss cells --- */
+[data-theme="light"] .h2h-cell--win {
+  background: rgba(93, 126, 62, 0.15);
+}
+
+[data-theme="light"] .h2h-cell--loss {
+  background: rgba(168, 70, 50, 0.12);
+}
+
+/* --- Light mode: failure segment api color --- */
+[data-theme="light"] .failure-segment--api {
+  background: #a84632;
+}
+
+/* --- Light mode: run status badges --- */
+[data-theme="light"] .run-status.finished {
+  background: rgba(93, 126, 62, 0.15);
+}
+
+[data-theme="light"] .run-status.running {
+  background: rgba(196, 136, 29, 0.15);
+}
+
+[data-theme="light"] .run-status.incomplete {
+  background: rgba(196, 136, 29, 0.18);
+  color: #c4881d;
+}
+
+[data-theme="light"] .run-status.finished-with-api-errors {
+  background: rgba(140, 80, 200, 0.12);
+  color: #7c3aed;
+}
+
+/* --- Light mode: model scorecard api count value --- */
+[data-theme="light"] .model-scorecard-count.--api .count-value {
+  color: #a84632;
+}
+
+/* --- Light mode: box-shadows (cards/modals gain a subtle shadow) --- */
+[data-theme="light"] .stat-card,
+[data-theme="light"] .model-summary-card,
+[data-theme="light"] .model-scorecard,
+[data-theme="light"] .model-difficulty-card,
+[data-theme="light"] .dashboard-set-picker {
+  box-shadow: 0 1px 4px rgba(45, 42, 38, 0.12);
+}
+
+[data-theme="light"] .generate-modal {
+  box-shadow: 0 8px 32px rgba(45, 42, 38, 0.18);
+}
+
 *,
 *::before,
 *::after {
@@ -79,6 +171,11 @@ body {
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 16px 20px;
 }
 
 .sidebar-nav {

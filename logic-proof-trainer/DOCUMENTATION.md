@@ -282,15 +282,16 @@ pub struct Theorem {
     pub id: String,
     pub premises: Vec<Formula>,
     pub conclusion: Formula,
-    pub difficulty: Difficulty,      // Easy, Medium, Hard, Expert
-    pub difficulty_value: u8,        // 1-100
-    pub theme: Option<Theme>,       // 13 theme variants (see below)
+    pub difficulty: Difficulty,            // Easy, Medium, Hard, Expert (legacy 4-level)
+    pub difficulty_value: u8,              // 1-100
+    pub tier: Option<DifficultyTier>,      // 10-tier system (Baby..Mind), set by generate_theorem_by_tier
+    pub theme: Option<Theme>,             // 13 theme variants (see below)
     pub name: Option<String>,
     pub is_classic: bool,
 }
 ```
 
-Default difficulty midpoints: Easy=13, Medium=35, Hard=58, Expert=85.
+Default difficulty midpoints: Easy=13, Medium=35, Hard=58, Expert=85. The `tier` field is `None` for legacy-generated theorems and `Some(tier)` for theorems generated via the 10-tier system. `DifficultyTier::to_legacy_difficulty()` maps tiers to the legacy Difficulty: Baby/Easy -> Easy, Medium -> Medium, Hard -> Hard, Expert+ -> Expert.
 
 **Theme enum** (13 variants): ModusPonens, ModusTollens, HypotheticalSyllogism, DisjunctiveSyllogism, ConstructiveDilemma, Conjunction, Disjunction, DoubleNegation, Biconditional, ConditionalProof, IndirectProof, Equivalence, Mixed. Each theme corresponds to the primary proof technique or rule demonstrated by the theorem.
 
@@ -324,11 +325,11 @@ pub struct DifficultySpec {
 }
 
 pub enum DifficultyTier {
-    Easy, Medium, Hard, Expert, Nightmare, Marathon, Absurd, Cosmic, Mind,
+    Baby, Easy, Medium, Hard, Expert, Nightmare, Marathon, Absurd, Cosmic, Mind,
 }
 ```
 
-DifficultySpec provides fine-grained control over theorem generation parameters. Tier presets are stored in `prop-bench/tier-presets.json` and served via API for GUI usage (see table below). `DifficultySpec::from_tier()` provides Rust-side fallback defaults for direct CLI usage (values differ slightly from tier-presets.json). `DifficultySpec::from_difficulty_value()` bridges the legacy 1-100 scale. These types do NOT modify the existing `Difficulty` enum used by the Tauri app.
+DifficultySpec provides fine-grained control over theorem generation parameters. Tier presets are stored in `prop-bench/tier-presets.json` and served via API for GUI usage (see table below). `DifficultySpec::from_tier()` provides Rust-side defaults for all 10 tiers. `DifficultySpec::from_difficulty_value()` bridges the legacy 1-100 scale. The `Theorem` struct now includes an optional `tier: Option<DifficultyTier>` field that is set when generated via `generate_theorem_by_tier`, providing the frontend with the exact tier used. The legacy `Difficulty` enum (4 levels) is preserved for backward compatibility via `DifficultyTier::to_legacy_difficulty()`.
 
 **Bridge atoms**: During obfuscation, the substitution layer partitions remaining atoms into groups, with each group replacing one base form atom. Bridge atoms are special variables that appear in multiple partition groups (typically 2), creating cross-zone logical dependencies. This prevents LLMs from decomposing theorems into independent subproblems, forcing integrated reasoning across the entire formula.
 
@@ -465,10 +466,12 @@ Key methods:
 - **Gnarly combos** (difficulty ≥85): Forces hard patterns like Contraposition+DeMorgan chains, Implication+Distribution combos
 - Simplification pass collapses excessive negations (~~~~P → P)
 - Tautology protection: only allows contraction (P∨P → P), not expansion
-- **Multi-pass spec-based generation** (`generate_with_spec()`):
+- **Multi-pass spec-based generation** (`generate_with_spec()` / `generate_with_tier()`):
   - `ObfuscateConfig::from_spec()` maps DifficultySpec fields to config
   - `build_atom_pool(n)` creates variable pools for >5 variables (P,Q,R,S,T + A,B,C,D,E,F,G,H...)
-  - Multi-pass pipeline: generate base → substitute → wrap as tautology → (transform + re-wrap) × N passes
+  - `run_spec_pipeline()` — shared core: generate base → substitute → wrap as tautology → (transform + verify) × N passes
+  - `generate_with_tier(tier)` — accepts a `DifficultyTier`, creates spec via `DifficultySpec::from_tier()`, sets `tier` field on returned Theorem
+  - `generate_with_spec(spec)` — accepts a raw `DifficultySpec` (used by PropBench), returns Theorem without tier field
   - `check_tautology()` auto-dispatches between u32 and dynamic truth table engines
   - Safety bounds: `MAX_FORMULA_DEPTH=100`, `MAX_FORMULA_NODES=10,000` prevent blowup
   - `base_complexity`: Simple uses standard base forms only; Complex includes ConstructiveDilemmaFull, NestedCP, Chain4
@@ -637,6 +640,7 @@ App (ErrorBoundary wraps all)
 | `get_classic_theorems` | - | `Vec<Theorem>` (13 theorems) |
 | `generate_theorem` | `difficulty: Difficulty` | `Theorem` |
 | `generate_theorem_with_value` | `difficulty_value: u8 (1-100)` | `Result<Theorem>` |
+| `generate_theorem_by_tier` | `tier: String` (e.g. "Baby", "Expert", "Mind") | `Result<Theorem>` — uses DifficultySpec multi-pass pipeline, sets `tier` field on returned Theorem |
 | `generate_theorem_with_proof` | `difficulty: Difficulty` | `GeneratedTheorem` (theorem + proof tree) | **Note: defined in commands.rs but not registered in lib.rs invoke_handler — currently inaccessible from frontend** |
 
 ### Proof Commands
@@ -961,7 +965,7 @@ PropBench is a companion project in the `prop-bench/` directory that uses the Lo
 PropBench consists of:
 - **TypeScript harness** (`harness.ts`) — Orchestrates benchmark runs, calls LLM APIs, parses outputs
 - **Rust CLI** (`src/main.rs`) — Wraps the Logic Proof Trainer backend for validation
-- **Web GUI** (`gui/`) — React frontend + Express backend for running benchmarks visually
+- **Web GUI** (`gui/`) — React frontend + Express backend with Dashboard, Theorem Explorer, Benchmark Runner, and Leaderboard pages
 - **Model adapters** (`models/`) — Gemini direct adapter + OpenRouter adapter for all other models
 - **Tier presets** (`tier-presets.json`) — Editable difficulty tier configurations loaded by GUI and CLI
 
@@ -1022,6 +1026,7 @@ PropBench consists of:
 - `ProofViewer.tsx`: Added latency display in milliseconds
 - `TheoremDetail.tsx`: Passes rawResponse and latencyMs to ProofViewer
 - `theorems.css`: Added styles for raw response viewer
+- `Leaderboard.tsx`: Leaderboard page aggregating benchmark results across models with sortable columns for accuracy, average lines, cost, and latency per difficulty tier
 - `vite.config.ts`: Added SSE proxy buffering fix (cache-control, x-accel-buffering headers)
 
 **Tier Presets Configuration**:

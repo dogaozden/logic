@@ -2,19 +2,16 @@ import React, { useState } from 'react';
 import { useTheorems, CURATED_EXAMPLES } from '../../hooks/useTheorems';
 import { useProof } from '../../hooks/useProof';
 import type { Difficulty } from '../../types';
-import { difficultyColor } from '../../types';
-import { FormulaDisplay } from '../FormulaDisplay';
+import { ALL_DIFFICULTIES, difficultyColor, difficultyLabel } from '../../types';
 import { CustomTheoremModal } from './CustomTheoremModal';
 
-const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert'];
-
-// Unified difficulty mode - either preset or custom value
+// Unified difficulty mode - either a tier or custom value
 type DifficultyMode =
-  | { type: 'preset'; value: Difficulty }
+  | { type: 'tier'; value: Difficulty }
   | { type: 'custom'; value: number };
 
 export const TheoremList: React.FC = () => {
-  const { generateTheorem, generateTheoremWithValue, selectTheorem } = useTheorems();
+  const { generateTheoremByTier, generateTheoremWithValue, selectTheorem } = useTheorems();
   const { createProof } = useProof();
 
   const [difficultyMode, setDifficultyMode] = useState<DifficultyMode | null>(null);
@@ -23,7 +20,7 @@ export const TheoremList: React.FC = () => {
   const [showCustomModal, setShowCustomModal] = useState(false);
 
   const handleCardClick = (difficulty: Difficulty) => {
-    setDifficultyMode({ type: 'preset', value: difficulty });
+    setDifficultyMode({ type: 'tier', value: difficulty });
   };
 
   const handleCustomInputChange = (value: string) => {
@@ -47,8 +44,8 @@ export const TheoremList: React.FC = () => {
     setIsGenerating(true);
     try {
       let theorem;
-      if (difficultyMode.type === 'preset') {
-        theorem = await generateTheorem(difficultyMode.value);
+      if (difficultyMode.type === 'tier') {
+        theorem = await generateTheoremByTier(difficultyMode.value);
       } else {
         theorem = await generateTheoremWithValue(difficultyMode.value);
       }
@@ -59,8 +56,8 @@ export const TheoremList: React.FC = () => {
     }
   };
 
-  const isPresetSelected = (difficulty: Difficulty) =>
-    difficultyMode?.type === 'preset' && difficultyMode.value === difficulty;
+  const isTierSelected = (difficulty: Difficulty) =>
+    difficultyMode?.type === 'tier' && difficultyMode.value === difficulty;
 
   const isCustomSelected = difficultyMode?.type === 'custom';
 
@@ -70,68 +67,47 @@ export const TheoremList: React.FC = () => {
         <h2>Theorems</h2>
       </div>
 
-      {/* Stacked Difficulty Cards */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {DIFFICULTIES.map((difficulty) => {
+      {/* Scrollable 10-Tier Cards */}
+      <div className="tier-card-list">
+        {ALL_DIFFICULTIES.map((difficulty) => {
           const example = CURATED_EXAMPLES[difficulty];
-          const isSelected = isPresetSelected(difficulty);
+          const isSelected = isTierSelected(difficulty);
           const color = difficultyColor(difficulty);
+          // For cosmic/mind with light colors, use dark text on the badge
+          const badgeTextColor = (difficulty === 'cosmic') ? '#333' : 'white';
 
           return (
             <div
               key={difficulty}
+              className={`tier-card ${isSelected ? 'tier-card-selected' : ''}`}
               onClick={() => handleCardClick(difficulty)}
               style={{
-                padding: '12px',
-                background: isSelected ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
-                borderRadius: '8px',
-                border: `2px solid ${isSelected ? color : 'var(--border)'}`,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
+                borderColor: isSelected ? color : undefined,
               }}
             >
               {/* Card Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  color: isSelected ? color : 'var(--text-primary)',
-                  textTransform: 'capitalize',
-                }}>
-                  {difficulty}
+              <div className="tier-card-header">
+                <span
+                  className="tier-card-name"
+                  style={{ color: isSelected ? color : undefined }}
+                >
+                  {difficultyLabel(difficulty)}
                 </span>
                 <span
-                  style={{
-                    fontSize: '0.65rem',
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    backgroundColor: color,
-                    color: 'white',
-                  }}
+                  className="tier-card-badge"
+                  style={{ backgroundColor: color, color: badgeTextColor }}
                 >
-                  {example.theorem.name}
+                  {example.benchmarkId}
                 </span>
               </div>
 
-              {/* Formula */}
-              <div style={{ fontSize: '0.85rem', fontFamily: 'var(--font-mono)', marginBottom: '4px' }}>
-                {example.theorem.premises.length > 0 && (
-                  <>
-                    {example.theorem.premises.map((p, i) => (
-                      <React.Fragment key={i}>
-                        <FormulaDisplay formula={p} />
-                        {i < example.theorem.premises.length - 1 ? ', ' : ''}
-                      </React.Fragment>
-                    ))}
-                    {' ∴ '}
-                  </>
-                )}
-                {example.theorem.premises.length === 0 && '∴ '}
-                <FormulaDisplay formula={example.theorem.conclusion} />
+              {/* Formula preview */}
+              <div className="tier-card-formula">
+                {'\u2234 '}{example.formulaString}
               </div>
 
               {/* Description */}
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>
+              <p className="tier-card-desc">
                 {example.description}
               </p>
             </div>
@@ -140,7 +116,7 @@ export const TheoremList: React.FC = () => {
       </div>
 
       {/* Custom Difficulty Input + Action Buttons at Bottom */}
-      <div style={{ padding: '12px', borderTop: '1px solid var(--border)' }}>
+      <div className="tier-bottom-panel">
         {/* Custom difficulty input */}
         <div style={{ marginBottom: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
@@ -154,22 +130,11 @@ export const TheoremList: React.FC = () => {
               value={customInputValue}
               onChange={(e) => handleCustomInputChange(e.target.value)}
               onFocus={handleCustomInputFocus}
-              style={{
-                width: '60px',
-                padding: '4px 8px',
-                fontSize: '0.8rem',
-                border: `2px solid ${isCustomSelected ? 'var(--accent)' : 'var(--border)'}`,
-                borderRadius: '4px',
-                background: 'var(--bg-secondary)',
-                color: 'var(--text-primary)',
-              }}
+              className={`tier-custom-input ${isCustomSelected ? 'tier-custom-input-active' : ''}`}
               placeholder="1-100"
               title="Custom difficulty (1-100)"
             />
           </div>
-          <p style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', margin: 0 }}>
-            1-25 easy · 26-45 medium · 46-70 hard · 71-100 expert
-          </p>
         </div>
 
         {/* Action Buttons */}

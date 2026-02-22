@@ -4,6 +4,7 @@ import { useTheorems } from '../../hooks/useTheorems';
 import { useProof } from '../../hooks/useProof';
 import { SymbolToolbar } from '../shared/SymbolToolbar';
 import type { Theorem, Difficulty, Formula } from '../../types';
+import { ALL_DIFFICULTIES, difficultyLabel, difficultyColor } from '../../types';
 
 interface CustomTheoremModalProps {
   isOpen: boolean;
@@ -180,10 +181,16 @@ export const CustomTheoremModal: React.FC<CustomTheoremModalProps> = ({
 
   const getDifficultyValue = (d: Difficulty): number => {
     switch (d) {
+      case 'baby': return 10;
       case 'easy': return 20;
       case 'medium': return 40;
       case 'hard': return 60;
-      case 'expert': return 85;
+      case 'expert': return 80;
+      case 'nightmare': return 90;
+      case 'marathon': return 98;
+      case 'absurd': return 100;
+      case 'cosmic': return 100;
+      case 'mind': return 100;
     }
   };
 
@@ -348,14 +355,18 @@ export const CustomTheoremModal: React.FC<CustomTheoremModalProps> = ({
         <div className="custom-theorem-field">
           <label className="custom-theorem-label">Difficulty</label>
           <div className="difficulty-selector">
-            {(['easy', 'medium', 'hard', 'expert'] as Difficulty[]).map(d => (
+            {ALL_DIFFICULTIES.map(d => (
               <button
                 key={d}
                 className={`btn ${difficulty === d ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setDifficulty(d)}
-                style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                style={{
+                  fontSize: '0.7rem',
+                  padding: '4px 8px',
+                  borderColor: difficulty === d ? difficultyColor(d) : undefined,
+                }}
               >
-                {d}
+                {difficultyLabel(d)}
               </button>
             ))}
           </div>

@@ -141,6 +141,10 @@ describe('justificationToString', () => {
 });
 
 describe('difficultyColor', () => {
+  it('should return light blue for baby', () => {
+    expect(difficultyColor('baby')).toBe('#81d4fa');
+  });
+
   it('should return green for easy', () => {
     expect(difficultyColor('easy')).toBe('#4caf50');
   });
@@ -155,5 +159,25 @@ describe('difficultyColor', () => {
 
   it('should return purple for expert', () => {
     expect(difficultyColor('expert')).toBe('#9c27b0');
+  });
+
+  it('should return dark red for nightmare', () => {
+    expect(difficultyColor('nightmare')).toBe('#b71c1c');
+  });
+
+  it('should return dark purple for marathon', () => {
+    expect(difficultyColor('marathon')).toBe('#4a148c');
+  });
+
+  it('should return hot pink for absurd', () => {
+    expect(difficultyColor('absurd')).toBe('#e91e63');
+  });
+
+  it('should return gold for cosmic', () => {
+    expect(difficultyColor('cosmic')).toBe('#ffd600');
+  });
+
+  it('should return silver for mind', () => {
+    expect(difficultyColor('mind')).toBe('#b0bec5');
   });
 });

@@ -8,8 +8,14 @@ export type Formula =
   | { type: 'Biconditional'; value: [Formula, Formula] }
   | { type: 'Contradiction' };
 
-// Difficulty levels
-export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert';
+// Difficulty levels - 10 PropBench tiers
+export type Difficulty = 'baby' | 'easy' | 'medium' | 'hard' | 'expert' | 'nightmare' | 'marathon' | 'absurd' | 'cosmic' | 'mind';
+
+// Ordered list of all tiers for iteration
+export const ALL_DIFFICULTIES: Difficulty[] = [
+  'baby', 'easy', 'medium', 'hard', 'expert',
+  'nightmare', 'marathon', 'absurd', 'cosmic', 'mind',
+];
 
 // Theorem themes
 export type Theme =
@@ -353,6 +359,8 @@ export function justificationToString(j: Justification): string {
 
 export function difficultyColor(d: Difficulty): string {
   switch (d) {
+    case 'baby':
+      return '#81d4fa';
     case 'easy':
       return '#4caf50';
     case 'medium':
@@ -361,5 +369,31 @@ export function difficultyColor(d: Difficulty): string {
       return '#f44336';
     case 'expert':
       return '#9c27b0';
+    case 'nightmare':
+      return '#b71c1c';
+    case 'marathon':
+      return '#4a148c';
+    case 'absurd':
+      return '#e91e63';
+    case 'cosmic':
+      return '#ffd600';
+    case 'mind':
+      return '#b0bec5';
+  }
+}
+
+/** Human-readable display label for a difficulty tier */
+export function difficultyLabel(d: Difficulty): string {
+  switch (d) {
+    case 'baby': return 'Baby';
+    case 'easy': return 'Easy';
+    case 'medium': return 'Medium';
+    case 'hard': return 'Hard';
+    case 'expert': return 'Expert';
+    case 'nightmare': return 'Nightmare';
+    case 'marathon': return 'Marathon';
+    case 'absurd': return 'Absurd';
+    case 'cosmic': return 'Cosmic';
+    case 'mind': return 'Mind';
   }
 }
