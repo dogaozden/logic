@@ -1,0 +1,16 @@
+.DS_Store
+.claude/.DS_Store
+.venv/
+# Sensitive data
+prop-bench/benchmarks/
+prop-bench/*.db
+prop-bench/*.db-shm
+prop-bench/*.db-wal
+prop-bench/.env
+prop-bench/results/
+
+# Node stuff
+node_modules/
+dist/
+target/
+
