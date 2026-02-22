@@ -8,6 +8,12 @@ dotenv.config({ path: path.resolve(__dirname2, "..", "..", ".env"), override: tr
 
 import express from "express";
 import cors from "cors";
+import { createRequire } from "node:module";
+
+// Ensure DB schema exists on server startup
+const require_ = createRequire(import.meta.url);
+const dbModule: any = require_("../../db");
+try { dbModule.initSchema(); } catch (e: any) { console.warn("[propbench] DB init failed:", e.message); }
 
 import generateRoutes from "./routes/generate";
 import validateRoutes from "./routes/validate";

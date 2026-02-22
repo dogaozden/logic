@@ -20,6 +20,10 @@ After implementing any new feature or fix, always build and install the release 
 
 After implementing any new feature or fix, *ALWAYS* update documentation.md in /logic-proof-trainer
 
+## Deploy Public Repos
+
+After implementing any new feature or fix, *ALWAYS* run `bash deploy.sh` from the repo root to update the public repos at `~/Documents/AI_Projects/propbench/` and `~/Documents/AI_Projects/logic-proof-trainer/`.
+
 ## PropBench: Keep GUI in sync with CLI
 
 When changing model names, default parameters, CLI arguments, or any configuration in the PropBench CLI or harness (`prop-bench/models/`, `prop-bench/harness.ts`, `prop-bench/config.ts`), always update the corresponding GUI code to match:

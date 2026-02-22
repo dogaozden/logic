@@ -23,7 +23,7 @@ function BenchmarkRunner() {
 
   const [config, setConfig] = useState<RunConfigValues>({
     models: [],
-    theoremSet: "v1",
+    theoremSet: "",
     temperature: 0.2,
     maxTokens: 16384,
     maxThinkingTokens: 32768,
