@@ -36,16 +36,8 @@ rsync -a \
   --exclude='*.db' \
   --exclude='*.db-shm' \
   --exclude='*.db-wal' \
-  --exclude='Cargo.lock' \
-  --exclude='package-lock.json' \
-  --exclude='*.js' \
-  --exclude='*.js.map' \
-  --exclude='*.d.ts' \
   --exclude='.claude/' \
   --exclude='benchmarks/' \
-  --exclude='gui/node_modules/' \
-  --exclude='gui/dist/' \
-  --exclude='gui/package-lock.json' \
   "$MONO/prop-bench/" "$DEST_PB/"
 
 echo "  Creating empty benchmarks/ directory..."
@@ -92,8 +84,7 @@ echo "  Updating Cargo.toml path dependency..."
 sed -i '' 's|path = "../logic-proof-trainer/src-tauri"|path = "logic-lib"|g' "$DEST_PB/Cargo.toml"
 
 echo "  Updating ARCHITECTURE.md path references..."
-sed -i '' 's|path = "../logic-proof-trainer/src-tauri"|path = "logic-lib"|g' "$DEST_PB/ARCHITECTURE.md"
-sed -i '' 's|logic-proof-trainer/src-tauri/|logic-lib/src/|g' "$DEST_PB/ARCHITECTURE.md"
+sed -i '' 's|logic-proof-trainer/src-tauri|logic-lib|g' "$DEST_PB/ARCHITECTURE.md"
 
 echo "  Building Rust binary..."
 (cd "$DEST_PB" && cargo build --release 2>&1 | tail -1)
